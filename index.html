@@ -88,6 +88,12 @@
                   <span id="txtBrowserNotif">Avisos de escritorio</span>
                 </button>
               </div>
+              <div class="alert-setting-row">
+                <button id="btnOpenTelegramModal" class="btn-telegram-config" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  <span>📱 Alertas Móvil (Telegram & Auto-Sync)</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -339,6 +345,100 @@
       </div>
       <div class="modal-body modal-body-fullscreen" id="fullscreenChartContainer">
         <!-- Widget interactivo inyectado dinámicamente -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Configuración de Telegram y Auto-Sync -->
+  <div id="telegramModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <div class="modal-icon-badge badge-telegram">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title">Alertas Móviles (Telegram) & Auto-Sync</h3>
+            <p class="modal-subtitle">Recibe notificaciones push en tu teléfono cuando los activos entren en Zona Áurea</p>
+          </div>
+        </div>
+        <button id="btnCloseTelegramModal" class="modal-close-btn">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Guía rápida de configuración -->
+        <div class="telegram-guide-box">
+          <div class="guide-title">
+            <span>⚡ Cómo configurar tu bot de Telegram en 1 minuto:</span>
+          </div>
+          <ol class="guide-steps">
+            <li>Abre Telegram en tu móvil o PC, busca <strong>@BotFather</strong> y escribe <code>/newbot</code>. Te dará tu <strong>Bot Token</strong>.</li>
+            <li>Abre el bot que acabas de crear y pulsa <strong>INICIAR</strong> (comando <code>/start</code>).</li>
+            <li>Busca <strong>@userinfobot</strong> en Telegram y pulsa Iniciar para ver tu <strong>Chat ID</strong> numérico.</li>
+          </ol>
+        </div>
+
+        <div class="form-group toggle-row-group">
+          <div class="toggle-row-label">
+            <strong>Activar Notificaciones en Telegram</strong>
+            <span class="form-hint">Enviar mensajes automáticos a tu móvil al detectar oportunidades</span>
+          </div>
+          <label class="switch-toggle">
+            <input type="checkbox" id="tgEnabledToggle" checked>
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="tgBotTokenInput">Bot Token de Telegram *</label>
+          <input type="text" id="tgBotTokenInput" class="form-input" placeholder="Ej: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz..." autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="tgChatIdInput">Chat ID de Telegram *</label>
+          <div class="input-with-button">
+            <input type="text" id="tgChatIdInput" class="form-input" placeholder="Ej: 123456789" autocomplete="off">
+            <button id="btnTestTelegram" class="btn btn-secondary btn-sm" type="button">
+              📲 Probar en Móvil
+            </button>
+          </div>
+          <span class="form-hint">Pulsa "Probar en Móvil" para enviar un mensaje de prueba instantáneo a tu Telegram.</span>
+        </div>
+
+        <div id="tgTestResultBox" class="tg-result-box" style="display: none;"></div>
+
+        <div class="form-group">
+          <label class="form-label" for="syncIntervalSelect">Frecuencia de Auto-Actualización de Precios</label>
+          <select id="syncIntervalSelect" class="form-input">
+            <option value="15">Cada 15 minutos</option>
+            <option value="30">Cada 30 minutos (Recomendado)</option>
+            <option value="60">Cada 1 hora</option>
+            <option value="120">Cada 2 horas</option>
+            <option value="0">Desactivado (Solo manual)</option>
+          </select>
+          <span class="form-hint">El monitor comprobará cotizaciones de mercado en segundo plano y enviará alertas cuando detecte entradas.</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Criterios de Alerta</label>
+          <div class="checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="chkNotifyGolden" checked>
+              <span>Avisar cuando un activo entre en la <strong>Zona Áurea (61.8%)</strong></span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="chkNotifyConfluence" checked>
+              <span>Avisar cuando el <strong>Score de Confluencia sea ≥ 70/100</strong> (RSI + SMA 200)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnCancelTelegramModal" class="btn btn-secondary">Cancelar</button>
+        <button id="btnSaveTelegramSettings" class="btn btn-primary">
+          <span id="txtSaveTelegram">Guardar Configuración</span>
+        </button>
       </div>
     </div>
   </div>

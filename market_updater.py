@@ -302,6 +302,13 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
     elif not webhook_url:
         print("\nℹ️ [Nota]: No hay webhook configurado para Google Sheets.")
 
+    # Enviar alertas a Telegram si está configurado
+    try:
+        import telegram_notifier
+        telegram_notifier.dispatch_telegram_alerts(payload, config)
+    except Exception as e:
+        print(f"⚠️ [Telegram] Error procesando alertas: {e}")
+
     return payload
 
 def main():

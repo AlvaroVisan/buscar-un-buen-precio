@@ -1,6 +1,18 @@
 {
   "webhook_url": "https://script.google.com/macros/s/AKfycbw8X4Z_Uz4bpcbttl358uR1tW8is_oXOnMI15ZMtpZm8mrgObBXYXm0Dg6LIVuaYmXW/exec",
   "period": "3mo",
+  "telegram": {
+    "enabled": false,
+    "bot_token": "",
+    "chat_id": "",
+    "min_score": 70,
+    "notify_on_golden_zone": true,
+    "notify_on_high_confluence": true
+  },
+  "scheduler": {
+    "enabled": true,
+    "interval_minutes": 30
+  },
   "assets": [
     {
       "tab": "AMD",

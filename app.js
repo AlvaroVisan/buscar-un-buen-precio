@@ -245,6 +245,44 @@ function setupModalEventListeners() {
     });
   }
 
+  // --- Modal Telegram & Auto-Sync ---
+  const btnOpenTelegramModal = document.getElementById("btnOpenTelegramModal");
+  const btnCloseTelegramModal = document.getElementById("btnCloseTelegramModal");
+  const btnCancelTelegramModal = document.getElementById("btnCancelTelegramModal");
+  const btnTestTelegram = document.getElementById("btnTestTelegram");
+  const btnSaveTelegramSettings = document.getElementById("btnSaveTelegramSettings");
+
+  if (btnOpenTelegramModal) {
+    btnOpenTelegramModal.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const alertsDropdown = document.getElementById("alertsDropdown");
+      if (alertsDropdown) alertsDropdown.style.display = "none";
+      openTelegramModal();
+    });
+  }
+
+  [btnCloseTelegramModal, btnCancelTelegramModal].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const modal = document.getElementById("telegramModal");
+        if (modal) modal.style.display = "none";
+      });
+    }
+  });
+
+  if (btnTestTelegram) {
+    btnTestTelegram.addEventListener("click", async () => {
+      await testTelegramAction();
+    });
+  }
+
+  if (btnSaveTelegramSettings) {
+    btnSaveTelegramSettings.addEventListener("click", async () => {
+      await saveTelegramSettingsAction();
+    });
+  }
+
   // Cerrar modales con Escape y backdrop click
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -264,8 +302,10 @@ function setupModalEventListeners() {
 function closeAllModals() {
   const addModal = document.getElementById("addAssetModal");
   const delModal = document.getElementById("deleteAssetModal");
+  const tgModal = document.getElementById("telegramModal");
   if (addModal) addModal.style.display = "none";
   if (delModal) delModal.style.display = "none";
+  if (tgModal) tgModal.style.display = "none";
   closeFullscreenChart();
   pendingDeleteTicker = null;
 }
@@ -275,6 +315,165 @@ function closeFullscreenChart() {
   const container = document.getElementById("fullscreenChartContainer");
   if (chartModal) chartModal.style.display = "none";
   if (container) container.innerHTML = "";
+}
+
+async function openTelegramModal() {
+  const modal = document.getElementById("telegramModal");
+  if (modal) modal.style.display = "flex";
+
+  const tgEnabledToggle = document.getElementById("tgEnabledToggle");
+  const tgBotTokenInput = document.getElementById("tgBotTokenInput");
+  const tgChatIdInput = document.getElementById("tgChatIdInput");
+  const syncIntervalSelect = document.getElementById("syncIntervalSelect");
+  const chkNotifyGolden = document.getElementById("chkNotifyGolden");
+  const chkNotifyConfluence = document.getElementById("chkNotifyConfluence");
+  const resultBox = document.getElementById("tgTestResultBox");
+
+  if (resultBox) {
+    resultBox.style.display = "none";
+    resultBox.textContent = "";
+  }
+
+  try {
+    const resp = await fetch("/api/scheduler/status");
+    if (resp.ok) {
+      const data = await resp.json();
+      const tg = data.telegram || {};
+      if (tgEnabledToggle) tgEnabledToggle.checked = tg.enabled !== false;
+      if (tgBotTokenInput) tgBotTokenInput.value = tg.bot_token || "";
+      if (tgChatIdInput) tgChatIdInput.value = tg.chat_id || "";
+      if (chkNotifyGolden) chkNotifyGolden.checked = tg.notify_on_golden_zone !== false;
+      if (chkNotifyConfluence) chkNotifyConfluence.checked = tg.notify_on_high_confluence !== false;
+      if (syncIntervalSelect) {
+        if (!data.enabled) {
+          syncIntervalSelect.value = "0";
+        } else {
+          syncIntervalSelect.value = String(data.interval_minutes || 30);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Error cargando configuración de Telegram:", e);
+  }
+
+  if (modal) modal.style.display = "flex";
+}
+
+async function testTelegramAction() {
+  const tokenInput = document.getElementById("tgBotTokenInput");
+  const chatInput = document.getElementById("tgChatIdInput");
+  const resultBox = document.getElementById("tgTestResultBox");
+  const btnTest = document.getElementById("btnTestTelegram");
+
+  const bot_token = tokenInput ? tokenInput.value.trim() : "";
+  const chat_id = chatInput ? chatInput.value.trim() : "";
+
+  if (!bot_token || !chat_id) {
+    if (resultBox) {
+      resultBox.className = "tg-result-box error";
+      resultBox.textContent = "Introduce el Bot Token y el Chat ID antes de realizar la prueba.";
+      resultBox.style.display = "block";
+    }
+    return;
+  }
+
+  try {
+    if (btnTest) {
+      btnTest.disabled = true;
+      btnTest.textContent = "Enviando...";
+    }
+    if (resultBox) resultBox.style.display = "none";
+
+    const resp = await fetch("/api/telegram/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bot_token, chat_id })
+    });
+
+    const data = await resp.json();
+    if (resultBox) {
+      resultBox.style.display = "block";
+      if (data.success) {
+        resultBox.className = "tg-result-box success";
+        resultBox.textContent = "✅ ¡Mensaje de prueba recibido en tu Telegram con éxito! Comprueba tu móvil.";
+      } else {
+        resultBox.className = "tg-result-box error";
+        resultBox.textContent = `❌ Error de Telegram: ${data.message || "No se pudo entregar el mensaje"}`;
+      }
+    }
+  } catch (err) {
+    if (resultBox) {
+      resultBox.className = "tg-result-box error";
+      resultBox.textContent = `❌ Error de conexión al probar Telegram: ${err.message}`;
+      resultBox.style.display = "block";
+    }
+  } finally {
+    if (btnTest) {
+      btnTest.disabled = false;
+      btnTest.textContent = "📲 Probar en Móvil";
+    }
+  }
+}
+
+async function saveTelegramSettingsAction() {
+  const tgEnabledToggle = document.getElementById("tgEnabledToggle");
+  const tokenInput = document.getElementById("tgBotTokenInput");
+  const chatInput = document.getElementById("tgChatIdInput");
+  const syncIntervalSelect = document.getElementById("syncIntervalSelect");
+  const chkNotifyGolden = document.getElementById("chkNotifyGolden");
+  const chkNotifyConfluence = document.getElementById("chkNotifyConfluence");
+  const btnSave = document.getElementById("btnSaveTelegramSettings");
+  const txtSave = document.getElementById("txtSaveTelegram");
+
+  const enabled = tgEnabledToggle ? tgEnabledToggle.checked : true;
+  const bot_token = tokenInput ? tokenInput.value.trim() : "";
+  const chat_id = chatInput ? chatInput.value.trim() : "";
+  const interval_val = syncIntervalSelect ? parseInt(syncIntervalSelect.value, 10) : 30;
+  const notify_on_golden_zone = chkNotifyGolden ? chkNotifyGolden.checked : true;
+  const notify_on_high_confluence = chkNotifyConfluence ? chkNotifyConfluence.checked : true;
+
+  try {
+    if (btnSave) btnSave.disabled = true;
+    if (txtSave) txtSave.textContent = "Guardando...";
+
+    // 1. Guardar Telegram
+    const respTg = await fetch("/api/telegram/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        enabled,
+        bot_token,
+        chat_id,
+        min_score: 70,
+        notify_on_golden_zone,
+        notify_on_high_confluence
+      })
+    });
+
+    // 2. Guardar Scheduler
+    const respSched = await fetch("/api/scheduler/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        enabled: interval_val > 0,
+        interval_minutes: interval_val > 0 ? interval_val : 30
+      })
+    });
+
+    if (respTg.ok && respSched.ok) {
+      const modal = document.getElementById("telegramModal");
+      if (modal) modal.style.display = "none";
+      const intervalMsg = interval_val > 0 ? `Auto-sync cada ${interval_val} min` : "Auto-sync pausado";
+      showToast(`¡Configuración guardada! Telegram: ${enabled ? 'Activado 📲' : 'Pausado'}, ${intervalMsg}.`);
+    } else {
+      showToast("Hubo un problema al guardar la configuración en el servidor.");
+    }
+  } catch (e) {
+    showToast("Error de conexión: " + e.message);
+  } finally {
+    if (btnSave) btnSave.disabled = false;
+    if (txtSave) txtSave.textContent = "Guardar Configuración";
+  }
 }
 
 function resetAddModal() {
