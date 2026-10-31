@@ -187,6 +187,14 @@ function setupModalEventListeners() {
     });
   }
 
+  // Cerrar Modal Gráfico Pantalla Completa
+  const btnCloseFullscreenChart = document.getElementById("btnCloseFullscreenChart");
+  if (btnCloseFullscreenChart) {
+    btnCloseFullscreenChart.addEventListener("click", () => {
+      closeFullscreenChart();
+    });
+  }
+
   // Cerrar modales con Escape y backdrop click
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -208,7 +216,15 @@ function closeAllModals() {
   const delModal = document.getElementById("deleteAssetModal");
   if (addModal) addModal.style.display = "none";
   if (delModal) delModal.style.display = "none";
+  closeFullscreenChart();
   pendingDeleteTicker = null;
+}
+
+function closeFullscreenChart() {
+  const chartModal = document.getElementById("fullscreenChartModal");
+  const container = document.getElementById("fullscreenChartContainer");
+  if (chartModal) chartModal.style.display = "none";
+  if (container) container.innerHTML = "";
 }
 
 function resetAddModal() {
@@ -662,10 +678,8 @@ function createAssetCard(item) {
     signalClass = "signal-expensive";
   }
 
-  // TradingView Symbol Link
-  let tvSymbol = item.ticker;
-  if (tvSymbol === "GC=F") tvSymbol = "COMEX:GC1!";
-  if (tvSymbol === "^GSPC") tvSymbol = "SP:SPX";
+  // TradingView Symbol mapping
+  const tvSymbol = getTradingViewSymbol(item.ticker);
 
   // Indicadores Técnicos
   const score = item.score || 0;
@@ -793,10 +807,41 @@ function createAssetCard(item) {
       ${renderFibRow("78.6%", item.fib_levels["78.6%"], item.current_price, "💎")}
     </div>
 
+    <!-- Toolbar de Gráficos -->
+    <div class="card-chart-toolbar">
+      <button class="btn-toggle-chart" data-ticker="${item.ticker}" title="Ver u ocultar mini gráfico de ${item.tab}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Mini Gráfico
+      </button>
+      <button class="btn-fullscreen-trigger" data-ticker="${item.ticker}" data-tab="${item.tab}" title="Abrir gráfico avanzado a pantalla completa">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        Expandir ⛶
+      </button>
+    </div>
+
+    <!-- Drawer Desplegable con Mini-Gráfico TradingView -->
+    <div class="card-chart-drawer" data-ticker="${item.ticker}" style="display: none;">
+      <div class="chart-drawer-header">
+        <span class="chart-drawer-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Tendencia TradingView (${currentPeriod.toUpperCase()})
+        </span>
+        <button class="btn-fullscreen-chart" data-ticker="${item.ticker}" data-tab="${item.tab}">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          Pantalla Completa
+        </button>
+      </div>
+      <div class="chart-widget-wrapper">
+        <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #94a3b8; font-size: 0.82rem;">
+          Cargando gráfico interactivo de ${item.tab}...
+        </div>
+      </div>
+    </div>
+
     <div class="card-actions">
       <a class="tv-link" href="https://www.tradingview.com/symbols/${encodeURIComponent(tvSymbol)}/" target="_blank" rel="noopener noreferrer">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        Ver gráfico en TradingView
+        TradingView Oficial
       </a>
       <span style="font-size: 0.75rem; color: #94a3b8;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
     </div>
@@ -811,7 +856,150 @@ function createAssetCard(item) {
     });
   }
 
+  // Asignar evento al botón mini-gráfico (toggle accordion drawer)
+  const btnToggleChart = card.querySelector(".btn-toggle-chart");
+  if (btnToggleChart) {
+    btnToggleChart.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleMiniChart(item.ticker, card, item.tab);
+    });
+  }
+
+  // Asignar eventos a los botones de pantalla completa
+  const btnFullscreenTriggers = card.querySelectorAll(".btn-fullscreen-trigger, .btn-fullscreen-chart");
+  btnFullscreenTriggers.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openFullscreenChart(item.ticker, item.tab);
+    });
+  });
+
   return card;
+}
+
+function toggleMiniChart(ticker, cardElement, tabName) {
+  const drawer = cardElement.querySelector(`.card-chart-drawer[data-ticker="${ticker}"]`);
+  const toggleBtn = cardElement.querySelector(`.btn-toggle-chart[data-ticker="${ticker}"]`);
+  if (!drawer) return;
+
+  const isHidden = drawer.style.display === "none";
+  if (isHidden) {
+    drawer.style.display = "block";
+    if (toggleBtn) {
+      toggleBtn.classList.add("active");
+      toggleBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+        Ocultar Gráfico
+      `;
+    }
+
+    const widgetWrapper = drawer.querySelector(".chart-widget-wrapper");
+    if (widgetWrapper && !widgetWrapper.dataset.loaded) {
+      widgetWrapper.dataset.loaded = "true";
+      loadTradingViewMiniWidget(widgetWrapper, ticker);
+    }
+  } else {
+    drawer.style.display = "none";
+    if (toggleBtn) {
+      toggleBtn.classList.remove("active");
+      toggleBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Mini Gráfico
+      `;
+    }
+  }
+}
+
+function loadTradingViewMiniWidget(containerEl, ticker) {
+  const tvSymbol = getTradingViewSymbol(ticker);
+  containerEl.innerHTML = "";
+
+  const widgetContainer = document.createElement("div");
+  widgetContainer.className = "tradingview-widget-container";
+  widgetContainer.style.width = "100%";
+  widgetContainer.style.height = "220px";
+
+  const widgetSlot = document.createElement("div");
+  widgetSlot.className = "tradingview-widget-container__widget";
+  widgetSlot.style.width = "100%";
+  widgetSlot.style.height = "220px";
+  widgetContainer.appendChild(widgetSlot);
+
+  const script = document.createElement("script");
+  script.type = "text/javascript";
+  script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+  script.async = true;
+  script.text = JSON.stringify({
+    symbol: tvSymbol,
+    width: "100%",
+    height: "220",
+    locale: "es",
+    dateRange: "3M",
+    colorTheme: "dark",
+    isTransparent: true,
+    autosize: true,
+    largeChartUrl: ""
+  });
+
+  widgetContainer.appendChild(script);
+  containerEl.appendChild(widgetContainer);
+}
+
+function openFullscreenChart(ticker, tabName) {
+  const tvSymbol = getTradingViewSymbol(ticker);
+  const titleEl = document.getElementById("fullscreenChartTitle");
+  const subtitleEl = document.getElementById("fullscreenChartSubtitle");
+  const container = document.getElementById("fullscreenChartContainer");
+  const modal = document.getElementById("fullscreenChartModal");
+
+  if (titleEl) {
+    titleEl.textContent = `${tabName || ticker} (${ticker}) — Gráfico Técnico Avanzado`;
+  }
+  if (subtitleEl) {
+    subtitleEl.textContent = `TradingView en tiempo real con velas japonesas, volumen y herramientas de análisis interactivo`;
+  }
+  if (container) {
+    container.innerHTML = `
+      <iframe src="https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSymbol)}&interval=D&theme=dark&style=1&timezone=Europe%2FMadrid&locale=es"
+              style="width: 100%; height: 100%; border: none; min-height: 520px;"
+              allowtransparency="true"
+              scrolling="no"
+              allowfullscreen>
+      </iframe>
+    `;
+  }
+  if (modal) modal.style.display = "flex";
+}
+
+function getTradingViewSymbol(ticker) {
+  if (!ticker) return "SP:SPX";
+  const t = ticker.toUpperCase().trim();
+
+  const specialMap = {
+    "GC=F": "COMEX:GC1!",
+    "CL=F": "NYMEX:CL1!",
+    "SI=F": "COMEX:SI1!",
+    "^GSPC": "SP:SPX",
+    "^DJI": "DJ:DJI",
+    "^IXIC": "NASDAQ:IXIC",
+    "BTC-USD": "COINBASE:BTCUSD",
+    "ETH-USD": "COINBASE:ETHUSD",
+    "SOL-USD": "COINBASE:SOLUSD",
+    "EURUSD=X": "FX:EURUSD",
+    "AMD": "NASDAQ:AMD",
+    "NVDA": "NASDAQ:NVDA",
+    "TSLA": "NASDAQ:TSLA",
+    "META": "NASDAQ:META",
+    "CEG": "NASDAQ:CEG",
+    "AAPL": "NASDAQ:AAPL",
+    "MSFT": "NASDAQ:MSFT",
+    "AMZN": "NASDAQ:AMZN",
+    "GOOGL": "NASDAQ:GOOGL"
+  };
+
+  if (specialMap[t]) return specialMap[t];
+  if (t.endsWith(".MC")) return `BME:${t.replace(".MC", "")}`;
+  return t;
 }
 
 function renderFibRow(level, targetPrice, currentPrice, icon, isGolden = false) {

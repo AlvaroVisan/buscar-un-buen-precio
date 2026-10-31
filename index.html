@@ -279,6 +279,27 @@
     </div>
   </div>
 
+  <!-- Modal: Gráfico Avanzado a Pantalla Completa -->
+  <div id="fullscreenChartModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card modal-card-fullscreen">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <div class="modal-icon-badge badge-chart">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title" id="fullscreenChartTitle">Gráfico Avanzado de TradingView</h3>
+            <p class="modal-subtitle" id="fullscreenChartSubtitle">Cotizaciones en tiempo real con velas japonesas, medias móviles y herramientas de análisis</p>
+          </div>
+        </div>
+        <button id="btnCloseFullscreenChart" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body modal-body-fullscreen" id="fullscreenChartContainer">
+        <!-- Widget interactivo inyectado dinámicamente -->
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
