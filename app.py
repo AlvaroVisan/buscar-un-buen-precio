@@ -304,6 +304,9 @@ def run_server():
     sched_thread = threading.Thread(target=auto_scheduler_worker, daemon=True)
     sched_thread.start()
 
+    # Iniciar hilo de escucha interactiva de Telegram (comandos bajo demanda)
+    telegram_notifier.start_bot_listener_thread()
+
     with socketserver.TCPServer(("", PORT), FibonacciHandler) as httpd:
         print(f"\n=======================================================")
         print(f"  🌐 PANEL WEB 'BUSCAR UN BUEN PRECIO' ACTIVO")

@@ -17,6 +17,7 @@ async function initApp() {
   setupEventListeners();
   setupModalEventListeners();
   await loadMarketData();
+  startLivePolling();
 }
 
 function setupEventListeners() {
@@ -675,6 +676,29 @@ async function loadMarketData() {
   } catch (err) {
     console.error("Error al cargar datos:", err);
   }
+}
+
+function startLivePolling() {
+  // Sondeo suave cada 20 segundos para reflejar actualizaciones del auto-scheduler en segundo plano
+  setInterval(async () => {
+    try {
+      const resp = await fetch("/api/data");
+      if (resp.ok) {
+        const fresh = await resp.json();
+        if (fresh && fresh.timestamp && (!marketData || fresh.timestamp !== marketData.timestamp)) {
+          console.log(`[Live Polling] 🔄 Nuevos datos detectados (${fresh.timestamp}). Actualizando dashboard...`);
+          marketData = fresh;
+          if (marketData.period) {
+            currentPeriod = marketData.period;
+            updatePeriodPillsUI(currentPeriod);
+          }
+          renderDashboard(marketData);
+        }
+      }
+    } catch (e) {
+      // Manejar caídas temporales de red silenciosamente
+    }
+  }, 20000);
 }
 
 async function syncMarketData(periodToSync) {

@@ -16,17 +16,59 @@ except Exception:
     pass
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+SECRETS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "secrets.json")
 LATEST_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "latest_data.json")
 
 def load_config():
     if not os.path.exists(CONFIG_PATH):
         raise FileNotFoundError(f"No se encontró el archivo de configuración {CONFIG_PATH}")
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+        config = json.load(f)
+
+    # Fusionar credenciales privadas locales si existen (secrets.json ignorado en git)
+    if os.path.exists(SECRETS_PATH):
+        try:
+            with open(SECRETS_PATH, "r", encoding="utf-8") as sf:
+                secrets = json.load(sf)
+                if "telegram" in secrets:
+                    config.setdefault("telegram", {})
+                    for k, v in secrets["telegram"].items():
+                        if v:
+                            config["telegram"][k] = v
+                if "webhook_url" in secrets and secrets["webhook_url"]:
+                    config["webhook_url"] = secrets["webhook_url"]
+        except Exception as e:
+            print(f"[Config] Error leyendo secrets.json: {e}")
+
+    return config
 
 def save_config(config):
+    # Separar credenciales sensibles hacia secrets.json para que config.json nunca exponga secretos
+    secrets_data = {}
+    cfg_copy = json.loads(json.dumps(config))
+
+    tg = cfg_copy.get("telegram", {})
+    bot_token = tg.get("bot_token", "")
+    chat_id = tg.get("chat_id", "")
+
+    if bot_token or chat_id:
+        secrets_data["telegram"] = {
+            "bot_token": bot_token,
+            "chat_id": chat_id
+        }
+        # Limpiar secretos de config.json para que sea seguro subirlo a git
+        tg["bot_token"] = ""
+        tg["chat_id"] = ""
+
+    if secrets_data:
+        try:
+            with open(SECRETS_PATH, "w", encoding="utf-8") as sf:
+                json.dump(secrets_data, sf, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"[Config] Error guardando secrets.json: {e}")
+
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
+        json.dump(cfg_copy, f, indent=2, ensure_ascii=False)
 
 def compute_rsi(series, period=14):
     if len(series) < period + 1:

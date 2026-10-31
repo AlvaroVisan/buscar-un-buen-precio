@@ -2,7 +2,7 @@
   "webhook_url": "https://script.google.com/macros/s/AKfycbw8X4Z_Uz4bpcbttl358uR1tW8is_oXOnMI15ZMtpZm8mrgObBXYXm0Dg6LIVuaYmXW/exec",
   "period": "3mo",
   "telegram": {
-    "enabled": false,
+    "enabled": true,
     "bot_token": "",
     "chat_id": "",
     "min_score": 70,

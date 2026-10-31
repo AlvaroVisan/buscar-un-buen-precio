@@ -3,5 +3,7 @@ __pycache__/
 *$py.class
 *.log
 .env
+secrets.json
+*.local.json
 .vscode/
 .idea/
