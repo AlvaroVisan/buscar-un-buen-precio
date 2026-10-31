@@ -27,23 +27,42 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b"{}")
             return
         
+        if self.path == "/api/config":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            cfg_path = os.path.join(DIRECTORY, "config.json")
+            if os.path.exists(cfg_path):
+                with open(cfg_path, "rb") as f:
+                    self.wfile.write(f.read())
+            else:
+                self.wfile.write(b"{}")
+            return
+
         return super().do_GET()
 
     def do_POST(self):
         if self.path == "/api/sync":
             try:
-                print("\n[Web Dashboard] Solicitud de sincronización recibida...")
-                market_updater.main()
+                content_len = int(self.headers.get('Content-Length', 0))
+                target_period = None
+                if content_len > 0:
+                    post_body = self.rfile.read(content_len)
+                    try:
+                        req_json = json.loads(post_body.decode('utf-8'))
+                        target_period = req_json.get("period")
+                    except Exception:
+                        pass
 
-                latest_path = os.path.join(DIRECTORY, "latest_data.json")
-                with open(latest_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                print(f"\n[Web Dashboard] Solicitud de sincronización recibida (Periodo: {target_period or 'configurado'})...")
+                updated_payload = market_updater.run_updater(target_period=target_period)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
-                self.wfile.write(json.dumps(data).encode("utf-8"))
+                self.wfile.write(json.dumps(updated_payload, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
+                print(f"[Web Dashboard] Error en sincronización: {e}")
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()

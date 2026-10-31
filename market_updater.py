@@ -121,21 +121,15 @@ def print_summary_table(results, period, timestamp):
 
     print("=" * 90)
 
-def main():
+def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
     config = load_config()
-    period = config.get("period", "3mo")
-    webhook_url = config.get("webhook_url", "").strip()
-
-    # Si se pasa URL por línea de comandos, guardarla
-    if len(sys.argv) > 1 and sys.argv[1].startswith("http"):
-        webhook_url = sys.argv[1]
-        config["webhook_url"] = webhook_url
-        save_config(config)
+    period = target_period or config.get("period", "3mo")
+    webhook_url = custom_webhook or config.get("webhook_url", "").strip()
 
     now = datetime.datetime.now()
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
 
-    print("\n🚀 Iniciando sincronización de precios de mercado...")
+    print(f"\n🚀 Iniciando sincronización de precios de mercado (Periodo: {period})...")
     results = []
 
     for asset in config.get("assets", []):
@@ -155,8 +149,13 @@ def main():
     with open(LATEST_DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
 
-    # Enviar a Google Sheets si hay webhook configurado
-    if webhook_url:
+    # Actualizar periodo en config.json si se especificó uno nuevo
+    if target_period and target_period != config.get("period"):
+        config["period"] = target_period
+        save_config(config)
+
+    # Enviar a Google Sheets si hay webhook configurado y sync_sheets es True
+    if sync_sheets and webhook_url:
         print(f"\n📤 Enviando datos a Google Sheets ({webhook_url[:40]}...)...")
         try:
             resp = requests.post(
@@ -167,16 +166,31 @@ def main():
             )
             if resp.status_code == 200:
                 print("✅ ¡GOOGLE SHEETS ACTUALIZADO CON ÉXITO!")
-                print(f"Respuesta del servidor: {resp.text}")
             else:
                 print(f"⚠️ Error al actualizar Sheet. Código HTTP: {resp.status_code}")
                 print(f"Detalle: {resp.text}")
         except Exception as e:
             print(f"❌ Error de conexión al enviar a Google Sheets: {e}")
-    else:
-        print("\nℹ️ [Nota]: Aún no has configurado la URL del Webhook de Google Sheets.")
-        print("   Para activar la sincronización automática con tu Sheet, sigue los pasos de 'google_apps_script.js'")
-        print("   y pega la URL en config.json o pásala como parámetro: python market_updater.py <URL>")
+    elif not webhook_url:
+        print("\nℹ️ [Nota]: No hay webhook configurado para Google Sheets.")
+
+    return payload
+
+def main():
+    custom_webhook = None
+    target_period = None
+
+    if len(sys.argv) > 1:
+        for arg in sys.argv[1:]:
+            if arg.startswith("http"):
+                custom_webhook = arg
+                config = load_config()
+                config["webhook_url"] = custom_webhook
+                save_config(config)
+            elif arg in ["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"]:
+                target_period = arg
+
+    run_updater(target_period=target_period, custom_webhook=custom_webhook)
 
 if __name__ == "__main__":
     main()

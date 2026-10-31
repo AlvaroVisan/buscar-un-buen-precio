@@ -101,6 +101,74 @@
       </div>
     </section>
 
+    <!-- Toolbar: Selector de Temporalidad, Buscador y Filtros -->
+    <section class="controls-toolbar">
+      <!-- Fila Superior: Selector de Temporalidad y Buscador -->
+      <div class="toolbar-top">
+        <div class="period-selector-wrapper">
+          <span class="toolbar-label">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Temporalidad:
+          </span>
+          <div class="period-pills" id="periodPills">
+            <button class="period-btn" data-period="1mo" title="Calcular máximos y mínimos de 1 mes">1 Mes</button>
+            <button class="period-btn active" data-period="3mo" title="Calcular máximos y mínimos de 3 meses">3 Meses</button>
+            <button class="period-btn" data-period="6mo" title="Calcular máximos y mínimos de 6 meses">6 Meses</button>
+            <button class="period-btn" data-period="1y" title="Calcular máximos y mínimos de 1 año">1 Año</button>
+          </div>
+        </div>
+
+        <div class="search-box">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="searchInput" placeholder="Buscar por ticker, nombre o divisa..." autocomplete="off">
+          <button id="btnClearSearch" class="btn-clear-search" style="display: none;" title="Limpiar búsqueda">&times;</button>
+        </div>
+      </div>
+
+      <!-- Fila Inferior: Chips de Filtro y Ordenación -->
+      <div class="toolbar-bottom">
+        <div class="filter-chips" id="filterChips">
+          <button class="chip-btn active" data-filter="ALL">
+            Todos <span class="chip-count" id="countAll">0</span>
+          </button>
+          <button class="chip-btn chip-green" data-filter="BUY_ZONE">
+            <span class="chip-dot dot-green"></span>
+            Zona de Compra (≥50%) <span class="chip-count" id="countBuy">0</span>
+          </button>
+          <button class="chip-btn chip-gold" data-filter="GOLDEN">
+            <span class="chip-dot dot-gold"></span>
+            Zona Áurea (61.8%) <span class="chip-count" id="countGolden">0</span>
+          </button>
+          <button class="chip-btn chip-yellow" data-filter="WATCH">
+            <span class="chip-dot dot-yellow"></span>
+            En Observación <span class="chip-count" id="countWatch">0</span>
+          </button>
+        </div>
+
+        <div class="sort-selector-wrapper">
+          <span class="toolbar-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/></svg>
+            Ordenar:
+          </span>
+          <select id="sortSelect" class="sort-select">
+            <option value="drop_desc">Mayor Caída %</option>
+            <option value="drop_asc">Menor Caída %</option>
+            <option value="price_asc">Precio: Menor a Mayor</option>
+            <option value="price_desc">Precio: Mayor a Menor</option>
+            <option value="name_asc">Nombre (A - Z)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty State cuando no hay coincidencias -->
+    <div id="emptyState" class="empty-state" style="display: none;">
+      <div class="empty-icon">🔍</div>
+      <h3 class="empty-title">No se encontraron activos</h3>
+      <p class="empty-desc" id="emptyStateMsg">Ningún activo coincide con los criterios de búsqueda o filtro seleccionados.</p>
+      <button id="btnResetFilters" class="btn btn-secondary btn-sm">Restablecer Filtros</button>
+    </div>
+
     <!-- Main Grid of Stock Cards -->
     <main class="assets-grid" id="assetsGrid">
       <!-- Cards will be populated dynamically by app.js -->
