@@ -247,6 +247,71 @@ def fetch_asset_data(asset, period="3mo"):
         confluence_rating = "⚪ NEUTRAL / CARO"
         confluence_code = "LOW"
 
+    # 3. MÓDULO DE GESTIÓN DE RIESGO PROFESIONAL (Stop Loss / Take Profits / Ratio R:R)
+    fib_61 = fib_levels["61.8%"]
+    fib_78 = fib_levels["78.6%"]
+    fib_38 = fib_levels["38.2%"]
+
+    if current_price <= fib_61:
+        entry_price = round(current_price, 2)
+        entry_type = "MARKET"
+        entry_label = f"Precio de Mercado (${entry_price:,.2f})"
+    else:
+        entry_price = round(fib_61, 2)
+        entry_type = "LIMIT_618"
+        entry_label = f"Límite 61.8% (${entry_price:,.2f})"
+
+    # Stop Loss Estratégico por debajo del 78.6% / mínimo local con buffer de protección
+    suggested_sl = round(min(fib_78 * 0.98, lo * 0.985), 2)
+    if suggested_sl >= entry_price:
+        suggested_sl = round(entry_price * 0.96, 2)
+
+    risk_per_share = round(max(0.01, entry_price - suggested_sl), 2)
+    risk_pct = round(((entry_price - suggested_sl) / entry_price) * 100, 2)
+
+    # Take Profit 1 (Resistencia intermedia 38.2%):
+    tp1 = round(max(fib_38, entry_price * 1.05), 2)
+    reward_1 = round(tp1 - entry_price, 2)
+    reward_1_pct = round(((tp1 - entry_price) / entry_price) * 100, 2)
+    rr_ratio_1 = round(reward_1 / risk_per_share, 2) if risk_per_share > 0 else 1.0
+
+    # Take Profit 2 (Máximos del periodo / Nivel 0.0%):
+    tp2 = round(max(hi, tp1 * 1.04), 2)
+    reward_2 = round(tp2 - entry_price, 2)
+    reward_2_pct = round(((tp2 - entry_price) / entry_price) * 100, 2)
+    rr_ratio_2 = round(reward_2 / risk_per_share, 2) if risk_per_share > 0 else 2.5
+
+    # Calificación del Ratio Riesgo/Beneficio
+    if rr_ratio_2 >= 3.0:
+        rr_rating = "⭐ Excelente (R:R > 1:3)"
+        rr_code = "EXCELLENT"
+    elif rr_ratio_2 >= 2.0:
+        rr_rating = "🟢 Favorable (R:R > 1:2)"
+        rr_code = "FAVORABLE"
+    elif rr_ratio_2 >= 1.5:
+        rr_rating = "🟡 Aceptable (R:R > 1:1.5)"
+        rr_code = "ACCEPTABLE"
+    else:
+        rr_rating = "⚪ Ajustado (R:R < 1:1.5)"
+        rr_code = "TIGHT"
+
+    risk_mgmt = {
+        "entry_price": entry_price,
+        "entry_type": entry_type,
+        "entry_label": entry_label,
+        "stop_loss": suggested_sl,
+        "risk_per_share": risk_per_share,
+        "risk_pct": risk_pct,
+        "take_profit_1": tp1,
+        "reward_1_pct": reward_1_pct,
+        "rr_ratio_1": rr_ratio_1,
+        "take_profit_2": tp2,
+        "reward_2_pct": reward_2_pct,
+        "rr_ratio_2": rr_ratio_2,
+        "rr_rating": rr_rating,
+        "rr_code": rr_code
+    }
+
     return {
         "tab": tab,
         "ticker": ticker,
@@ -269,7 +334,9 @@ def fetch_asset_data(asset, period="3mo"):
         "is_above_sma": is_above_sma,
         "score": total_score,
         "confluence_rating": confluence_rating,
-        "confluence_code": confluence_code
+        "confluence_code": confluence_code,
+        # Gestión de Riesgo (Stop Loss / Take Profit / R:R)
+        "risk_mgmt": risk_mgmt
     }
 
 def print_summary_table(results, period, timestamp):

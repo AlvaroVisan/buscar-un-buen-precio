@@ -104,6 +104,7 @@ def setup_bot_commands(bot_token):
         cmds = [
             {"command": "resumen", "description": "📊 Precios y Scores de todos los activos"},
             {"command": "alertas", "description": "🎯 Oportunidades en Zona Áurea / Alta Confluencia"},
+            {"command": "riesgo", "description": "🛡️ Calculadora de riesgo, Stop Loss y lote"},
             {"command": "sync", "description": "🔄 Sincronizar mercado y Google Sheets ahora"},
             {"command": "ayuda", "description": "ℹ️ Ayuda y lista de comandos"}
         ]
@@ -268,6 +269,8 @@ def handle_start_or_help(bot_token, chat_id):
         "Filtra solo los activos en Zona Áurea (61.8%) o con Score $\\ge 70$.\n\n"
         "🔍 */ver TICKER* (ej: `/ver AMD` o simplemente escribe `AMD`)\n"
         "Ficha técnica con todos los retrocesos Fibonacci, RSI, SMA 200 y enlace a TradingView.\n\n"
+        "🛡️ */riesgo TICKER [capital]* (ej: `/riesgo AMD 100`)\n"
+        "Calculadora de posición: Stop Loss, Take Profit 1 y 2, Ratio R:R y número exacto de acciones a comprar según tu presupuesto de riesgo.\n\n"
         "🔄 */sync*\n"
         "Fuerza la actualización de precios con Yahoo Finance y actualiza tu Google Sheets en remoto.\n\n"
         "⏱ */periodo <1mo|3mo|6mo|1y>*\n"
@@ -448,6 +451,30 @@ def handle_ver_ticker(bot_token, chat_id, query):
     sma_trend = "🐂 Alcista (Sobre SMA)" if matched_item.get("is_above_sma") else "🐻 Bajista (Bajo SMA)"
     tv_url = get_tradingview_url(ticker)
 
+    # Bloque de gestión de riesgo
+    risk_info = ""
+    risk_data = matched_item.get("risk_mgmt")
+    if risk_data:
+        entry_p = risk_data.get("entry_price", price)
+        sl = risk_data.get("stop_loss", 0)
+        sl_pct = risk_data.get("risk_pct", 0)
+        tp1 = risk_data.get("take_profit_1", 0)
+        tp1_pct = risk_data.get("reward_1_pct", 0)
+        tp2 = risk_data.get("take_profit_2", 0)
+        tp2_pct = risk_data.get("reward_2_pct", 0)
+        rr2 = risk_data.get("rr_ratio_2", 0)
+        rr_rating = risk_data.get("rr_rating", "")
+
+        risk_info = (
+            f"🛡️ *GESTIÓN DE RIESGO SUGERIDA:*\n"
+            f"• Entrada: `${entry_p:,.2f}` ({risk_data.get('entry_label', '')})\n"
+            f"• Stop Loss: `${sl:,.2f}` (-{sl_pct:.1f}%)\n"
+            f"• TP 1 (38.2%): `${tp1:,.2f}` (+{tp1_pct:.1f}%)\n"
+            f"• TP 2 (Máx): `${tp2:,.2f}` (+{tp2_pct:.1f}%)\n"
+            f"• Ratio R:R (TP2): `1:{rr2}` ({rr_rating})\n"
+            f"💡 _Calcula tu lote con:_ `/riesgo {ticker} 100`\n\n"
+        )
+
     msg = (
         f"🎯 *ANÁLISIS TÉCNICO: {name} ({ticker})*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -464,7 +491,130 @@ def handle_ver_ticker(bot_token, chat_id, query):
         f"🔥 *Score*: `{score}/100` ({confluence})\n"
         f"📉 *RSI (14 sesiones)*: `{rsi}` ({rsi_desc})\n"
         f"📊 *SMA 200*: `${sma_200:,.2f}` ({sma_sign}{sma_dist:.1f}% - {sma_trend})\n\n"
+        f"{risk_info}"
         f"[📊 Abrir Gráfico Interactivo en TradingView]({tv_url})"
+    )
+    send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
+def handle_riesgo(bot_token, chat_id, raw_args):
+    """
+    Calculadora interactiva de gestión de riesgo y dimensionamiento de posición.
+    Sintaxis: /riesgo <TICKER> [PRESUPUESTO_DE_RIESGO]
+    Ejemplo: /riesgo AMD 100
+    """
+    tokens = raw_args.strip().split()
+    if not tokens:
+        send_telegram_message(
+            bot_token, chat_id,
+            "🛡️ *CALCULADORA DE GESTIÓN DE RIESGO*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Calcula el número exacto de acciones a comprar según el capital que estás dispuesto a arriesgar (Stop Loss).\n\n"
+            "📌 *Uso:* `/riesgo <TICKER> [capital_a_arriesgar]`\n"
+            "• Ejemplo arriesgando 100€: `/riesgo AMD 100`\n"
+            "• Ejemplo con 250$: `/riesgo NVDA 250`\n"
+            "• Ejemplo rápido (100€ por defecto): `/riesgo META`",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+        return
+
+    query_ticker = tokens[0].upper().replace("$", "").replace("/", "")
+    budget = 100.0
+    if len(tokens) > 1:
+        clean_num = tokens[1].replace("€", "").replace("$", "").replace(",", ".")
+        try:
+            val = float(clean_num)
+            if val > 0:
+                budget = val
+        except ValueError:
+            pass
+
+    matched_item = None
+    if os.path.exists(LATEST_DATA_PATH):
+        try:
+            with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+                for it in payload.get("data", []):
+                    t = it.get("ticker", "").upper()
+                    tab = it.get("tab", "").upper()
+                    name = it.get("name", "").upper()
+                    if query_ticker in (t, tab, name) or (query_ticker == "ORO" and t == "GC=F") or (query_ticker == "SPX" and t == "^GSPC"):
+                        matched_item = it
+                        break
+        except Exception:
+            pass
+
+    if not matched_item:
+        send_telegram_message(
+            bot_token, chat_id,
+            f"🔍 *Activo no encontrado: '{query_ticker}'*\n"
+            "Por favor indica un ticker de tu lista (ej: `AMD`, `TSLA`, `NVDA`, `META`).",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+        return
+
+    ticker = matched_item.get("ticker", "")
+    tab = matched_item.get("tab", ticker)
+    price = matched_item.get("current_price", 0)
+    risk_mgmt = matched_item.get("risk_mgmt")
+
+    if not risk_mgmt:
+        send_telegram_message(
+            bot_token, chat_id,
+            f"⚠️ No hay cálculo de riesgo disponible para {ticker}. Pulsa *🔄 Sincronizar*.",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+        return
+
+    entry = risk_mgmt.get("entry_price", price)
+    sl = risk_mgmt.get("stop_loss", price * 0.95)
+    risk_per_share = risk_mgmt.get("risk_per_share", max(0.01, entry - sl))
+    risk_pct = risk_mgmt.get("risk_pct", 5.0)
+    tp1 = risk_mgmt.get("take_profit_1", entry * 1.05)
+    tp1_pct = risk_mgmt.get("reward_1_pct", 5.0)
+    tp2 = risk_mgmt.get("take_profit_2", entry * 1.15)
+    tp2_pct = risk_mgmt.get("reward_2_pct", 15.0)
+    rr2 = risk_mgmt.get("rr_ratio_2", 2.0)
+    rr_rating = risk_mgmt.get("rr_rating", "")
+
+    # Dimensionamiento de posición
+    shares = int(budget // risk_per_share) if risk_per_share > 0 else 0
+    if shares == 0:
+        shares_min = 1
+        needed_risk = round(risk_per_share, 2)
+        total_inv_min = round(shares_min * entry, 2)
+        sizing_text = (
+            f"⚠️ *Presupuesto de riesgo inferior al de 1 acción.*\n"
+            f"• Con tu presupuesto ({budget:,.2f}€/$), el riesgo por acción ({risk_per_share:,.2f}€/$) es superior.\n"
+            f"• Para comprar *1 acción* de {ticker}, tu riesgo real si toca Stop Loss será de *{needed_risk:,.2f}€/$* (Inversión: *${total_inv_min:,.2f}*).\n"
+            f"• _Alternativa: compra acciones fraccionadas ({round(budget / risk_per_share, 2)} títulos)._"
+        )
+    else:
+        total_inv = round(shares * entry, 2)
+        max_loss = round(shares * risk_per_share, 2)
+        gain_tp1 = round(shares * (tp1 - entry), 2)
+        gain_tp2 = round(shares * (tp2 - entry), 2)
+        sizing_text = (
+            f"📦 *DIMENSIONAMIENTO DE POSICIÓN:*\n"
+            f"• Acciones a comprar: *{shares} títulos*\n"
+            f"• Capital total a invertir: *${total_inv:,.2f}*\n"
+            f"• Pérdida máxima controlada (Stop Loss): *-${max_loss:,.2f}*\n"
+            f"• Beneficio estimado TP1: *+${gain_tp1:,.2f}* (+{tp1_pct:.1f}%)\n"
+            f"• Beneficio estimado TP2: *+${gain_tp2:,.2f}* (+{tp2_pct:.1f}%)"
+        )
+
+    tv_url = get_tradingview_url(ticker)
+    msg = (
+        f"🛡️ *PLAN DE TRADING Y RIESGO: {tab} ({ticker})*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"💼 *Presupuesto de Riesgo Máximo*: `{budget:,.2f}€/$`\n"
+        f"📍 *Punto de Entrada*: `${entry:,.2f}` ({risk_mgmt.get('entry_label', '')})\n"
+        f"🛑 *Stop Loss Estratégico*: `${sl:,.2f}` (-{risk_pct:.1f}%)\n"
+        f"🎯 *Take Profit 1 (38.2%)*: `${tp1:,.2f}` (+{tp1_pct:.1f}%)\n"
+        f"🏆 *Take Profit 2 (Máximos)*: `${tp2:,.2f}` (+{tp2_pct:.1f}%)\n"
+        f"⚖️ *Ratio Riesgo/Beneficio*: `1:{rr2}` ({rr_rating})\n\n"
+        f"{sizing_text}\n\n"
+        f"💡 _Regla de oro: No aumentes tu posición sin desplazar antes el Stop Loss a precio de entrada (Break-Even)._\n\n"
+        f"[📊 Abrir Gráfico en TradingView]({tv_url})"
     )
     send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
@@ -579,6 +729,12 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
             send_telegram_message(bot_token, chat_id, "Indica el ticker que deseas ver. Ej: `/ver AMD` o `/ver TSLA`.")
         return
 
+    if cmd.startswith(("/riesgo", "/risk", "🛡️ riesgo")):
+        parts = text.split(maxsplit=1)
+        raw_args = parts[1] if len(parts) > 1 else ""
+        handle_riesgo(bot_token, chat_id, raw_args)
+        return
+
     # Si el usuario escribe directamente el nombre de un ticker o tab (ej: AMD, TSLA, NVDA, META, CEG, GC=F)
     # Comprobar si coincide con algún activo de seguimiento
     if os.path.exists(LATEST_DATA_PATH):
@@ -601,6 +757,7 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         "• `/resumen` (Ver todos los precios)\n"
         "• `/alertas` (Ver oportunidades)\n"
         "• `/ver AMD` (Ver ficha de un activo)\n"
+        "• `/riesgo AMD 100` (Calculadora de posición)\n"
         "• `/sync` (Sincronizar ahora)"
     )
     send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)

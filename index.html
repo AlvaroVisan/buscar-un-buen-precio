@@ -443,6 +443,104 @@
     </div>
   </div>
 
+  <!-- Modal: Calculadora de Gestión de Riesgo y Posición (Módulo 1) -->
+  <div id="positionCalcModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <div class="modal-icon-badge icon-calc">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title" id="calcAssetTitle">Calculadora de Gestión de Riesgo</h3>
+            <p class="modal-subtitle" id="calcAssetSubtitle">Define cuánto arriesgas y calcula exactamente cuántas acciones comprar</p>
+          </div>
+        </div>
+        <button id="btnCloseCalcModal" class="modal-close-btn">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Resumen de Niveles Clave -->
+        <div class="calc-levels-grid">
+          <div class="calc-level-card card-entry">
+            <span class="calc-level-label">Precio de Entrada</span>
+            <span class="calc-level-val" id="calcEntryPrice">$0.00</span>
+            <span class="calc-level-sub" id="calcEntryType">Al mercado</span>
+          </div>
+          <div class="calc-level-card card-sl">
+            <span class="calc-level-label">🛡️ Stop Loss Sugerido</span>
+            <span class="calc-level-val val-danger" id="calcStopLoss">$0.00</span>
+            <span class="calc-level-sub" id="calcRiskPct">-0.0% riesgo</span>
+          </div>
+          <div class="calc-level-card card-tp1">
+            <span class="calc-level-label">🎯 Take Profit 1 (38.2%)</span>
+            <span class="calc-level-val val-success" id="calcTP1">$0.00</span>
+            <span class="calc-level-sub" id="calcTP1Ratio">+0.0% | R:R 1:0.0</span>
+          </div>
+          <div class="calc-level-card card-tp2">
+            <span class="calc-level-label">🚀 Take Profit 2 (Máx)</span>
+            <span class="calc-level-val val-rocket" id="calcTP2">$0.00</span>
+            <span class="calc-level-sub" id="calcTP2Ratio">+0.0% | R:R 1:0.0</span>
+          </div>
+        </div>
+
+        <!-- Formulario Interactivo de Riesgo -->
+        <div class="calc-form-box">
+          <label class="form-label" for="calcRiskInput">
+            ¿Cuánto dinero estás dispuesto a arriesgar si salta el Stop Loss?
+          </label>
+          <div class="risk-presets-row">
+            <button type="button" class="btn-risk-preset" data-amount="50">50 €</button>
+            <button type="button" class="btn-risk-preset active" data-amount="100">100 €</button>
+            <button type="button" class="btn-risk-preset" data-amount="200">200 €</button>
+            <button type="button" class="btn-risk-preset" data-amount="500">500 €</button>
+          </div>
+          <div class="input-with-currency">
+            <span class="currency-symbol">€ / $</span>
+            <input type="number" id="calcRiskInput" class="form-input" value="100" min="1" step="5">
+          </div>
+          <span class="form-hint">Regla de oro: No arriesgues más del 1% o 2% de tu capital total en una sola operación.</span>
+        </div>
+
+        <!-- Resultados del Plan de Trading -->
+        <div class="calc-results-container">
+          <div class="calc-result-kpi">
+            <span class="calc-kpi-label">📦 Acciones a Comprar</span>
+            <span class="calc-kpi-val" id="calcSharesCount">0</span>
+            <span class="calc-kpi-sub" id="calcSharesSub">acciones completas</span>
+          </div>
+          <div class="calc-result-kpi">
+            <span class="calc-kpi-label">💰 Inversión Total Necesaria</span>
+            <span class="calc-kpi-val" id="calcTotalCapital">$0.00</span>
+            <span class="calc-kpi-sub">capital en broker</span>
+          </div>
+          <div class="calc-result-kpi highlight-risk">
+            <span class="calc-kpi-label">🛡️ Pérdida Máxima (Stop)</span>
+            <span class="calc-kpi-val val-danger" id="calcMaxLoss">-$0.00</span>
+            <span class="calc-kpi-sub">tu presupuesto de riesgo</span>
+          </div>
+          <div class="calc-result-kpi highlight-reward">
+            <span class="calc-kpi-label">🚀 Beneficio Esperado (TP 2)</span>
+            <span class="calc-kpi-val val-success" id="calcMaxProfit">+$0.00</span>
+            <span class="calc-kpi-sub" id="calcProfitRatio">Ratio 1:0.0</span>
+          </div>
+        </div>
+
+        <div class="calc-advice-banner" id="calcAdviceBanner">
+          <div class="calc-advice-icon">💡</div>
+          <div class="calc-advice-text" id="calcAdviceText">
+            Si compras a la entrada sugerida y salta el Stop Loss, tu pérdida estará limitada exactamente a tu presupuesto.
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnCopyTradingPlan" class="btn btn-secondary">📋 Copiar Plan de Trading</button>
+        <button id="btnCloseCalcModalFooter" class="btn btn-primary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

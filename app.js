@@ -284,6 +284,47 @@ function setupModalEventListeners() {
     });
   }
 
+  // --- Modal Calculadora de Posición (Módulo 1) ---
+  const btnCloseCalcModal = document.getElementById("btnCloseCalcModal");
+  const btnCloseCalcModalFooter = document.getElementById("btnCloseCalcModalFooter");
+  const btnCopyTradingPlan = document.getElementById("btnCopyTradingPlan");
+  const calcRiskInput = document.getElementById("calcRiskInput");
+  const riskPresetButtons = document.querySelectorAll(".btn-risk-preset");
+
+  [btnCloseCalcModal, btnCloseCalcModalFooter].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const modal = document.getElementById("positionCalcModal");
+        if (modal) modal.style.display = "none";
+        currentCalcAsset = null;
+      });
+    }
+  });
+
+  if (calcRiskInput) {
+    calcRiskInput.addEventListener("input", () => {
+      riskPresetButtons.forEach(b => b.classList.remove("active"));
+      recalcPositionPlan();
+    });
+  }
+
+  riskPresetButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      riskPresetButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (calcRiskInput) {
+        calcRiskInput.value = btn.dataset.amount;
+        recalcPositionPlan();
+      }
+    });
+  });
+
+  if (btnCopyTradingPlan) {
+    btnCopyTradingPlan.addEventListener("click", () => {
+      copyTradingPlanToClipboard();
+    });
+  }
+
   // Cerrar modales con Escape y backdrop click
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -304,11 +345,14 @@ function closeAllModals() {
   const addModal = document.getElementById("addAssetModal");
   const delModal = document.getElementById("deleteAssetModal");
   const tgModal = document.getElementById("telegramModal");
+  const calcModal = document.getElementById("positionCalcModal");
   if (addModal) addModal.style.display = "none";
   if (delModal) delModal.style.display = "none";
   if (tgModal) tgModal.style.display = "none";
+  if (calcModal) calcModal.style.display = "none";
   closeFullscreenChart();
   pendingDeleteTicker = null;
+  currentCalcAsset = null;
 }
 
 function closeFullscreenChart() {
@@ -1283,6 +1327,26 @@ function createAssetCard(item) {
   const smaSign = smaDist >= 0 ? "+" : "";
   const smaLabel = isAboveSma ? `${smaSign}${smaDist.toFixed(1)}% 🐂 Alcista` : `${smaSign}${smaDist.toFixed(1)}% 🐻 Bajista`;
 
+  // Módulo 1: Gestión de Riesgo (Risk Management)
+  const risk = item.risk_mgmt || {
+    entry_price: item.current_price,
+    stop_loss: item.fib_levels["78.6%"] * 0.98,
+    risk_pct: 5.0,
+    take_profit_1: item.fib_levels["38.2%"],
+    reward_1_pct: 10.0,
+    rr_ratio_1: 1.5,
+    take_profit_2: item.max,
+    reward_2_pct: 20.0,
+    rr_ratio_2: 2.5,
+    rr_rating: "🟢 Favorable (R:R > 1:2)",
+    rr_code: "FAVORABLE"
+  };
+
+  let rrBadgeClass = "rr-favorable";
+  if (risk.rr_code === "EXCELLENT") rrBadgeClass = "rr-excellent";
+  else if (risk.rr_code === "ACCEPTABLE") rrBadgeClass = "rr-acceptable";
+  else if (risk.rr_code === "TIGHT") rrBadgeClass = "rr-tight";
+
   card.innerHTML = `
     <div class="card-header-row">
       <div class="asset-identity">
@@ -1374,6 +1438,40 @@ function createAssetCard(item) {
       ${renderFibRow("78.6%", item.fib_levels["78.6%"], item.current_price, "💎")}
     </div>
 
+    <!-- Panel de Gestión de Riesgo (Módulo 1) -->
+    <div class="risk-management-card">
+      <div class="risk-header-row">
+        <div class="risk-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Gestión de Riesgo & R:R</span>
+        </div>
+        <span class="rr-badge ${rrBadgeClass}">${risk.rr_rating || '🟢 Favorable'}</span>
+      </div>
+
+      <div class="risk-metrics-row">
+        <div class="risk-col stop-loss-col" title="Stop Loss sugerido por debajo del 78.6% / soporte">
+          <span class="risk-label">🛡️ Stop Loss</span>
+          <span class="risk-val val-danger">$${formatCurrency(risk.stop_loss)}</span>
+          <span class="risk-sub">-${(risk.risk_pct || 0).toFixed(1)}% riesgo</span>
+        </div>
+        <div class="risk-col tp1-col" title="Take Profit 1 en resistencia 38.2%">
+          <span class="risk-label">🎯 TP 1 (38.2%)</span>
+          <span class="risk-val val-success">$${formatCurrency(risk.take_profit_1)}</span>
+          <span class="risk-sub">+${(risk.reward_1_pct || 0).toFixed(1)}% | 1:${risk.rr_ratio_1 || 1}</span>
+        </div>
+        <div class="risk-col tp2-col" title="Take Profit 2 en re-test de máximos">
+          <span class="risk-label">🚀 TP 2 (Máx)</span>
+          <span class="risk-val val-rocket">$${formatCurrency(risk.take_profit_2)}</span>
+          <span class="risk-sub">+${(risk.reward_2_pct || 0).toFixed(1)}% | 1:${risk.rr_ratio_2 || 2}</span>
+        </div>
+      </div>
+
+      <button class="btn-calc-position" data-ticker="${item.ticker}" title="Calcular posición y capital necesario según tu presupuesto de riesgo">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+        🧮 Calcular Posición
+      </button>
+    </div>
+
     <!-- Toolbar de Gráficos -->
     <div class="card-chart-toolbar">
       <button class="btn-toggle-chart" data-ticker="${item.ticker}" title="Ver u ocultar mini gráfico de ${item.tab}">
@@ -1420,6 +1518,15 @@ function createAssetCard(item) {
     btnDelete.addEventListener("click", (e) => {
       e.stopPropagation();
       promptDeleteAsset(item.ticker, item.tab);
+    });
+  }
+
+  // Asignar evento a la calculadora de posición
+  const btnCalc = card.querySelector(".btn-calc-position");
+  if (btnCalc) {
+    btnCalc.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPositionCalculator(item);
     });
   }
 
@@ -1616,4 +1723,142 @@ function showToast(message) {
   setTimeout(() => {
     toast.classList.remove("show");
   }, 4000);
+}
+
+/* ==========================================================================
+   MÓDULO 1: CONTROLADOR DE LA CALCULADORA DE GESTIÓN DE RIESGO
+   ========================================================================== */
+
+let currentCalcAsset = null;
+
+function openPositionCalculator(item) {
+  currentCalcAsset = item;
+  const modal = document.getElementById("positionCalcModal");
+  if (!modal) return;
+
+  const risk = item.risk_mgmt || {
+    entry_price: item.current_price,
+    entry_label: `Al mercado ($${formatCurrency(item.current_price)})`,
+    stop_loss: item.fib_levels["78.6%"] * 0.98,
+    risk_pct: 5.0,
+    risk_per_share: Math.max(0.01, item.current_price * 0.05),
+    take_profit_1: item.fib_levels["38.2%"],
+    reward_1_pct: 10.0,
+    rr_ratio_1: 1.5,
+    take_profit_2: item.max,
+    reward_2_pct: 20.0,
+    rr_ratio_2: 2.5,
+    rr_rating: "🟢 Favorable (R:R > 1:2)"
+  };
+
+  document.getElementById("calcAssetTitle").textContent = `Calculadora de Riesgo: ${item.tab} (${item.ticker})`;
+  document.getElementById("calcAssetSubtitle").textContent = `Plan de gestión de capital institucional para ${item.name}`;
+
+  document.getElementById("calcEntryPrice").textContent = `$${formatCurrency(risk.entry_price)}`;
+  document.getElementById("calcEntryType").textContent = risk.entry_label || "Precio de Mercado";
+
+  document.getElementById("calcStopLoss").textContent = `$${formatCurrency(risk.stop_loss)}`;
+  document.getElementById("calcRiskPct").textContent = `-${risk.risk_pct.toFixed(1)}% riesgo`;
+
+  document.getElementById("calcTP1").textContent = `$${formatCurrency(risk.take_profit_1)}`;
+  document.getElementById("calcTP1Ratio").textContent = `+${risk.reward_1_pct.toFixed(1)}% | R:R 1:${risk.rr_ratio_1}`;
+
+  document.getElementById("calcTP2").textContent = `$${formatCurrency(risk.take_profit_2)}`;
+  document.getElementById("calcTP2Ratio").textContent = `+${risk.reward_2_pct.toFixed(1)}% | R:R 1:${risk.rr_ratio_2}`;
+
+  // Resetear preset por defecto a 100€
+  const calcRiskInput = document.getElementById("calcRiskInput");
+  if (calcRiskInput) calcRiskInput.value = "100";
+  document.querySelectorAll(".btn-risk-preset").forEach(b => {
+    b.classList.toggle("active", b.dataset.amount === "100");
+  });
+
+  recalcPositionPlan();
+  modal.style.display = "flex";
+}
+
+function recalcPositionPlan() {
+  if (!currentCalcAsset) return;
+  const item = currentCalcAsset;
+  const risk = item.risk_mgmt || {
+    entry_price: item.current_price,
+    stop_loss: item.fib_levels["78.6%"] * 0.98,
+    take_profit_1: item.fib_levels["38.2%"],
+    take_profit_2: item.max
+  };
+
+  const inputEl = document.getElementById("calcRiskInput");
+  const budget = Math.max(1, parseFloat(inputEl ? inputEl.value : 100) || 100);
+
+  const entry = risk.entry_price || item.current_price;
+  const sl = risk.stop_loss;
+  const riskPerShare = Math.max(0.01, entry - sl);
+
+  // Número de acciones a comprar
+  let shares = Math.floor(budget / riskPerShare);
+  if (shares <= 0) shares = 1;
+
+  const totalCapital = shares * entry;
+  const actualLoss = shares * riskPerShare;
+  const reward1 = (risk.take_profit_1 - entry) * shares;
+  const reward2 = (risk.take_profit_2 - entry) * shares;
+  const effectiveRR = (actualLoss > 0 ? (reward2 / actualLoss) : 1).toFixed(2);
+
+  const elShares = document.getElementById("calcSharesCount");
+  const elSharesSub = document.getElementById("calcSharesSub");
+  const elCapital = document.getElementById("calcTotalCapital");
+  const elLoss = document.getElementById("calcMaxLoss");
+  const elProfit = document.getElementById("calcMaxProfit");
+  const elRatio = document.getElementById("calcProfitRatio");
+  const adviceEl = document.getElementById("calcAdviceText");
+
+  if (elShares) elShares.textContent = `${shares}`;
+  if (elSharesSub) elSharesSub.textContent = shares === 1 ? "1 acción" : `${shares} acciones`;
+  if (elCapital) elCapital.textContent = `$${formatCurrency(totalCapital)}`;
+  if (elLoss) elLoss.textContent = `-$${formatCurrency(actualLoss)}`;
+  if (elProfit) elProfit.textContent = `+$${formatCurrency(reward2)}`;
+  if (elRatio) elRatio.textContent = `Ratio R:R 1:${effectiveRR}`;
+
+  if (adviceEl) {
+    adviceEl.innerHTML = `Comprando <strong>${shares} ${shares === 1 ? 'acción' : 'acciones'}</strong> a <strong>$${formatCurrency(entry)}</strong>, tu pérdida máxima estará acotada exactamente a <strong>-$${formatCurrency(actualLoss)}</strong> si el precio toca tu Stop Loss en <strong>$${formatCurrency(sl)}</strong>. Si el activo alcanza tu objetivo principal (TP 2 en $${formatCurrency(risk.take_profit_2)}), tu beneficio neto estimado será de <strong>+$${formatCurrency(reward2)}</strong>.`;
+  }
+}
+
+function copyTradingPlanToClipboard() {
+  if (!currentCalcAsset) return;
+  const item = currentCalcAsset;
+  const risk = item.risk_mgmt || {};
+  const inputEl = document.getElementById("calcRiskInput");
+  const budget = parseFloat(inputEl ? inputEl.value : 100) || 100;
+  const entry = risk.entry_price || item.current_price;
+  const sl = risk.stop_loss || (entry * 0.95);
+  const riskPerShare = Math.max(0.01, entry - sl);
+  let shares = Math.floor(budget / riskPerShare);
+  if (shares <= 0) shares = 1;
+  const totalCapital = shares * entry;
+  const reward2 = ((risk.take_profit_2 || item.max) - entry) * shares;
+
+  const text = 
+`📋 PLAN DE TRADING: ${item.tab} (${item.ticker})
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 Precio Entrada: $${formatCurrency(entry)}
+🛡️ Stop Loss: $${formatCurrency(sl)} (-${(risk.risk_pct || 5).toFixed(1)}%)
+🎯 Take Profit 1 (38.2%): $${formatCurrency(risk.take_profit_1 || 0)} (+${(risk.reward_1_pct || 0).toFixed(1)}%)
+🚀 Take Profit 2 (Máx): $${formatCurrency(risk.take_profit_2 || 0)} (+${(risk.reward_2_pct || 0).toFixed(1)}%)
+⚖️ Ratio Riesgo/Beneficio: 1:${risk.rr_ratio_2 || 2} (${risk.rr_rating || 'Favorable'})
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Posición Recomendada: ${shares} ${shares === 1 ? 'acción' : 'acciones'}
+💵 Capital Necesario: $${formatCurrency(totalCapital)}
+🛑 Pérdida Máxima Asumida: -$${formatCurrency(shares * riskPerShare)}
+🏆 Ganancia Estimada (TP 2): +$${formatCurrency(reward2)}`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("¡Plan de trading copiado al portapapeles!");
+    }).catch(() => {
+      showToast("Copiado al portapapeles.");
+    });
+  } else {
+    showToast("Selecciona y copia los detalles de la tarjeta.");
+  }
 }
