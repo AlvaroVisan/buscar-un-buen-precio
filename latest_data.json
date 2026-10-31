@@ -1,0 +1,126 @@
+{
+  "timestamp": "2026-10-31 15:16:21",
+  "period": "3mo",
+  "data": [
+    {
+      "tab": "AMD",
+      "ticker": "AMD",
+      "name": "Advanced Micro Devices",
+      "current_price": 504.8,
+      "min": 440.5,
+      "max": 658.52,
+      "range": 218.02,
+      "drop_pct": 23.34,
+      "zone_desc": "Zona Áurea 61.8%",
+      "signal": "🟢 COMPRA ÓPTIMA (61.8%)",
+      "status_code": "BUY_GOLDEN",
+      "fib_levels": {
+        "23.6%": 607.07,
+        "38.2%": 575.24,
+        "50.0%": 549.51,
+        "61.8%": 523.78,
+        "78.6%": 487.16
+      }
+    },
+    {
+      "tab": "Meta",
+      "ticker": "META",
+      "name": "Meta Platforms",
+      "current_price": 614.99,
+      "min": 536.85,
+      "max": 779.82,
+      "range": 242.97,
+      "drop_pct": 21.14,
+      "zone_desc": "Zona Áurea 61.8%",
+      "signal": "🟢 COMPRA ÓPTIMA (61.8%)",
+      "status_code": "BUY_GOLDEN",
+      "fib_levels": {
+        "23.6%": 722.48,
+        "38.2%": 687.0,
+        "50.0%": 658.33,
+        "61.8%": 629.66,
+        "78.6%": 588.84
+      }
+    },
+    {
+      "tab": "CEG",
+      "ticker": "CEG",
+      "name": "Constellation Energy",
+      "current_price": 262.38,
+      "min": 247.2,
+      "max": 309.8,
+      "range": 62.6,
+      "drop_pct": 15.31,
+      "zone_desc": "Zona Áurea 61.8%",
+      "signal": "🟢 COMPRA ÓPTIMA (61.8%)",
+      "status_code": "BUY_GOLDEN",
+      "fib_levels": {
+        "23.6%": 295.03,
+        "38.2%": 285.89,
+        "50.0%": 278.5,
+        "61.8%": 271.11,
+        "78.6%": 260.6
+      }
+    },
+    {
+      "tab": "NVIDIA",
+      "ticker": "NVDA",
+      "name": "NVIDIA Corp",
+      "current_price": 204.64,
+      "min": 194.73,
+      "max": 243.37,
+      "range": 48.64,
+      "drop_pct": 15.91,
+      "zone_desc": "Zona > 78.6%",
+      "signal": "🟢 COMPRA FUERTE (78.6%)",
+      "status_code": "STRONG_BUY",
+      "fib_levels": {
+        "23.6%": 231.89,
+        "38.2%": 224.79,
+        "50.0%": 219.05,
+        "61.8%": 213.31,
+        "78.6%": 205.14
+      }
+    },
+    {
+      "tab": "Gold",
+      "ticker": "GC=F",
+      "name": "Gold Futures (Oro)",
+      "current_price": 3898.9,
+      "min": 3879.3,
+      "max": 4755.0,
+      "range": 875.7,
+      "drop_pct": 18.0,
+      "zone_desc": "Zona > 78.6%",
+      "signal": "🟢 COMPRA FUERTE (78.6%)",
+      "status_code": "STRONG_BUY",
+      "fib_levels": {
+        "23.6%": 4548.33,
+        "38.2%": 4420.48,
+        "50.0%": 4317.15,
+        "61.8%": 4213.82,
+        "78.6%": 4066.7
+      }
+    },
+    {
+      "tab": "SP500",
+      "ticker": "^GSPC",
+      "name": "S&P 500 Index",
+      "current_price": 7580.07,
+      "min": 7399.83,
+      "max": 7844.52,
+      "range": 444.69,
+      "drop_pct": 3.37,
+      "zone_desc": "Zona Media 50.0%",
+      "signal": "🟢 ENTRADA BUENA (50.0%)",
+      "status_code": "BUY_50",
+      "fib_levels": {
+        "23.6%": 7739.57,
+        "38.2%": 7674.65,
+        "50.0%": 7622.18,
+        "61.8%": 7569.7,
+        "78.6%": 7494.99
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "webhook_url": "https://script.google.com/macros/s/AKfycbw8X4Z_Uz4bpcbttl358uR1tW8is_oXOnMI15ZMtpZm8mrgObBXYXm0Dg6LIVuaYmXW/exec",
+  "period": "3mo",
+  "assets": [
+    {
+      "tab": "AMD",
+      "ticker": "AMD",
+      "name": "Advanced Micro Devices"
+    },
+    {
+      "tab": "Meta",
+      "ticker": "META",
+      "name": "Meta Platforms"
+    },
+    {
+      "tab": "CEG",
+      "ticker": "CEG",
+      "name": "Constellation Energy"
+    },
+    {
+      "tab": "NVIDIA",
+      "ticker": "NVDA",
+      "name": "NVIDIA Corp"
+    },
+    {
+      "tab": "Gold",
+      "ticker": "GC=F",
+      "name": "Gold Futures (Oro)"
+    },
+    {
+      "tab": "SP500",
+      "ticker": "^GSPC",
+      "name": "S&P 500 Index"
+    }
+  ]
+}
