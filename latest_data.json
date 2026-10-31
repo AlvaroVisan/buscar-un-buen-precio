@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-31 15:50:43",
+  "timestamp": "2026-10-31 16:16:50",
   "period": "3mo",
   "data": [
     {
@@ -175,6 +175,35 @@
       "score": 53,
       "confluence_rating": "🟡 MODERADA / SEGUIMIENTO",
       "confluence_code": "MODERATE"
+    },
+    {
+      "tab": "TSLA",
+      "ticker": "TSLA",
+      "name": "Tesla, Inc.",
+      "current_price": 399.81,
+      "min": 297.38,
+      "max": 410.85,
+      "range": 113.47,
+      "drop_pct": 2.69,
+      "zone_desc": "En Máximos (< 23.6%)",
+      "signal": "⚪ RESISTENCIA / CARO",
+      "status_code": "EXPENSIVE",
+      "fib_levels": {
+        "23.6%": 384.07,
+        "38.2%": 367.5,
+        "50.0%": 354.12,
+        "61.8%": 340.73,
+        "78.6%": 321.66
+      },
+      "rsi": 60.9,
+      "rsi_desc": "Sobrecompra (>60)",
+      "rsi_zone": "OVERBOUGHT",
+      "sma_200": 385.3,
+      "sma_dist_pct": 3.77,
+      "is_above_sma": true,
+      "score": 24,
+      "confluence_rating": "⚪ NEUTRAL / CARO",
+      "confluence_code": "LOW"
     }
   ]
 }

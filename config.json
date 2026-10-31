@@ -31,6 +31,11 @@
       "tab": "SP500",
       "ticker": "^GSPC",
       "name": "S&P 500 Index"
+    },
+    {
+      "tab": "TSLA",
+      "ticker": "TSLA",
+      "name": "Tesla, Inc."
     }
   ]
 }

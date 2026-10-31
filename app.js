@@ -5,6 +5,7 @@ let currentPeriod = "3mo";
 let currentFilter = "ALL";
 let searchQuery = "";
 let currentSort = "score_desc"; // Recomendado: Ordenar por Score de Confluencia
+let pendingDeleteTicker = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   initApp();
@@ -12,6 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function initApp() {
   setupEventListeners();
+  setupModalEventListeners();
   await loadMarketData();
 }
 
@@ -110,6 +112,275 @@ function setupEventListeners() {
 
       renderFilteredCards();
     });
+  }
+}
+
+function setupModalEventListeners() {
+  const btnOpenAddModal = document.getElementById("btnOpenAddModal");
+  const btnCloseAddModal = document.getElementById("btnCloseAddModal");
+  const btnCancelAddModal = document.getElementById("btnCancelAddModal");
+  const btnValidateTicker = document.getElementById("btnValidateTicker");
+  const addTickerInput = document.getElementById("addTickerInput");
+  const btnSubmitAddAsset = document.getElementById("btnSubmitAddAsset");
+
+  const btnCloseDeleteModal = document.getElementById("btnCloseDeleteModal");
+  const btnCancelDeleteModal = document.getElementById("btnCancelDeleteModal");
+  const btnConfirmDeleteAsset = document.getElementById("btnConfirmDeleteAsset");
+
+  // Abrir Modal Añadir
+  if (btnOpenAddModal) {
+    btnOpenAddModal.addEventListener("click", () => {
+      resetAddModal();
+      const modal = document.getElementById("addAssetModal");
+      if (modal) modal.style.display = "flex";
+      setTimeout(() => { if (addTickerInput) addTickerInput.focus(); }, 100);
+    });
+  }
+
+  // Cerrar Modal Añadir
+  [btnCloseAddModal, btnCancelAddModal].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const modal = document.getElementById("addAssetModal");
+        if (modal) modal.style.display = "none";
+      });
+    }
+  });
+
+  // Validar Ticker
+  if (btnValidateTicker) {
+    btnValidateTicker.addEventListener("click", () => {
+      validateTickerAction();
+    });
+  }
+
+  if (addTickerInput) {
+    addTickerInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        validateTickerAction();
+      }
+    });
+  }
+
+  // Guardar Activo
+  if (btnSubmitAddAsset) {
+    btnSubmitAddAsset.addEventListener("click", async () => {
+      await submitAddAssetAction();
+    });
+  }
+
+  // Modal Eliminar
+  [btnCloseDeleteModal, btnCancelDeleteModal].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const modal = document.getElementById("deleteAssetModal");
+        if (modal) modal.style.display = "none";
+        pendingDeleteTicker = null;
+      });
+    }
+  });
+
+  if (btnConfirmDeleteAsset) {
+    btnConfirmDeleteAsset.addEventListener("click", async () => {
+      await confirmDeleteAssetAction();
+    });
+  }
+
+  // Cerrar modales con Escape y backdrop click
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeAllModals();
+    }
+  });
+
+  document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) {
+        closeAllModals();
+      }
+    });
+  });
+}
+
+function closeAllModals() {
+  const addModal = document.getElementById("addAssetModal");
+  const delModal = document.getElementById("deleteAssetModal");
+  if (addModal) addModal.style.display = "none";
+  if (delModal) delModal.style.display = "none";
+  pendingDeleteTicker = null;
+}
+
+function resetAddModal() {
+  const addTickerInput = document.getElementById("addTickerInput");
+  const addTabInput = document.getElementById("addTabInput");
+  const addNameInput = document.getElementById("addNameInput");
+  const previewBox = document.getElementById("tickerPreviewBox");
+  const errorBox = document.getElementById("addModalError");
+
+  if (addTickerInput) addTickerInput.value = "";
+  if (addTabInput) addTabInput.value = "";
+  if (addNameInput) addNameInput.value = "";
+  if (previewBox) previewBox.style.display = "none";
+  if (errorBox) {
+    errorBox.style.display = "none";
+    errorBox.textContent = "";
+  }
+}
+
+async function validateTickerAction() {
+  const tickerInput = document.getElementById("addTickerInput");
+  const tabInput = document.getElementById("addTabInput");
+  const nameInput = document.getElementById("addNameInput");
+  const previewBox = document.getElementById("tickerPreviewBox");
+  const errorBox = document.getElementById("addModalError");
+  const btnValidate = document.getElementById("btnValidateTicker");
+
+  const ticker = tickerInput ? tickerInput.value.trim().toUpperCase() : "";
+  if (!ticker) {
+    showAddModalError("Por favor introduce un ticker (ej: TSLA, AAPL, BTC-USD).");
+    return;
+  }
+
+  try {
+    if (btnValidate) btnValidate.textContent = "Verificando...";
+    if (errorBox) errorBox.style.display = "none";
+
+    const resp = await fetch("/api/assets/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker })
+    });
+
+    const data = await resp.json();
+    if (data.valid) {
+      if (previewBox) {
+        document.getElementById("previewTicker").textContent = data.ticker;
+        document.getElementById("previewName").textContent = data.name || data.ticker;
+        document.getElementById("previewPrice").textContent = `$${formatCurrency(data.price)}`;
+        previewBox.style.display = "flex";
+      }
+
+      // Autocompletar campos si están vacíos
+      if (tabInput && !tabInput.value) {
+        // Tomar el ticker o primera palabra corta
+        let shortName = data.ticker.replace(/=F|\^/, "");
+        if (data.name && data.name.length <= 8) shortName = data.name;
+        tabInput.value = shortName;
+      }
+      if (nameInput && !nameInput.value) {
+        nameInput.value = data.name || data.ticker;
+      }
+    } else {
+      if (previewBox) previewBox.style.display = "none";
+      showAddModalError(data.error || `No se pudo encontrar el ticker '${ticker}' en Yahoo Finance.`);
+    }
+  } catch (err) {
+    showAddModalError("Error al contactar con el servidor: " + err.message);
+  } finally {
+    if (btnValidate) btnValidate.textContent = "Validar";
+  }
+}
+
+function showAddModalError(msg) {
+  const errorBox = document.getElementById("addModalError");
+  if (errorBox) {
+    errorBox.textContent = msg;
+    errorBox.style.display = "block";
+  }
+}
+
+async function submitAddAssetAction() {
+  const tickerInput = document.getElementById("addTickerInput");
+  const tabInput = document.getElementById("addTabInput");
+  const nameInput = document.getElementById("addNameInput");
+  const btnSubmit = document.getElementById("btnSubmitAddAsset");
+  const submitText = document.getElementById("btnSubmitAddText");
+
+  const ticker = tickerInput ? tickerInput.value.trim().toUpperCase() : "";
+  const tab = tabInput ? tabInput.value.trim() : "";
+  const name = nameInput ? nameInput.value.trim() : (tab || ticker);
+
+  if (!ticker) {
+    showAddModalError("El ticker es obligatorio.");
+    return;
+  }
+  if (!tab) {
+    showAddModalError("El nombre corto / pestaña es obligatorio.");
+    return;
+  }
+
+  try {
+    if (btnSubmit) btnSubmit.disabled = true;
+    if (submitText) submitText.textContent = "Guardando y calculando...";
+
+    const resp = await fetch("/api/assets/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker, tab, name })
+    });
+
+    const data = await resp.json();
+    if (resp.ok) {
+      marketData = data;
+      closeAllModals();
+      renderDashboard(marketData);
+      showToast(`¡Activo ${tab} (${ticker}) añadido y calculado con éxito!`);
+    } else {
+      showAddModalError(data.error || "No se pudo añadir el activo.");
+    }
+  } catch (err) {
+    showAddModalError("Error de conexión al guardar: " + err.message);
+  } finally {
+    if (btnSubmit) btnSubmit.disabled = false;
+    if (submitText) submitText.textContent = "Guardar y Calcular";
+  }
+}
+
+function promptDeleteAsset(ticker, tabName) {
+  pendingDeleteTicker = ticker;
+  const modal = document.getElementById("deleteAssetModal");
+  const elName = document.getElementById("deleteAssetName");
+  const elTicker = document.getElementById("deleteAssetTicker");
+
+  if (elName) elName.textContent = tabName || ticker;
+  if (elTicker) elTicker.textContent = ticker;
+  if (modal) modal.style.display = "flex";
+}
+
+async function confirmDeleteAssetAction() {
+  if (!pendingDeleteTicker) return;
+  const btnConfirm = document.getElementById("btnConfirmDeleteAsset");
+
+  try {
+    if (btnConfirm) {
+      btnConfirm.disabled = true;
+      btnConfirm.textContent = "Eliminando...";
+    }
+
+    const resp = await fetch("/api/assets/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker: pendingDeleteTicker })
+    });
+
+    const data = await resp.json();
+    if (resp.ok) {
+      marketData = data;
+      const removedTicker = pendingDeleteTicker;
+      closeAllModals();
+      renderDashboard(marketData);
+      showToast(`Activo ${removedTicker} eliminado de seguimiento.`);
+    } else {
+      showToast(data.error || "Error al eliminar el activo.");
+    }
+  } catch (err) {
+    showToast("Error de conexión: " + err.message);
+  } finally {
+    if (btnConfirm) {
+      btnConfirm.disabled = false;
+      btnConfirm.textContent = "Eliminar";
+    }
   }
 }
 
@@ -440,9 +711,14 @@ function createAssetCard(item) {
           <span class="asset-company">${item.name}</span>
         </div>
       </div>
-      <div class="asset-price-box">
-        <div class="asset-current-price">$${formatCurrency(item.current_price)}</div>
-        <span class="asset-drop-pill drop-negative">-${item.drop_pct.toFixed(1)}% desde máx</span>
+      <div style="display: flex; align-items: flex-start; gap: 8px;">
+        <div class="asset-price-box">
+          <div class="asset-current-price">$${formatCurrency(item.current_price)}</div>
+          <span class="asset-drop-pill drop-negative">-${item.drop_pct.toFixed(1)}% desde máx</span>
+        </div>
+        <button class="btn-card-delete" title="Dejar de seguir ${item.tab} (${item.ticker})">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        </button>
       </div>
     </div>
 
@@ -525,6 +801,15 @@ function createAssetCard(item) {
       <span style="font-size: 0.75rem; color: #94a3b8;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
     </div>
   `;
+
+  // Asignar evento al botón eliminar
+  const btnDelete = card.querySelector(".btn-card-delete");
+  if (btnDelete) {
+    btnDelete.addEventListener("click", (e) => {
+      e.stopPropagation();
+      promptDeleteAsset(item.ticker, item.tab);
+    });
+  }
 
   return card;
 }
