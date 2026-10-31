@@ -105,6 +105,8 @@ def setup_bot_commands(bot_token):
             {"command": "resumen", "description": "📊 Precios y Scores de todos los activos"},
             {"command": "alertas", "description": "🎯 Oportunidades en Zona Áurea / Alta Confluencia"},
             {"command": "riesgo", "description": "🛡️ Calculadora de riesgo, Stop Loss y lote"},
+            {"command": "venta", "description": "🔴 Modo Venta / Toma de beneficios y extensiones"},
+            {"command": "historial", "description": "📔 Diario de trading y tasa de acierto"},
             {"command": "sync", "description": "🔄 Sincronizar mercado y Google Sheets ahora"},
             {"command": "ayuda", "description": "ℹ️ Ayuda y lista de comandos"}
         ]
@@ -271,6 +273,10 @@ def handle_start_or_help(bot_token, chat_id):
         "Ficha técnica con todos los retrocesos Fibonacci, RSI, SMA 200 y enlace a TradingView.\n\n"
         "🛡️ */riesgo TICKER [capital]* (ej: `/riesgo AMD 100`)\n"
         "Calculadora de posición: Stop Loss, Take Profit 1 y 2, Ratio R:R y número exacto de acciones a comprar según tu presupuesto de riesgo.\n\n"
+        "🔴 */venta* o */salidas*\n"
+        "Modo Venta: Radar de activos sobrecomprados (RSI > 65), extensiones de Fibonacci (127.2% y 161.8%) y Trailing Stop para recogida de beneficios.\n\n"
+        "📔 */historial* o */diario*\n"
+        "Diario de Trading: Mide la tasa de acierto (Win Rate), operaciones ganadas/perdidas y estado de cada señal registrada.\n\n"
         "🔄 */sync*\n"
         "Fuerza la actualización de precios con Yahoo Finance y actualiza tu Google Sheets en remoto.\n\n"
         "⏱ */periodo <1mo|3mo|6mo|1y>*\n"
@@ -618,6 +624,146 @@ def handle_riesgo(bot_token, chat_id, raw_args):
     )
     send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
+def handle_venta(bot_token, chat_id):
+    """
+    Radar de Modo Venta / Toma de Beneficios.
+    Detecta activos sobrecalentados, cerca de techos o en extensiones de Fibonacci (127.2%, 161.8%).
+    """
+    if not os.path.exists(LATEST_DATA_PATH):
+        send_telegram_message(
+            bot_token, chat_id,
+            "⚠️ No hay datos cargados. Pulsa *🔄 Sincronizar* primero.",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+        return
+
+    try:
+        with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        items = payload.get("data", [])
+        sell_candidates = []
+        for it in items:
+            sm = it.get("sell_mgmt", {})
+            score = sm.get("sell_score", 0)
+            rsi = it.get("rsi", 50)
+            dist_high = sm.get("dist_to_high_pct", 10)
+            if score >= 35 or rsi >= 62 or dist_high <= 4.0:
+                sell_candidates.append(it)
+
+        sell_candidates.sort(key=lambda x: x.get("sell_mgmt", {}).get("sell_score", 0), reverse=True)
+
+        if not sell_candidates:
+            msg = (
+                "🔴 *MODO VENTA / RADAR DE TOMA DE BENEFICIOS*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "✅ Ningún activo está actualmente sobrecomprado ni en zona de resistencia.\n\n"
+                "Tus activos cotizan en fases de descuento, acumulación o inicio de impulso alcista. ¡Buen momento para dejar correr las ganancias!"
+            )
+            send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+            return
+
+        lines = [
+            f"🔴 *RADAR DE TOMA DE BENEFICIOS ({len(sell_candidates)})*",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "Activos con presión de venta, resistencias o extensiones alcanzadas:\n"
+        ]
+
+        for it in sell_candidates:
+            ticker = it.get("ticker", "")
+            tab = it.get("tab", ticker)
+            price = it.get("current_price", 0)
+            sm = it.get("sell_mgmt", {})
+            score = sm.get("sell_score", 0)
+            signal = sm.get("sell_signal", "Atención")
+            action = sm.get("sell_action", "Revisar")
+            rsi = it.get("rsi", "--")
+            gain_low = sm.get("gain_from_low_pct", 0)
+            dist_hi = sm.get("dist_to_high_pct", 0)
+            ext127 = sm.get("ext_127", 0)
+            ext161 = sm.get("ext_161", 0)
+            t_stop = sm.get("trailing_stop", price * 0.94)
+
+            icon = "🔥" if score >= 70 else ("🟠" if score >= 50 else "🟡")
+            lines.append(
+                f"{icon} *{tab}* (`{ticker}`) — Presión Venta: *{score}/100*\n"
+                f"• Precio: `${price:,.2f}` (+{gain_low:.1f}% desde mín | -{dist_hi:.1f}% de máx)\n"
+                f"• RSI: `{rsi}` | Estado: *{signal}*\n"
+                f"• Extensión 127.2%: `${ext127:,.2f}` | 161.8%: `${ext161:,.2f}`\n"
+                f"• Trailing Stop Sugerido: `${t_stop:,.2f}` (-5.5%)\n"
+                f"💡 _{action}_\n"
+            )
+
+        msg = "\n".join(lines)
+        send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+    except Exception as e:
+        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar modo venta: {e}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
+def handle_historial(bot_token, chat_id):
+    """
+    Diario de Trading y Rendimiento del algoritmo.
+    Muestra la tasa de acierto (Win Rate), operaciones ganadas/perdidas y últimas señales.
+    """
+    try:
+        import journal_manager
+        j_data = journal_manager.load_journal()
+        stats = j_data.get("stats", {})
+        entries = j_data.get("entries", [])
+
+        total = stats.get("total_opportunities", 0)
+        active = stats.get("active_count", 0)
+        closed = stats.get("closed_count", 0)
+        win_rate = stats.get("win_rate_pct", 0.0)
+        won = stats.get("total_won", 0)
+        lost = stats.get("total_lost", 0)
+        avg_win = stats.get("avg_win_pct", 0.0)
+
+        lines = [
+            "📔 *DIARIO DE TRADING & HISTORIAL*",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"🎯 *Tasa de Acierto (Win Rate)*: `{win_rate:.1f}%`",
+            f"📊 *Operaciones Totales*: `{total}` ({active} activas, {closed} cerradas)",
+            f"🏆 *Cerradas en Ganancia*: `{won}` (Promedio: `+{avg_win:.1f}%`)",
+            f"🛑 *Cerradas en Stop*: `{lost}`",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        ]
+
+        if not entries:
+            lines.append("ℹ️ Aún no hay registros en el diario. Las oportunidades se guardarán automáticamente cada vez que un activo entre en Zona Áurea (61.8%) o alcance Confluencia $\\ge 70$.")
+        else:
+            lines.append("📋 *Últimas Oportunidades en Seguimiento:*\n")
+            for e in entries[:5]:
+                tab = e.get("tab", e.get("ticker", ""))
+                ticker = e.get("ticker", "")
+                entry_p = e.get("entry_price", 0)
+                curr_p = e.get("current_price", entry_p)
+                ret = e.get("current_return_pct", 0.0)
+                max_ret = e.get("max_return_pct", 0.0)
+                status = e.get("status", "ACTIVA")
+                date = e.get("signal_date", "").split()[0]
+
+                if status == "TP2_ALCANZADO":
+                    status_badge = "🟢 TP2 Alcanzado (+Ganada)"
+                elif status == "TP1_ALCANZADO":
+                    status_badge = "🟡 TP1 Alcanzado (Break-Even)"
+                elif status == "STOP_EJECUTADO":
+                    status_badge = "🔴 Stop Ejecutado"
+                else:
+                    status_badge = "🔵 En Seguimiento"
+
+                sign = "+" if ret >= 0 else ""
+                lines.append(
+                    f"• *{tab}* (`{ticker}`) — {status_badge}\n"
+                    f"  Entrada: `${entry_p:,.2f}` ({date}) | Actual: `${curr_p:,.2f}`\n"
+                    f"  Retorno: *{sign}{ret:.1f}%* (Máx alcanzado: +{max_ret:.1f}%)\n"
+                )
+
+        lines.append("💡 _Visualiza el gráfico y estadísticas completas abriendo http://localhost:5050 en tu navegador._")
+        msg = "\n".join(lines)
+        send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+    except Exception as e:
+        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar historial: {e}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
 def handle_sync(bot_token, chat_id):
     """
     Fuerza la ejecución de la sincronización de precios y Google Sheets desde Telegram.
@@ -733,6 +879,14 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         parts = text.split(maxsplit=1)
         raw_args = parts[1] if len(parts) > 1 else ""
         handle_riesgo(bot_token, chat_id, raw_args)
+        return
+
+    if cmd in ("/venta", "/salidas", "/vender", "🔴 venta", "venta"):
+        handle_venta(bot_token, chat_id)
+        return
+
+    if cmd in ("/historial", "/diario", "/journal", "/stats", "📔 historial", "historial", "diario"):
+        handle_historial(bot_token, chat_id)
         return
 
     # Si el usuario escribe directamente el nombre de un ticker o tab (ej: AMD, TSLA, NVDA, META, CEG, GC=F)

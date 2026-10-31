@@ -2461,3 +2461,532 @@ input:checked + .slider-toggle:before {
   font-size: 1.1rem;
 }
 
+/* ==========================================================================
+   MÓDULO 2 & 3: SELECTOR DE MODO (COMPRA / VENTA / DIARIO)
+   ========================================================================== */
+
+.mode-navigation-bar {
+  margin-bottom: 24px;
+}
+
+.mode-tabs-wrapper {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 768px) {
+  .mode-tabs-wrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mode-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-align: left;
+  font-family: var(--font-main);
+  position: relative;
+}
+
+.mode-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.mode-tab-btn.active {
+  background: rgba(30, 41, 59, 0.9);
+  color: #ffffff;
+  border-color: rgba(56, 189, 248, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+#btnModeSell.active {
+  border-color: rgba(244, 63, 94, 0.5);
+  box-shadow: 0 4px 16px rgba(225, 29, 72, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+#btnModeJournal.active {
+  border-color: rgba(168, 85, 247, 0.5);
+  box-shadow: 0 4px 16px rgba(147, 51, 234, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.mode-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.mode-text-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.mode-tab-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #f8fafc;
+}
+
+.mode-tab-sub {
+  font-size: 0.73rem;
+  color: #94a3b8;
+}
+
+.mode-pill-alert {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(244, 63, 94, 0.2);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+}
+
+.mode-pill-stat {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+/* Sell Legend Bar */
+.sell-legend-bar {
+  border-color: rgba(244, 63, 94, 0.25);
+  background: rgba(244, 63, 94, 0.05);
+}
+
+.legend-tag.tag-red {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.legend-tag.tag-orange {
+  background: rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  color: #fdba74;
+}
+
+/* ==========================================================================
+   TARJETAS DE MODO VENTA (PROFIT TAKING RADAR)
+   ========================================================================== */
+
+.sell-management-card {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(225, 29, 72, 0.06);
+  border: 1px solid rgba(225, 29, 72, 0.22);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sell-mgmt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sell-mgmt-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fda4af;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.sell-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.sell-badge.badge-strong {
+  background: rgba(239, 68, 68, 0.25);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+.sell-badge.badge-partial {
+  background: rgba(249, 115, 22, 0.25);
+  border: 1px solid rgba(249, 115, 22, 0.5);
+  color: #fed7aa;
+}
+
+.sell-badge.badge-hold {
+  background: rgba(234, 179, 8, 0.2);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  color: #fef08a;
+}
+
+.sell-badge.badge-accumulate {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #a7f3d0;
+}
+
+.sell-levels-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.sell-level-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sell-level-label {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.sell-level-price {
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #f8fafc;
+}
+
+.sell-level-sub {
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+.sell-action-note {
+  font-size: 0.74rem;
+  color: #e2e8f0;
+  line-height: 1.4;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px 8px;
+  border-radius: 4px;
+  border-left: 3px solid #f43f5e;
+}
+
+.btn-calc-sell {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.2), rgba(244, 63, 94, 0.3));
+  border: 1px solid rgba(244, 63, 94, 0.45);
+  color: #fda4af;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-main);
+  margin-top: 4px;
+}
+
+.btn-calc-sell:hover {
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.4), rgba(244, 63, 94, 0.5));
+  color: #ffffff;
+  border-color: rgba(244, 63, 94, 0.8);
+  transform: translateY(-1px);
+}
+
+.modal-icon-badge.icon-sell {
+  background: rgba(225, 29, 72, 0.15);
+  color: #fb7185;
+}
+
+/* ==========================================================================
+   VISTA DEL DIARIO DE TRADING (MÓDULO 3)
+   ========================================================================== */
+
+.journal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: fadeIn 0.3s ease;
+}
+
+.journal-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .journal-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.journal-kpi-card {
+  padding: 18px 20px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.journal-kpi-card.highlight-winrate {
+  border-color: rgba(168, 85, 247, 0.4);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(15, 23, 42, 0.6));
+}
+
+.journal-kpi-card.highlight-success {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.journal-kpi-card.highlight-danger {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.j-kpi-label {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.j-kpi-val {
+  font-size: 1.8rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: #f8fafc;
+  line-height: 1.2;
+}
+
+.j-kpi-sub {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.journal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 600px) {
+  .journal-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.journal-heading {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.journal-subheading {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin: 4px 0 0 0;
+}
+
+.journal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-danger-soft {
+  color: #fca5a5 !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+.btn-danger-soft:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.6) !important;
+}
+
+.journal-entries-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.journal-entry-card {
+  padding: 16px 20px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  display: grid;
+  grid-template-columns: 180px 1.4fr 1.2fr 1fr auto;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.2s ease;
+}
+
+@media (max-width: 900px) {
+  .journal-entry-card {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.journal-entry-card:hover {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.j-asset-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.j-asset-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.j-asset-tab {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #ffffff;
+}
+
+.j-asset-ticker {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #94a3b8;
+  font-family: var(--font-mono);
+}
+
+.j-asset-date {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.j-signal-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.j-signal-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.j-signal-sub {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.j-prices-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.j-prices-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.j-prices-label {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.j-return-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.j-return-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+}
+
+.j-status-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.j-badge-active {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.j-badge-tp1 {
+  background: rgba(234, 179, 8, 0.2);
+  color: #fde047;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.j-badge-won {
+  background: rgba(16, 185, 129, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+}
+
+.j-badge-lost {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.journal-empty-box {
+  padding: 40px;
+  text-align: center;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-lg);
+  color: #94a3b8;
+}
+
+

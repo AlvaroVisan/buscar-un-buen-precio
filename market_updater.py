@@ -312,6 +312,90 @@ def fetch_asset_data(asset, period="3mo"):
         "rr_code": rr_code
     }
 
+    # 4. MÓDULO DE MODO VENTA / TOMA DE BENEFICIOS (Extensiones Fibonacci y Detección de Techos)
+    gain_from_low = round(((current_price - lo) / lo) * 100, 2) if lo > 0 else 0.0
+    dist_to_high = round(((hi - current_price) / hi) * 100, 2) if hi > 0 else 0.0
+
+    # Extensiones de Fibonacci proyectadas desde el impulso: 127.2% y 161.8%
+    ext_127 = round(hi + (price_range * 0.272), 2)
+    ext_161 = round(hi + (price_range * 0.618), 2)
+
+    dist_to_ext127 = round(((ext_127 - current_price) / current_price) * 100, 2)
+    dist_to_ext161 = round(((ext_161 - current_price) / current_price) * 100, 2)
+
+    # Puntuación de Presión de Venta (Sell Score 0 a 100)
+    # RSI sobrecomprado (0 a 40 pts)
+    if rsi_14 >= 75:
+        rsi_sell_pts = 40
+    elif rsi_14 >= 70:
+        rsi_sell_pts = 32
+    elif rsi_14 >= 65:
+        rsi_sell_pts = 22
+    elif rsi_14 >= 60:
+        rsi_sell_pts = 10
+    else:
+        rsi_sell_pts = 0
+
+    # Proximidad a máximos / extensiones (0 a 40 pts)
+    if current_price >= ext_161:
+        ext_pts = 40
+    elif current_price >= ext_127:
+        ext_pts = 32
+    elif dist_to_high <= 2.0:
+        ext_pts = 26
+    elif dist_to_high <= 5.0:
+        ext_pts = 16
+    elif dist_to_high <= 10.0:
+        ext_pts = 8
+    else:
+        ext_pts = 0
+
+    # Desviación excesiva respecto a la Media SMA 200 (0 a 20 pts)
+    if sma_dist_pct >= 25.0:
+        sma_sell_pts = 20
+    elif sma_dist_pct >= 18.0:
+        sma_sell_pts = 14
+    elif sma_dist_pct >= 10.0:
+        sma_sell_pts = 8
+    else:
+        sma_sell_pts = 0
+
+    sell_score = min(100, rsi_sell_pts + ext_pts + sma_sell_pts)
+
+    if sell_score >= 70 or rsi_14 >= 72 or current_price >= ext_127:
+        sell_signal = "🔴 TOMA DE BENEFICIOS FUERTE"
+        sell_action = "Venta parcial recomendada (30%-50%) o ajustar Trailing Stop ceñido."
+        sell_status_code = "STRONG_SELL"
+    elif sell_score >= 50 or rsi_14 >= 64 or dist_to_high <= 3.5:
+        sell_signal = "🟠 ALERTA RESISTENCIA / PARCIAL"
+        sell_action = "Subir Stop a Break-Even y valorar recogida parcial de ganancias."
+        sell_status_code = "PARTIAL_SELL"
+    elif sell_score >= 30:
+        sell_signal = "🟡 MANTENER (Tendencia Sana)"
+        sell_action = "Mantener posición con stop protector activo."
+        sell_status_code = "HOLD"
+    else:
+        sell_signal = "🟢 SIN PRESIÓN DE VENTA"
+        sell_action = "Activo en zona baja o de retroceso; no es momento de vender."
+        sell_status_code = "ACCUMULATE"
+
+    suggested_trailing_stop = round(current_price * 0.945, 2)
+
+    sell_mgmt = {
+        "sell_score": sell_score,
+        "sell_signal": sell_signal,
+        "sell_action": sell_action,
+        "sell_status_code": sell_status_code,
+        "gain_from_low_pct": gain_from_low,
+        "dist_to_high_pct": dist_to_high,
+        "ext_127": ext_127,
+        "ext_161": ext_161,
+        "dist_to_ext127_pct": dist_to_ext127,
+        "dist_to_ext161_pct": dist_to_ext161,
+        "trailing_stop": suggested_trailing_stop,
+        "trailing_stop_pct": 5.5
+    }
+
     return {
         "tab": tab,
         "ticker": ticker,
@@ -336,7 +420,9 @@ def fetch_asset_data(asset, period="3mo"):
         "confluence_rating": confluence_rating,
         "confluence_code": confluence_code,
         # Gestión de Riesgo (Stop Loss / Take Profit / R:R)
-        "risk_mgmt": risk_mgmt
+        "risk_mgmt": risk_mgmt,
+        # Modo Venta / Toma de Beneficios (Extensiones y Sobrecompra)
+        "sell_mgmt": sell_mgmt
     }
 
 def print_summary_table(results, period, timestamp):
@@ -417,6 +503,13 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
         telegram_notifier.dispatch_telegram_alerts(payload, config)
     except Exception as e:
         print(f"⚠️ [Telegram] Error procesando alertas: {e}")
+
+    # Sincronizar Historial de Oportunidades y Diario de Trading (Módulo 3)
+    try:
+        import journal_manager
+        journal_manager.update_journal_with_market_data(results)
+    except Exception as e:
+        print(f"⚠️ [Journal] Error actualizando diario de trading: {e}")
 
     return payload
 

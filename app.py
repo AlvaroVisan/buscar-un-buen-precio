@@ -85,6 +85,21 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
             }, ensure_ascii=False).encode("utf-8"))
             return
 
+        if self.path == "/api/journal":
+            try:
+                import journal_manager
+                j_data = journal_manager.load_journal()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(j_data, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
         return super().do_GET()
 
     def do_POST(self):
@@ -109,6 +124,31 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps(updated_payload, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 print(f"[Web Dashboard] Error en sincronización: {e}")
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        if self.path == "/api/journal/reset":
+            try:
+                import journal_manager
+                empty_j = {
+                    "version": "1.0",
+                    "last_updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "stats": {
+                        "total_opportunities": 0, "active_count": 0, "closed_count": 0,
+                        "win_rate_pct": 0.0, "total_won": 0, "total_lost": 0,
+                        "avg_win_pct": 0.0, "avg_loss_pct": 0.0
+                    },
+                    "entries": []
+                }
+                journal_manager.save_journal(empty_j)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True}).encode("utf-8"))
+            except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()

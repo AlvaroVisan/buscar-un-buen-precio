@@ -152,8 +152,39 @@
       </div>
     </section>
 
-    <!-- Strategy Legend / Helper Bar -->
-    <section class="legend-bar">
+    <!-- Selector de Modo de Operación: Compra / Venta / Diario de Trading -->
+    <nav class="mode-navigation-bar">
+      <div class="mode-tabs-wrapper">
+        <button class="mode-tab-btn active" id="btnModeBuy" data-mode="BUY">
+          <span class="mode-icon">🟢</span>
+          <span class="mode-text-col">
+            <span class="mode-tab-title">Modo Compra (Dip Hunter)</span>
+            <span class="mode-tab-sub">Retrocesos Fibonacci & Entradas</span>
+          </span>
+        </button>
+
+        <button class="mode-tab-btn" id="btnModeSell" data-mode="SELL">
+          <span class="mode-icon">🔴</span>
+          <span class="mode-text-col">
+            <span class="mode-tab-title">Modo Venta (Profit Taking)</span>
+            <span class="mode-tab-sub">Extensiones 127.2%/161.8% & Techos</span>
+          </span>
+          <span class="mode-pill-alert" id="sellAlertPill">0 alertas</span>
+        </button>
+
+        <button class="mode-tab-btn" id="btnModeJournal" data-mode="JOURNAL">
+          <span class="mode-icon">📔</span>
+          <span class="mode-text-col">
+            <span class="mode-tab-title">Diario de Oportunidades</span>
+            <span class="mode-tab-sub">Historial & Tasa de Acierto</span>
+          </span>
+          <span class="mode-pill-stat" id="journalStatsPill">Win Rate: 0%</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Strategy Legend / Helper Bar (Modo Compra) -->
+    <section class="legend-bar" id="buyLegendBar">
       <div class="legend-title">NIVELES DE ENTRADA FIBONACCI:</div>
       <div class="legend-items">
         <span class="legend-tag tag-gray">⚪ &lt; 23.6% En Máximos</span>
@@ -161,6 +192,17 @@
         <span class="legend-tag tag-teal">🟢 50.0% Buen Descuento</span>
         <span class="legend-tag tag-gold">🏆 61.8% Proporción Áurea (Entrada Óptima)</span>
         <span class="legend-tag tag-cyan">💎 78.6% Soporte Extremo</span>
+      </div>
+    </section>
+
+    <!-- Strategy Legend / Helper Bar (Modo Venta - visible solo en Modo Venta) -->
+    <section class="legend-bar sell-legend-bar" id="sellLegendBar" style="display: none;">
+      <div class="legend-title">CRITERIOS DE TOMA DE BENEFICIOS / MODO VENTA:</div>
+      <div class="legend-items">
+        <span class="legend-tag tag-red">🔴 Venta Fuerte (Score ≥ 70 / Extensión 127% / RSI &gt; 70)</span>
+        <span class="legend-tag tag-orange">🟠 Resistencia / Venta Parcial (Techo o Extensión)</span>
+        <span class="legend-tag tag-yellow">🟡 Mantener con Trailing Stop Activo</span>
+        <span class="legend-tag tag-teal">🟢 Sin Presión de Venta (Zona de acumulación)</span>
       </div>
     </section>
 
@@ -242,6 +284,55 @@
     <main class="assets-grid" id="assetsGrid">
       <!-- Cards will be populated dynamically by app.js -->
     </main>
+
+    <!-- Sección de Diario de Trading & Rendimiento (Modo Diario) -->
+    <section class="journal-section" id="journalSection" style="display: none;">
+      <!-- Stats KPIs -->
+      <div class="journal-kpi-grid">
+        <div class="journal-kpi-card highlight-winrate">
+          <span class="j-kpi-label">🎯 Tasa de Acierto (Win Rate)</span>
+          <div class="j-kpi-val" id="jStatWinRate">0.0%</div>
+          <span class="j-kpi-sub" id="jStatWinRateSub">0 operaciones cerradas</span>
+        </div>
+        <div class="journal-kpi-card">
+          <span class="j-kpi-label">📦 Oportunidades Registradas</span>
+          <div class="j-kpi-val" id="jStatTotal">0</div>
+          <span class="j-kpi-sub" id="jStatActiveSub">0 activas en seguimiento</span>
+        </div>
+        <div class="journal-kpi-card highlight-success">
+          <span class="j-kpi-label">🏆 Operaciones Ganadas (TP)</span>
+          <div class="j-kpi-val text-green" id="jStatWon">0</div>
+          <span class="j-kpi-sub" id="jStatAvgWin">Retorno medio: +0.0%</span>
+        </div>
+        <div class="journal-kpi-card highlight-danger">
+          <span class="j-kpi-label">🛑 Operaciones en Stop</span>
+          <div class="j-kpi-val text-red" id="jStatLost">0</div>
+          <span class="j-kpi-sub">Pérdida acotada estrictamente</span>
+        </div>
+      </div>
+
+      <!-- Journal Header & Controls -->
+      <div class="journal-toolbar">
+        <div>
+          <h3 class="journal-heading">Historial Cronológico de Oportunidades</h3>
+          <p class="journal-subheading">Registros automáticos de cada entrada en Zona Áurea o Score ≥ 70 con cálculo continuo de retorno</p>
+        </div>
+        <div class="journal-actions">
+          <button id="btnRefreshJournal" class="btn btn-secondary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Refrescar
+          </button>
+          <button id="btnResetJournal" class="btn btn-secondary btn-sm btn-danger-soft">
+            🗑️ Resetear Diario
+          </button>
+        </div>
+      </div>
+
+      <!-- Journal Entries Container -->
+      <div id="journalEntriesContainer" class="journal-entries-container">
+        <!-- Rendered by app.js -->
+      </div>
+    </section>
 
     <!-- Footer -->
     <footer class="app-footer">
@@ -537,6 +628,98 @@
       <div class="modal-footer">
         <button id="btnCopyTradingPlan" class="btn btn-secondary">📋 Copiar Plan de Trading</button>
         <button id="btnCloseCalcModalFooter" class="btn btn-primary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Simulador de Venta Parcial / Recogida de Beneficios (Módulo 2) -->
+  <div id="partialSellModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <div class="modal-icon-badge icon-sell">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V9"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title" id="sellModalTitle">Simulador de Toma de Beneficios</h3>
+            <p class="modal-subtitle" id="sellModalSubtitle">Asegura ganancias en efectivo y deja correr el resto con Trailing Stop</p>
+          </div>
+        </div>
+        <button id="btnCloseSellModal" class="modal-close-btn">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="calc-levels-grid">
+          <div class="calc-level-card card-entry">
+            <span class="calc-level-label">Precio Actual de Venta</span>
+            <span class="calc-level-val" id="sellCurrPrice">$0.00</span>
+            <span class="calc-level-sub" id="sellGainFromLow">+0.0% desde mín</span>
+          </div>
+          <div class="calc-level-card card-tp1">
+            <span class="calc-level-label">Extensión 127.2%</span>
+            <span class="calc-level-val val-success" id="sellExt127">$0.00</span>
+            <span class="calc-level-sub" id="sellExt127Dist">a 0.0%</span>
+          </div>
+          <div class="calc-level-card card-tp2">
+            <span class="calc-level-label">Extensión 161.8%</span>
+            <span class="calc-level-val val-rocket" id="sellExt161">$0.00</span>
+            <span class="calc-level-sub" id="sellExt161Dist">a 0.0%</span>
+          </div>
+          <div class="calc-level-card card-sl">
+            <span class="calc-level-label">Trailing Stop Sugerido</span>
+            <span class="calc-level-val val-danger" id="sellTrailingStop">$0.00</span>
+            <span class="calc-level-sub">-5.5% protección</span>
+          </div>
+        </div>
+
+        <div class="calc-form-box">
+          <label class="form-label" for="sellSharesInput">
+            ¿Cuántas acciones tienes en cartera?
+          </label>
+          <div class="input-with-currency">
+            <span class="currency-symbol">Títulos</span>
+            <input type="number" id="sellSharesInput" class="form-input" value="10" min="1" step="1">
+          </div>
+
+          <label class="form-label" style="margin-top: 14px;">
+            ¿Qué porcentaje deseas vender para asegurar efectivo?
+          </label>
+          <div class="risk-presets-row">
+            <button type="button" class="btn-sell-preset" data-pct="25">25% (Parcial)</button>
+            <button type="button" class="btn-sell-preset active" data-pct="50">50% (Recomendado)</button>
+            <button type="button" class="btn-sell-preset" data-pct="75">75% (Mayoría)</button>
+            <button type="button" class="btn-sell-preset" data-pct="100">100% (Total)</button>
+          </div>
+        </div>
+
+        <div class="calc-results-container">
+          <div class="calc-result-kpi highlight-reward">
+            <span class="calc-kpi-label">💵 Efectivo a Recoger Hoy</span>
+            <span class="calc-kpi-val val-success" id="sellCashOut">$0.00</span>
+            <span class="calc-kpi-sub" id="sellSharesToSell">0 acciones vendidas</span>
+          </div>
+          <div class="calc-result-kpi">
+            <span class="calc-kpi-label">🛡️ Acciones en Cartera</span>
+            <span class="calc-kpi-val" id="sellRemainingShares">0</span>
+            <span class="calc-kpi-sub" id="sellRemainingVal">$0.00 en posición</span>
+          </div>
+          <div class="calc-result-kpi highlight-risk">
+            <span class="calc-kpi-label">🛑 Stop Dinámico Protección</span>
+            <span class="calc-kpi-val val-danger" id="sellProtectStop">$0.00</span>
+            <span class="calc-kpi-sub">Protege el resto</span>
+          </div>
+        </div>
+
+        <div class="calc-advice-banner" id="sellAdviceBanner">
+          <div class="calc-advice-icon">💡</div>
+          <div class="calc-advice-text" id="sellAdviceText">
+            Vendiendo el 50% recoges ganancias seguras y dejas el 50% restante correr libremente hacia las extensiones de Fibonacci.
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnCloseSellModalFooter" class="btn btn-primary">Entendido</button>
       </div>
     </div>
   </div>

@@ -5,6 +5,8 @@ let currentPeriod = "3mo";
 let currentFilter = "ALL";
 let searchQuery = "";
 let currentSort = "score_desc"; // Recomendado: Ordenar por Score de Confluencia
+let currentAppMode = "BUY"; // 'BUY', 'SELL', 'JOURNAL'
+let currentSellAsset = null;
 let pendingDeleteTicker = null;
 let alertSoundEnabled = localStorage.getItem("alertSoundEnabled") !== "false";
 let previousAlertTickers = new Set();
@@ -39,6 +41,42 @@ function setupEventListeners() {
   if (btnSync) {
     btnSync.addEventListener("click", async () => {
       await syncMarketData(currentPeriod);
+    });
+  }
+
+  // --- Selector de Modo de Operación (Compra / Venta / Diario) ---
+  const btnModeBuy = document.getElementById("btnModeBuy");
+  const btnModeSell = document.getElementById("btnModeSell");
+  const btnModeJournal = document.getElementById("btnModeJournal");
+
+  [btnModeBuy, btnModeSell, btnModeJournal].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        setAppMode(btn.dataset.mode);
+      });
+    }
+  });
+
+  const btnRefreshJournal = document.getElementById("btnRefreshJournal");
+  if (btnRefreshJournal) {
+    btnRefreshJournal.addEventListener("click", () => {
+      loadAndRenderJournal();
+      showToast("Diario de trading actualizado 🔄");
+    });
+  }
+
+  const btnResetJournal = document.getElementById("btnResetJournal");
+  if (btnResetJournal) {
+    btnResetJournal.addEventListener("click", async () => {
+      if (confirm("¿Estás seguro de que deseas vaciar el diario de trading?")) {
+        try {
+          await fetch("/api/journal/reset", { method: "POST" });
+          await loadAndRenderJournal();
+          showToast("Diario de trading reiniciado.");
+        } catch (e) {
+          showToast("Error al reiniciar diario: " + e.message);
+        }
+      }
     });
   }
 
@@ -325,6 +363,36 @@ function setupModalEventListeners() {
     });
   }
 
+  // --- Modal Venta Parcial (Módulo 2) ---
+  const btnCloseSellModal = document.getElementById("btnCloseSellModal");
+  const btnCloseSellModalFooter = document.getElementById("btnCloseSellModalFooter");
+  const sellSharesInput = document.getElementById("sellSharesInput");
+  const sellPresets = document.querySelectorAll(".btn-sell-preset");
+
+  [btnCloseSellModal, btnCloseSellModalFooter].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const modal = document.getElementById("partialSellModal");
+        if (modal) modal.style.display = "none";
+        currentSellAsset = null;
+      });
+    }
+  });
+
+  if (sellSharesInput) {
+    sellSharesInput.addEventListener("input", () => {
+      recalcPartialSell();
+    });
+  }
+
+  sellPresets.forEach(btn => {
+    btn.addEventListener("click", () => {
+      sellPresets.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      recalcPartialSell();
+    });
+  });
+
   // Cerrar modales con Escape y backdrop click
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -346,13 +414,16 @@ function closeAllModals() {
   const delModal = document.getElementById("deleteAssetModal");
   const tgModal = document.getElementById("telegramModal");
   const calcModal = document.getElementById("positionCalcModal");
+  const sellModal = document.getElementById("partialSellModal");
   if (addModal) addModal.style.display = "none";
   if (delModal) delModal.style.display = "none";
   if (tgModal) tgModal.style.display = "none";
   if (calcModal) calcModal.style.display = "none";
+  if (sellModal) sellModal.style.display = "none";
   closeFullscreenChart();
   pendingDeleteTicker = null;
   currentCalcAsset = null;
+  currentSellAsset = null;
 }
 
 function closeFullscreenChart() {
@@ -857,6 +928,23 @@ function renderDashboard(data) {
   // 3. Actualizar Radar de Alertas y Oportunidades (Idea 5)
   updateAlertsCenter(items);
 
+  // 3b. Actualizar contador de Alertas en Modo Venta
+  let sellAlerts = 0;
+  items.forEach(it => {
+    if (it.sell_mgmt && (it.sell_mgmt.sell_score >= 35 || (it.rsi || 50) >= 62 || it.sell_mgmt.dist_to_high_pct <= 4.0)) {
+      sellAlerts++;
+    }
+  });
+  const elSellPill = document.getElementById("sellAlertPill");
+  if (elSellPill) {
+    elSellPill.textContent = `${sellAlerts} ${sellAlerts === 1 ? 'alerta' : 'alertas'}`;
+    elSellPill.style.background = sellAlerts > 0 ? 'rgba(244, 63, 94, 0.3)' : 'rgba(255, 255, 255, 0.08)';
+    elSellPill.style.color = sellAlerts > 0 ? '#fda4af' : '#94a3b8';
+  }
+
+  // 3c. Cargar métricas del diario en segundo plano
+  loadAndRenderJournal();
+
   // 4. Renderizar tarjetas filtradas y ordenadas
   renderFilteredCards();
 }
@@ -1178,6 +1266,7 @@ function sendDesktopNotification(title, body) {
 }
 
 function renderFilteredCards() {
+  if (currentAppMode === "JOURNAL") return;
   if (!marketData || !marketData.data) return;
 
   const rawItems = [...marketData.data];
@@ -1212,6 +1301,11 @@ function renderFilteredCards() {
 
   // Aplicar Ordenación
   filtered.sort((a, b) => {
+    if (currentAppMode === "SELL" && currentSort === "score_desc") {
+      const scoreA = a.sell_mgmt ? (a.sell_mgmt.sell_score || 0) : 0;
+      const scoreB = b.sell_mgmt ? (b.sell_mgmt.sell_score || 0) : 0;
+      return scoreB - scoreA;
+    }
     switch (currentSort) {
       case "score_desc":
         return (b.score || 0) - (a.score || 0);
@@ -1512,21 +1606,203 @@ function createAssetCard(item) {
     </div>
   `;
 
+  // Modo Venta: Reemplazar contenido con la tarjeta de Salida / Toma de Beneficios
+  if (currentAppMode === "SELL") {
+    const sell = item.sell_mgmt || {
+      sell_score: 20,
+      sell_signal: "🟢 SIN PRESIÓN DE VENTA",
+      sell_action: "Activo en zona baja o media; no es momento de vender.",
+      sell_status_code: "ACCUMULATE",
+      gain_from_low_pct: 5.0,
+      dist_to_high_pct: 15.0,
+      ext_127: item.max * 1.05,
+      ext_161: item.max * 1.15,
+      dist_to_ext127_pct: 8.0,
+      dist_to_ext161_pct: 18.0,
+      trailing_stop: item.current_price * 0.945,
+      trailing_stop_pct: 5.5
+    };
+
+    let sellBadgeClass = "badge-accumulate";
+    if (sell.sell_status_code === "STRONG_SELL") sellBadgeClass = "badge-strong";
+    else if (sell.sell_status_code === "PARTIAL_SELL") sellBadgeClass = "badge-partial";
+    else if (sell.sell_status_code === "HOLD") sellBadgeClass = "badge-hold";
+
+    card.innerHTML = `
+      <div class="card-header-row">
+        <div class="asset-identity">
+          <h2 class="asset-name">${item.tab}</h2>
+          <div class="asset-ticker-row">
+            <span class="asset-ticker">${item.ticker}</span>
+            <span class="asset-company">${item.name}</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <div class="asset-price-box">
+            <div class="asset-current-price">$${formatCurrency(item.current_price)}</div>
+            <span class="asset-drop-pill drop-positive" style="color: #4ade80;">+${sell.gain_from_low_pct.toFixed(1)}% desde mín</span>
+          </div>
+          <button class="btn-card-delete" title="Dejar de seguir ${item.tab} (${item.ticker})">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Banner de Señal de Venta -->
+      <div class="signal-banner" style="background: rgba(225, 29, 72, 0.15); border: 1px solid rgba(225, 29, 72, 0.35); color: #fda4af;">
+        <span>${sell.sell_signal}</span>
+        <span style="font-size: 0.75rem; opacity: 0.85;">${sell.dist_to_high_pct <= 2 ? 'En Resistencia Máxima' : `A ${sell.dist_to_high_pct.toFixed(1)}% del techo`}</span>
+      </div>
+
+      <!-- Panel de Métricas de Sobrecompra -->
+      <div class="tech-metrics-grid">
+        <div class="tech-metric-item">
+          <span class="tech-metric-label">Presión de Venta</span>
+          <div class="tech-metric-value">
+            <span class="tech-score-val" style="color: #fb7185;">${sell.sell_score}/100</span>
+            <span class="sell-badge ${sellBadgeClass}" style="font-size: 0.68rem;">${sell.sell_status_code === 'STRONG_SELL' ? '🔥 Extrema' : (sell.sell_status_code === 'PARTIAL_SELL' ? '🟠 Alerta' : '🟡 Moderada')}</span>
+          </div>
+        </div>
+
+        <div class="tech-metric-item">
+          <span class="tech-metric-label">RSI (14 días)</span>
+          <div class="tech-metric-value">
+            <span class="rsi-pill ${rsiClass}">
+              <span class="rsi-dot"></span>
+              ${rsi.toFixed(1)} <span style="font-size: 0.72rem; opacity: 0.85;">(${rsiLabel})</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="tech-metric-item">
+          <span class="tech-metric-label">Distancia Techo</span>
+          <div class="tech-metric-value">
+            <span style="font-weight: 700; font-family: var(--font-mono); color: #f8fafc;">-${sell.dist_to_high_pct.toFixed(1)}%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Termómetro visual del Rango (Mínimo a Máximo) -->
+      <div class="range-gauge-container">
+        <div class="range-label-row">
+          <span>Suelo (Mín): <strong>$${formatCurrency(item.min)}</strong></span>
+          <span>Techo (Máx): <strong>$${formatCurrency(item.max)}</strong></span>
+        </div>
+        <div class="gauge-track">
+          <div class="gauge-bar" style="width: ${pctPos}%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);"></div>
+          <div class="gauge-pointer" style="left: ${pctPos}%;"></div>
+        </div>
+      </div>
+
+      <!-- Módulo de Venta y Extensiones de Fibonacci -->
+      <div class="sell-management-card">
+        <div class="sell-mgmt-header">
+          <span class="sell-mgmt-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V9"/></svg>
+            Extensiones Fibonacci & Trailing Stop
+          </span>
+          <span class="sell-badge ${sellBadgeClass}">${sell.sell_status_code}</span>
+        </div>
+
+        <div class="sell-levels-grid">
+          <div class="sell-level-item">
+            <span class="sell-level-label">Extensión 127.2%</span>
+            <span class="sell-level-price" style="color: #67e8f9;">$${formatCurrency(sell.ext_127)}</span>
+            <span class="sell-level-sub">a ${sell.dist_to_ext127_pct >= 0 ? '+' : ''}${sell.dist_to_ext127_pct.toFixed(1)}%</span>
+          </div>
+          <div class="sell-level-item">
+            <span class="sell-level-label">Extensión 161.8%</span>
+            <span class="sell-level-price" style="color: #c084fc;">$${formatCurrency(sell.ext_161)}</span>
+            <span class="sell-level-sub">a ${sell.dist_to_ext161_pct >= 0 ? '+' : ''}${sell.dist_to_ext161_pct.toFixed(1)}%</span>
+          </div>
+          <div class="sell-level-item">
+            <span class="sell-level-label">Trailing Stop (-5.5%)</span>
+            <span class="sell-level-price" style="color: #fb7185;">$${formatCurrency(sell.trailing_stop)}</span>
+            <span class="sell-level-sub">Protector ganancias</span>
+          </div>
+        </div>
+
+        <div class="sell-action-note">
+          💡 <strong>Estrategia recomendada:</strong> ${sell.sell_action}
+        </div>
+
+        <button class="btn-calc-sell" data-ticker="${item.ticker}" title="Simular venta parcial de beneficios">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V9"/></svg>
+          🧮 Simular Venta Parcial / Recogida de Efectivo
+        </button>
+      </div>
+
+      <!-- Toolbar de Gráficos -->
+      <div class="card-chart-toolbar">
+        <button class="btn-toggle-chart" data-ticker="${item.ticker}" title="Ver u ocultar mini gráfico">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Mini Gráfico
+        </button>
+        <button class="btn-fullscreen-trigger" data-ticker="${item.ticker}" data-tab="${item.tab}" title="Expandir gráfico en pantalla completa">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          Expandir ⛶
+        </button>
+      </div>
+
+      <div class="card-chart-drawer" data-ticker="${item.ticker}" style="display: none;">
+        <div class="chart-drawer-header">
+          <span class="chart-drawer-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Tendencia TradingView (${currentPeriod.toUpperCase()})
+          </span>
+          <button class="btn-fullscreen-chart" data-ticker="${item.ticker}" data-tab="${item.tab}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            Pantalla Completa
+          </button>
+        </div>
+        <div class="chart-widget-wrapper">
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #94a3b8; font-size: 0.82rem;">
+            Cargando gráfico interactivo de ${item.tab}...
+          </div>
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <a class="tv-link" href="https://www.tradingview.com/symbols/${encodeURIComponent(tvSymbol)}/" target="_blank" rel="noopener noreferrer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          TradingView Oficial
+        </a>
+        <span style="font-size: 0.75rem; color: #94a3b8;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
+      </div>
+    `;
+
+    const btnCalcSell = card.querySelector(".btn-calc-sell");
+    if (btnCalcSell) {
+      btnCalcSell.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openPartialSellModal(item);
+      });
+    }
+
+    attachCardCommonEvents(card, item);
+    return card;
+  }
+
+  // Asignar evento a la calculadora de posición (Modo Compra)
+  const btnCalc = card.querySelector(".btn-calc-position");
+  if (btnCalc) {
+    btnCalc.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPositionCalculator(item);
+    });
+  }
+
+  attachCardCommonEvents(card, item);
+  return card;
+}
+
+function attachCardCommonEvents(card, item) {
   // Asignar evento al botón eliminar
   const btnDelete = card.querySelector(".btn-card-delete");
   if (btnDelete) {
     btnDelete.addEventListener("click", (e) => {
       e.stopPropagation();
       promptDeleteAsset(item.ticker, item.tab);
-    });
-  }
-
-  // Asignar evento a la calculadora de posición
-  const btnCalc = card.querySelector(".btn-calc-position");
-  if (btnCalc) {
-    btnCalc.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openPositionCalculator(item);
     });
   }
 
@@ -1547,8 +1823,6 @@ function createAssetCard(item) {
       openFullscreenChart(item.ticker, item.tab);
     });
   });
-
-  return card;
 }
 
 function toggleMiniChart(ticker, cardElement, tabName) {
@@ -1860,5 +2134,237 @@ function copyTradingPlanToClipboard() {
     });
   } else {
     showToast("Selecciona y copia los detalles de la tarjeta.");
+  }
+}
+
+/* ==========================================================================
+   MÓDULO 2 & 3: CONTROLADOR DE MODO, VENTA PARCIAL Y DIARIO DE TRADING
+   ========================================================================== */
+
+function setAppMode(mode) {
+  currentAppMode = mode;
+  document.querySelectorAll(".mode-tab-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.mode === mode);
+  });
+
+  const buyLegend = document.getElementById("buyLegendBar");
+  const sellLegend = document.getElementById("sellLegendBar");
+  const controlsToolbar = document.querySelector(".controls-toolbar");
+  const assetsGrid = document.getElementById("assetsGrid");
+  const journalSection = document.getElementById("journalSection");
+
+  if (mode === "BUY") {
+    if (buyLegend) buyLegend.style.display = "flex";
+    if (sellLegend) sellLegend.style.display = "none";
+    if (controlsToolbar) controlsToolbar.style.display = "flex";
+    if (assetsGrid) assetsGrid.style.display = "grid";
+    if (journalSection) journalSection.style.display = "none";
+    renderFilteredCards();
+  } else if (mode === "SELL") {
+    if (buyLegend) buyLegend.style.display = "none";
+    if (sellLegend) sellLegend.style.display = "flex";
+    if (controlsToolbar) controlsToolbar.style.display = "flex";
+    if (assetsGrid) assetsGrid.style.display = "grid";
+    if (journalSection) journalSection.style.display = "none";
+    renderFilteredCards();
+  } else if (mode === "JOURNAL") {
+    if (buyLegend) buyLegend.style.display = "none";
+    if (sellLegend) sellLegend.style.display = "none";
+    if (controlsToolbar) controlsToolbar.style.display = "none";
+    if (assetsGrid) assetsGrid.style.display = "none";
+    if (journalSection) journalSection.style.display = "flex";
+    loadAndRenderJournal();
+  }
+}
+
+function openPartialSellModal(item) {
+  currentSellAsset = item;
+  const modal = document.getElementById("partialSellModal");
+  if (!modal) return;
+
+  const sell = item.sell_mgmt || {
+    sell_score: 50,
+    sell_signal: "Toma Parcial",
+    sell_action: "Asegurar beneficios",
+    gain_from_low_pct: 10,
+    dist_to_high_pct: 3,
+    ext_127: item.max * 1.05,
+    ext_161: item.max * 1.15,
+    dist_to_ext127_pct: 5,
+    dist_to_ext161_pct: 15,
+    trailing_stop: item.current_price * 0.945
+  };
+
+  document.getElementById("sellModalTitle").textContent = `Simulador de Venta: ${item.tab} (${item.ticker})`;
+  document.getElementById("sellModalSubtitle").textContent = `Estrategia de salida institucional para ${item.name}`;
+
+  document.getElementById("sellCurrPrice").textContent = `$${formatCurrency(item.current_price)}`;
+  document.getElementById("sellGainFromLow").textContent = `+${sell.gain_from_low_pct.toFixed(1)}% desde mín`;
+
+  document.getElementById("sellExt127").textContent = `$${formatCurrency(sell.ext_127)}`;
+  document.getElementById("sellExt127Dist").textContent = `a ${sell.dist_to_ext127_pct >= 0 ? '+' : ''}${sell.dist_to_ext127_pct.toFixed(1)}%`;
+
+  document.getElementById("sellExt161").textContent = `$${formatCurrency(sell.ext_161)}`;
+  document.getElementById("sellExt161Dist").textContent = `a ${sell.dist_to_ext161_pct >= 0 ? '+' : ''}${sell.dist_to_ext161_pct.toFixed(1)}%`;
+
+  document.getElementById("sellTrailingStop").textContent = `$${formatCurrency(sell.trailing_stop)}`;
+
+  const sharesInput = document.getElementById("sellSharesInput");
+  if (sharesInput) sharesInput.value = "10";
+  document.querySelectorAll(".btn-sell-preset").forEach(b => {
+    b.classList.toggle("active", b.dataset.pct === "50");
+  });
+
+  recalcPartialSell();
+  modal.style.display = "flex";
+}
+
+function recalcPartialSell() {
+  if (!currentSellAsset) return;
+  const item = currentSellAsset;
+  const sell = item.sell_mgmt || {};
+
+  const sharesInput = document.getElementById("sellSharesInput");
+  const totalShares = Math.max(1, parseInt(sharesInput ? sharesInput.value : 10, 10) || 10);
+
+  const activePreset = document.querySelector(".btn-sell-preset.active");
+  const pct = parseInt(activePreset ? activePreset.dataset.pct : 50, 10) || 50;
+
+  const sharesToSell = Math.max(1, Math.round(totalShares * (pct / 100)));
+  const remainingShares = Math.max(0, totalShares - sharesToSell);
+
+  const cashOut = sharesToSell * item.current_price;
+  const remainingVal = remainingShares * item.current_price;
+
+  const elCashOut = document.getElementById("sellCashOut");
+  const elSharesSell = document.getElementById("sellSharesToSell");
+  const elRemainShares = document.getElementById("sellRemainingShares");
+  const elRemainVal = document.getElementById("sellRemainingVal");
+  const elProtectStop = document.getElementById("sellProtectStop");
+  const adviceEl = document.getElementById("sellAdviceText");
+
+  if (elCashOut) elCashOut.textContent = `$${formatCurrency(cashOut)}`;
+  if (elSharesSell) elSharesSell.textContent = `${sharesToSell} ${sharesToSell === 1 ? 'acción vendida' : 'acciones vendidas'} (${pct}%)`;
+  if (elRemainShares) elRemainShares.textContent = `${remainingShares}`;
+  if (elRemainVal) elRemainVal.textContent = `$${formatCurrency(remainingVal)} en posición`;
+  if (elProtectStop) elProtectStop.textContent = `$${formatCurrency(sell.trailing_stop || (item.current_price * 0.945))}`;
+
+  if (adviceEl) {
+    if (remainingShares > 0) {
+      adviceEl.innerHTML = `Vendiendo <strong>${sharesToSell} acciones (${pct}%)</strong> a <strong>$${formatCurrency(item.current_price)}</strong> aseguras inmediatamente <strong>+$${formatCurrency(cashOut)} en efectivo</strong>. Dejas <strong>${remainingShares} acciones</strong> corriendo sin riesgo con un Trailing Stop protector fijado en <strong>$${formatCurrency(sell.trailing_stop || (item.current_price * 0.945))}</strong>.`;
+    } else {
+      adviceEl.innerHTML = `Venta total del 100% de la posición: Liquidando las <strong>${totalShares} acciones</strong> recoges un total de <strong>+$${formatCurrency(cashOut)} en efectivo</strong> y cierras la operación con éxito.`;
+    }
+  }
+}
+
+async function loadAndRenderJournal() {
+  const container = document.getElementById("journalEntriesContainer");
+  if (!container) return;
+
+  try {
+    const resp = await fetch("/api/journal");
+    if (!resp.ok) throw new Error("Error HTTP " + resp.status);
+    const jData = await resp.json();
+
+    const stats = jData.stats || {};
+    const entries = jData.entries || [];
+
+    const elWinRate = document.getElementById("jStatWinRate");
+    const elWinRateSub = document.getElementById("jStatWinRateSub");
+    const elTotal = document.getElementById("jStatTotal");
+    const elActiveSub = document.getElementById("jStatActiveSub");
+    const elWon = document.getElementById("jStatWon");
+    const elAvgWin = document.getElementById("jStatAvgWin");
+    const elLost = document.getElementById("jStatLost");
+
+    if (elWinRate) elWinRate.textContent = `${(stats.win_rate_pct || 0).toFixed(1)}%`;
+    if (elWinRateSub) elWinRateSub.textContent = `${stats.closed_count || 0} operaciones cerradas`;
+    if (elTotal) elTotal.textContent = `${stats.total_opportunities || 0}`;
+    if (elActiveSub) elActiveSub.textContent = `${stats.active_count || 0} activas en seguimiento`;
+    if (elWon) elWon.textContent = `${stats.total_won || 0}`;
+    if (elAvgWin) elAvgWin.textContent = `Retorno medio: +${(stats.avg_win_pct || 0).toFixed(1)}%`;
+    if (elLost) elLost.textContent = `${stats.total_lost || 0}`;
+
+    const journalBadge = document.getElementById("journalStatsPill");
+    if (journalBadge) journalBadge.textContent = `Win Rate: ${(stats.win_rate_pct || 0).toFixed(1)}%`;
+
+    if (entries.length === 0) {
+      container.innerHTML = `
+        <div class="journal-empty-box">
+          <p style="font-size: 1.1rem; font-weight: 600; color: #f8fafc; margin-bottom: 8px;">Aún no hay señales registradas en el diario.</p>
+          <p style="font-size: 0.85rem; color: #94a3b8; margin: 0;">Cada vez que un activo entre en la <strong>Zona Áurea (61.8%)</strong> o su <strong>Score de Confluencia sea ≥ 70</strong>, se registrará aquí automáticamente para medir la rentabilidad alcanzada.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = entries.map(e => {
+      let badgeClass = "j-badge-active";
+      let badgeLabel = "🔵 En Seguimiento";
+      if (e.status === "TP2_ALCANZADO") {
+        badgeClass = "j-badge-won";
+        badgeLabel = "🟢 TP2 Alcanzado (Ganada)";
+      } else if (e.status === "TP1_ALCANZADO") {
+        badgeClass = "j-badge-tp1";
+        badgeLabel = "🟡 TP1 Alcanzado (Break-Even)";
+      } else if (e.status === "STOP_EJECUTADO") {
+        badgeClass = "j-badge-lost";
+        badgeLabel = "🔴 Stop Ejecutado";
+      }
+
+      const ret = e.current_return_pct || 0;
+      const maxRet = e.max_return_pct || 0;
+      const retSign = ret >= 0 ? "+" : "";
+      const retColor = ret >= 0 ? "text-green" : "text-red";
+      const tvUrl = `https://www.tradingview.com/symbols/${getTradingViewSymbol(e.ticker)}/`;
+
+      return `
+        <div class="journal-entry-card">
+          <div class="j-asset-col">
+            <div class="j-asset-header">
+              <span class="j-asset-tab">${e.tab}</span>
+              <span class="j-asset-ticker">${e.ticker}</span>
+            </div>
+            <span class="j-asset-date">📅 ${e.signal_date}</span>
+          </div>
+
+          <div class="j-signal-col">
+            <span class="j-signal-label">${e.signal_label}</span>
+            <span class="j-signal-sub">Score inicial: <strong>${e.score}/100</strong> • RSI: ${e.rsi || '--'}</span>
+          </div>
+
+          <div class="j-prices-col">
+            <div class="j-prices-row">
+              <span class="j-prices-label">Entrada:</span>
+              <span>$${formatCurrency(e.entry_price)}</span>
+            </div>
+            <div class="j-prices-row">
+              <span class="j-prices-label">Stop / TP2:</span>
+              <span>$${formatCurrency(e.stop_loss)} / $${formatCurrency(e.tp2)}</span>
+            </div>
+            <div class="j-prices-row">
+              <span class="j-prices-label">Actual:</span>
+              <span style="font-weight: 700;">$${formatCurrency(e.current_price || e.entry_price)}</span>
+            </div>
+          </div>
+
+          <div class="j-return-col">
+            <span class="j-return-val ${retColor}">${retSign}${ret.toFixed(1)}%</span>
+            <span class="j-status-badge ${badgeClass}">${badgeLabel}</span>
+            <span style="font-size: 0.68rem; color: #64748b;">Máx: +${maxRet.toFixed(1)}%</span>
+          </div>
+
+          <div>
+            <a href="${tvUrl}" target="_blank" class="btn btn-secondary btn-sm" title="Abrir gráfico en TradingView">
+              📊 Gráfico
+            </a>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+  } catch (err) {
+    container.innerHTML = `<div class="journal-empty-box"><p style="color: #f87171;">Error al cargar el diario: ${err.message}</p></div>`;
   }
 }
