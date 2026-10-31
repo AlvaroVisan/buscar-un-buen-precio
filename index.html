@@ -52,6 +52,7 @@
     </header>
 
     <!-- Top KPI Cards -->
+    <!-- Top KPI Cards -->
     <section class="kpi-grid">
       <div class="kpi-card">
         <span class="kpi-label">Valores en Seguimiento</span>
@@ -71,13 +72,22 @@
         <span class="kpi-sub" id="kpiBuyNames">Calculando...</span>
       </div>
 
+      <div class="kpi-card highlight-fire">
+        <span class="kpi-label">Top Score de Confluencia</span>
+        <div class="kpi-value-row">
+          <span class="kpi-value text-fire" id="kpiTopScore">0/100</span>
+          <span class="kpi-badge badge-fire" id="kpiTopScoreName">--</span>
+        </div>
+        <span class="kpi-sub" id="kpiTopScoreDesc">Fibonacci + RSI(14) + SMA 200</span>
+      </div>
+
       <div class="kpi-card">
         <span class="kpi-label">Mayor Corrección Registrada</span>
         <div class="kpi-value-row">
           <span class="kpi-value text-gold" id="kpiMaxDrop">-0.0%</span>
           <span class="kpi-badge badge-gold" id="kpiMaxDropName">--</span>
         </div>
-        <span class="kpi-sub">Desde su máximo de los últimos 3 meses</span>
+        <span class="kpi-sub">Desde su máximo del periodo</span>
       </div>
 
       <div class="kpi-card">
@@ -131,6 +141,10 @@
           <button class="chip-btn active" data-filter="ALL">
             Todos <span class="chip-count" id="countAll">0</span>
           </button>
+          <button class="chip-btn chip-fire" data-filter="CONFLUENCE">
+            <span class="chip-dot dot-fire"></span>
+            🔥 Alta Confluencia (Score ≥ 70) <span class="chip-count" id="countConfluence">0</span>
+          </button>
           <button class="chip-btn chip-green" data-filter="BUY_ZONE">
             <span class="chip-dot dot-green"></span>
             Zona de Compra (≥50%) <span class="chip-count" id="countBuy">0</span>
@@ -151,7 +165,9 @@
             Ordenar:
           </span>
           <select id="sortSelect" class="sort-select">
+            <option value="score_desc">🔥 Mayor Score Técnico (0-100)</option>
             <option value="drop_desc">Mayor Caída %</option>
+            <option value="rsi_asc">RSI Más Bajo (Sobreventa)</option>
             <option value="drop_asc">Menor Caída %</option>
             <option value="price_asc">Precio: Menor a Mayor</option>
             <option value="price_desc">Precio: Mayor a Menor</option>

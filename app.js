@@ -4,7 +4,7 @@ let marketData = null;
 let currentPeriod = "3mo";
 let currentFilter = "ALL";
 let searchQuery = "";
-let currentSort = "drop_desc";
+let currentSort = "score_desc"; // Recomendado: Ordenar por Score de Confluencia
 
 document.addEventListener("DOMContentLoaded", () => {
   initApp();
@@ -86,6 +86,7 @@ function setupEventListeners() {
 
   // Selector de Ordenación
   if (sortSelect) {
+    sortSelect.value = currentSort;
     sortSelect.addEventListener("change", (e) => {
       currentSort = e.target.value;
       renderFilteredCards();
@@ -97,11 +98,11 @@ function setupEventListeners() {
     btnResetFilters.addEventListener("click", () => {
       currentFilter = "ALL";
       searchQuery = "";
-      currentSort = "drop_desc";
+      currentSort = "score_desc";
 
       if (searchInput) searchInput.value = "";
       if (btnClearSearch) btnClearSearch.style.display = "none";
-      if (sortSelect) sortSelect.value = "drop_desc";
+      if (sortSelect) sortSelect.value = "score_desc";
 
       chipButtons.forEach(c => {
         c.classList.toggle("active", c.dataset.filter === "ALL");
@@ -165,9 +166,9 @@ async function syncMarketData(periodToSync) {
       currentPeriod = marketData.period || period;
       updatePeriodPillsUI(currentPeriod);
       renderDashboard(marketData);
-      showToast(`¡Mercado actualizado con éxito! Ventana: ${formatPeriodLabel(currentPeriod)}`);
+      showToast(`¡Mercado y Confluencia Técnica actualizados! Ventana: ${formatPeriodLabel(currentPeriod)}`);
     } else {
-      showToast("Para sincronizar en vivo, asegúrate de que 'python app.py' esté activo.");
+      showToast("Para sincronizar en vivo, ejecuta 'python app.py' o 'Actualizar_Precios.bat'");
     }
   } catch (err) {
     console.warn("Error en sincronización vía API:", err);
@@ -212,6 +213,9 @@ function renderDashboard(data) {
   let buyNames = [];
   let maxDrop = 0;
   let maxDropName = "--";
+  let topScore = 0;
+  let topScoreName = "--";
+  let topScoreDesc = "Fibonacci + RSI + SMA200";
 
   items.forEach(item => {
     if (item.current_price <= item.fib_levels["50.0%"]) {
@@ -222,12 +226,26 @@ function renderDashboard(data) {
       maxDrop = item.drop_pct;
       maxDropName = item.tab;
     }
+    const sc = item.score || 0;
+    if (sc > topScore) {
+      topScore = sc;
+      topScoreName = item.tab;
+      topScoreDesc = `${item.confluence_rating || "Alta Confluencia"} (RSI ${item.rsi ? item.rsi.toFixed(1) : "--"})`;
+    }
   });
 
   document.getElementById("kpiBuyCount").textContent = buyCount;
   document.getElementById("kpiBuyNames").textContent = buyCount > 0 ? buyNames.join(", ") : "Ninguno en zona 50%+";
   document.getElementById("kpiMaxDrop").textContent = `-${maxDrop.toFixed(1)}%`;
   document.getElementById("kpiMaxDropName").textContent = maxDropName;
+
+  const elTopScore = document.getElementById("kpiTopScore");
+  const elTopScoreName = document.getElementById("kpiTopScoreName");
+  const elTopScoreDesc = document.getElementById("kpiTopScoreDesc");
+
+  if (elTopScore) elTopScore.textContent = `${topScore}/100`;
+  if (elTopScoreName) elTopScoreName.textContent = topScoreName;
+  if (elTopScoreDesc) elTopScoreDesc.textContent = topScoreDesc;
 
   // 2. Actualizar contadores en los chips de filtro
   updateFilterBadges(items);
@@ -238,22 +256,26 @@ function renderDashboard(data) {
 
 function updateFilterBadges(items) {
   let countAll = items.length;
+  let countConfluence = 0;
   let countBuy = 0;
   let countGolden = 0;
   let countWatch = 0;
 
   items.forEach(it => {
+    if ((it.score || 0) >= 70) countConfluence++;
     if (it.current_price <= it.fib_levels["50.0%"]) countBuy++;
     if (it.current_price <= it.fib_levels["61.8%"]) countGolden++;
     if (it.status_code === "WATCH_38" || it.status_code === "WATCH_23") countWatch++;
   });
 
   const elAll = document.getElementById("countAll");
+  const elConfluence = document.getElementById("countConfluence");
   const elBuy = document.getElementById("countBuy");
   const elGolden = document.getElementById("countGolden");
   const elWatch = document.getElementById("countWatch");
 
   if (elAll) elAll.textContent = countAll;
+  if (elConfluence) elConfluence.textContent = countConfluence;
   if (elBuy) elBuy.textContent = countBuy;
   if (elGolden) elGolden.textContent = countGolden;
   if (elWatch) elWatch.textContent = countWatch;
@@ -277,6 +299,9 @@ function renderFilteredCards() {
   // Aplicar Filtro de Categoría
   filtered = filtered.filter(item => {
     if (currentFilter === "ALL") return true;
+    if (currentFilter === "CONFLUENCE") {
+      return (item.score || 0) >= 70;
+    }
     if (currentFilter === "BUY_ZONE") {
       return item.current_price <= item.fib_levels["50.0%"];
     }
@@ -292,10 +317,14 @@ function renderFilteredCards() {
   // Aplicar Ordenación
   filtered.sort((a, b) => {
     switch (currentSort) {
+      case "score_desc":
+        return (b.score || 0) - (a.score || 0);
       case "drop_desc":
         return b.drop_pct - a.drop_pct;
       case "drop_asc":
         return a.drop_pct - b.drop_pct;
+      case "rsi_asc":
+        return (a.rsi || 50) - (b.rsi || 50);
       case "price_asc":
         return a.current_price - b.current_price;
       case "price_desc":
@@ -303,7 +332,7 @@ function renderFilteredCards() {
       case "name_asc":
         return a.tab.localeCompare(b.tab);
       default:
-        return b.drop_pct - a.drop_pct;
+        return (b.score || 0) - (a.score || 0);
     }
   });
 
@@ -367,6 +396,41 @@ function createAssetCard(item) {
   if (tvSymbol === "GC=F") tvSymbol = "COMEX:GC1!";
   if (tvSymbol === "^GSPC") tvSymbol = "SP:SPX";
 
+  // Indicadores Técnicos
+  const score = item.score || 0;
+  let scoreBadgeClass = "score-low";
+  let scoreLabel = "Neutral";
+  if (score >= 80) {
+    scoreBadgeClass = "score-fire";
+    scoreLabel = "🔥 Confluencia";
+  } else if (score >= 65) {
+    scoreBadgeClass = "score-high";
+    scoreLabel = "🟢 Alta Prob.";
+  } else if (score >= 45) {
+    scoreBadgeClass = "score-moderate";
+    scoreLabel = "🟡 Moderada";
+  }
+
+  const rsi = typeof item.rsi === "number" ? item.rsi : 50;
+  let rsiClass = "neutral";
+  let rsiLabel = "Neutral";
+  if (rsi <= 30) {
+    rsiClass = "oversold";
+    rsiLabel = "Sobreventa";
+  } else if (rsi <= 40) {
+    rsiClass = "mild";
+    rsiLabel = "Descuento";
+  } else if (rsi > 60) {
+    rsiClass = "overbought";
+    rsiLabel = "Sobrecompra";
+  }
+
+  const isAboveSma = item.is_above_sma !== undefined ? item.is_above_sma : (item.sma_dist_pct >= 0);
+  const smaDist = typeof item.sma_dist_pct === "number" ? item.sma_dist_pct : 0;
+  const smaClass = isAboveSma ? "bullish" : "bearish";
+  const smaSign = smaDist >= 0 ? "+" : "";
+  const smaLabel = isAboveSma ? `${smaSign}${smaDist.toFixed(1)}% 🐂 Alcista` : `${smaSign}${smaDist.toFixed(1)}% 🐻 Bajista`;
+
   card.innerHTML = `
     <div class="card-header-row">
       <div class="asset-identity">
@@ -382,10 +446,49 @@ function createAssetCard(item) {
       </div>
     </div>
 
-    <!-- Banner de Señal -->
+    <!-- Banner de Señal Principal -->
     <div class="signal-banner ${signalClass}">
       <span>${item.signal}</span>
       <span style="font-size: 0.75rem; opacity: 0.85;">${item.zone_desc}</span>
+    </div>
+
+    <!-- Panel de Confluencia Técnica (Score, RSI, SMA 200) -->
+    <div class="tech-metrics-grid">
+      <div class="tech-metric-item">
+        <span class="tech-metric-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Score Calidad
+        </span>
+        <div class="tech-metric-value">
+          <span class="tech-score-val">${score}/100</span>
+          <span class="tech-score-badge ${scoreBadgeClass}">${scoreLabel}</span>
+        </div>
+      </div>
+
+      <div class="tech-metric-item">
+        <span class="tech-metric-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          RSI (14 días)
+        </span>
+        <div class="tech-metric-value">
+          <span class="rsi-pill ${rsiClass}" title="RSI: ${rsi.toFixed(1)} (${rsiLabel})">
+            <span class="rsi-dot"></span>
+            ${rsi.toFixed(1)} <span style="font-size: 0.72rem; font-weight: 500; opacity: 0.85;">(${rsiLabel})</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="tech-metric-item">
+        <span class="tech-metric-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+          Tendencia SMA 200
+        </span>
+        <div class="tech-metric-value">
+          <span class="sma-pill ${smaClass}" title="Media de 200 días: $${formatCurrency(item.sma_200)}">
+            ${smaLabel}
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- Termómetro visual del Rango (Mínimo a Máximo) -->
