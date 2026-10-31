@@ -6,6 +6,8 @@ let currentFilter = "ALL";
 let searchQuery = "";
 let currentSort = "score_desc"; // Recomendado: Ordenar por Score de Confluencia
 let pendingDeleteTicker = null;
+let alertSoundEnabled = localStorage.getItem("alertSoundEnabled") !== "false";
+let previousAlertTickers = new Set();
 
 document.addEventListener("DOMContentLoaded", () => {
   initApp();
@@ -113,6 +115,54 @@ function setupEventListeners() {
       renderFilteredCards();
     });
   }
+
+  // --- Centro de Alertas y Oportunidades (Idea 5) ---
+  const btnAlertsBell = document.getElementById("btnAlertsBell");
+  const alertsDropdown = document.getElementById("alertsDropdown");
+  const chkAlertSound = document.getElementById("chkAlertSound");
+  const btnTestSound = document.getElementById("btnTestSound");
+  const btnToggleBrowserNotifs = document.getElementById("btnToggleBrowserNotifs");
+
+  if (btnAlertsBell && alertsDropdown) {
+    btnAlertsBell.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isVisible = alertsDropdown.style.display !== "none";
+      alertsDropdown.style.display = isVisible ? "none" : "block";
+    });
+  }
+
+  if (chkAlertSound) {
+    chkAlertSound.checked = alertSoundEnabled;
+    chkAlertSound.addEventListener("change", (e) => {
+      alertSoundEnabled = e.target.checked;
+      localStorage.setItem("alertSoundEnabled", alertSoundEnabled);
+      showToast(alertSoundEnabled ? "Sonido Chime activado 🔊" : "Sonido Chime silenciado 🔇");
+    });
+  }
+
+  if (btnTestSound) {
+    btnTestSound.addEventListener("click", (e) => {
+      e.stopPropagation();
+      playAlertChime();
+      showToast("🔊 Sonido Chime de alerta reproducido");
+    });
+  }
+
+  if (btnToggleBrowserNotifs) {
+    updateBrowserNotifButtonState();
+    btnToggleBrowserNotifs.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await toggleBrowserNotifications();
+    });
+  }
+
+  // Cerrar dropdown de alertas al hacer clic fuera
+  document.addEventListener("click", (e) => {
+    const alertsWrapper = document.querySelector(".notifications-wrapper");
+    if (alertsDropdown && alertsWrapper && !alertsWrapper.contains(e.target)) {
+      alertsDropdown.style.display = "none";
+    }
+  });
 }
 
 function setupModalEventListeners() {
@@ -537,7 +587,10 @@ function renderDashboard(data) {
   // 2. Actualizar contadores en los chips de filtro
   updateFilterBadges(items);
 
-  // 3. Renderizar tarjetas filtradas y ordenadas
+  // 3. Actualizar Radar de Alertas y Oportunidades (Idea 5)
+  updateAlertsCenter(items);
+
+  // 4. Renderizar tarjetas filtradas y ordenadas
   renderFilteredCards();
 }
 
@@ -566,6 +619,295 @@ function updateFilterBadges(items) {
   if (elBuy) elBuy.textContent = countBuy;
   if (elGolden) elGolden.textContent = countGolden;
   if (elWatch) elWatch.textContent = countWatch;
+}
+
+function updateAlertsCenter(items) {
+  const alertsBadge = document.getElementById("alertsBadge");
+  const alertsSummaryCount = document.getElementById("alertsSummaryCount");
+  const alertsList = document.getElementById("alertsList");
+  const btnBell = document.getElementById("btnAlertsBell");
+
+  if (!alertsList) return;
+
+  // Filtrar activos que tengan alguna condición relevante de oportunidad
+  const alertItems = [];
+
+  items.forEach(item => {
+    const isGolden = item.current_price <= item.fib_levels["61.8%"];
+    const isConfluence = (item.score || 0) >= 70;
+    const isBuy50 = item.current_price <= item.fib_levels["50.0%"];
+
+    if (isGolden || isConfluence || isBuy50) {
+      let priorityClass = "priority-buy";
+      let priorityBadge = "🟢 Zona de Compra (50%)";
+      let priorityWeight = 1;
+
+      if (isGolden && isConfluence) {
+        priorityClass = "priority-confluence";
+        priorityBadge = "🔥 Confluencia Áurea";
+        priorityWeight = 3;
+      } else if (isGolden) {
+        priorityClass = "priority-golden";
+        priorityBadge = "🏆 Zona Áurea (61.8%)";
+        priorityWeight = 2.5;
+      } else if (isConfluence) {
+        priorityClass = "priority-confluence";
+        priorityBadge = "🔥 Confluencia Alta";
+        priorityWeight = 2;
+      }
+
+      alertItems.push({
+        item,
+        priorityClass,
+        priorityBadge,
+        priorityWeight,
+        score: item.score || 0,
+        isGolden,
+        isConfluence
+      });
+    }
+  });
+
+  // Ordenar por prioridad descendente y luego por score
+  alertItems.sort((a, b) => {
+    if (b.priorityWeight !== a.priorityWeight) {
+      return b.priorityWeight - a.priorityWeight;
+    }
+    return b.score - a.score;
+  });
+
+  const totalAlerts = alertItems.length;
+
+  // Actualizar Badge en la Campana
+  if (alertsBadge) {
+    if (totalAlerts > 0) {
+      alertsBadge.textContent = totalAlerts;
+      alertsBadge.style.display = "flex";
+      if (btnBell) btnBell.classList.add("has-alerts");
+    } else {
+      alertsBadge.style.display = "none";
+      if (btnBell) btnBell.classList.remove("has-alerts");
+    }
+  }
+
+  if (alertsSummaryCount) {
+    alertsSummaryCount.textContent = `${totalAlerts} ${totalAlerts === 1 ? 'oportunidad activa' : 'oportunidades activas'}`;
+  }
+
+  // Renderizar contenido de la lista
+  alertsList.innerHTML = "";
+
+  if (totalAlerts === 0) {
+    alertsList.innerHTML = `
+      <div class="alerts-empty-state">
+        <div class="alerts-empty-icon">🛡️</div>
+        <div class="alerts-empty-title">Sin alertas en este momento</div>
+        <div class="alerts-empty-desc">Ningún activo se encuentra en Zona Áurea o Confluencia Alta para este periodo.</div>
+      </div>
+    `;
+    return;
+  }
+
+  // Detectar si hay nuevos activos para sonido y notificación de escritorio
+  const currentTickers = new Set(alertItems.map(a => a.item.ticker));
+  let hasNewAlerts = false;
+  currentTickers.forEach(t => {
+    if (!previousAlertTickers.has(t)) {
+      hasNewAlerts = true;
+    }
+  });
+
+  // Sonar chime si hay nuevas oportunidades detectadas
+  if (hasNewAlerts && alertSoundEnabled) {
+    playAlertChime();
+  }
+
+  // Notificación nativa de escritorio
+  if (hasNewAlerts && Notification.permission === "granted" && previousAlertTickers.size > 0) {
+    const topAlert = alertItems[0];
+    sendDesktopNotification(
+      `🎯 Oportunidad: ${topAlert.item.tab} (${topAlert.item.ticker})`,
+      `${topAlert.priorityBadge} a $${formatCurrency(topAlert.item.current_price)}. Score Técnico: ${topAlert.score}/100.`
+    );
+  }
+
+  previousAlertTickers = currentTickers;
+
+  // Renderizar tarjetas de cada oportunidad
+  alertItems.forEach(({ item, priorityClass, priorityBadge, score }) => {
+    const cardItem = document.createElement("div");
+    cardItem.className = `alert-item ${priorityClass}`;
+
+    let scoreClass = "score-low";
+    if (score >= 80) scoreClass = "score-fire";
+    else if (score >= 65) scoreClass = "score-high";
+
+    cardItem.innerHTML = `
+      <div class="alert-item-header">
+        <div class="alert-item-title">
+          <span>${item.tab}</span>
+          <span class="alert-item-ticker">${item.ticker}</span>
+        </div>
+        <span class="alert-item-score ${scoreClass}">Score: ${score}/100</span>
+      </div>
+      <div class="alert-item-desc">
+        <strong>${priorityBadge}</strong>: Cotizando a <strong>$${formatCurrency(item.current_price)}</strong> 
+        (-${item.drop_pct.toFixed(1)}% desde máx). RSI: <strong>${item.rsi ? item.rsi.toFixed(1) : '--'}</strong>.
+      </div>
+      <div class="alert-item-actions">
+        <button class="btn-alert-nav" data-ticker="${item.ticker}" title="Ver tarjeta de ${item.tab}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 16 16 12 12 8"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Ver Ficha
+        </button>
+        <button class="btn-alert-chart" data-ticker="${item.ticker}" data-tab="${item.tab}" title="Abrir gráfico avanzado">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          Gráfico ⛶
+        </button>
+      </div>
+    `;
+
+    // Botón para hacer scroll suave hasta la tarjeta del activo y resaltarla
+    const btnNav = cardItem.querySelector(".btn-alert-nav");
+    if (btnNav) {
+      btnNav.addEventListener("click", () => {
+        const dropdown = document.getElementById("alertsDropdown");
+        if (dropdown) dropdown.style.display = "none";
+        highlightCard(item.ticker);
+      });
+    }
+
+    // Botón para abrir el gráfico fullscreen directamente
+    const btnChart = cardItem.querySelector(".btn-alert-chart");
+    if (btnChart) {
+      btnChart.addEventListener("click", () => {
+        const dropdown = document.getElementById("alertsDropdown");
+        if (dropdown) dropdown.style.display = "none";
+        openFullscreenChart(item.ticker, item.tab);
+      });
+    }
+
+    alertsList.appendChild(cardItem);
+  });
+}
+
+function highlightCard(ticker) {
+  const cardId = `card-${ticker.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  const el = document.getElementById(cardId);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.remove("card-highlight");
+    void el.offsetWidth; // forzar reflow para reiniciar animación
+    el.classList.add("card-highlight");
+    setTimeout(() => {
+      el.classList.remove("card-highlight");
+    }, 2000);
+  }
+}
+
+function playAlertChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+
+    if (ctx.state === "suspended") {
+      ctx.resume();
+    }
+
+    const now = ctx.currentTime;
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    // Tono armónico dual (D5 587.33Hz y A5 880Hz)
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(587.33, now);
+    osc1.frequency.exponentialRampToValueAtTime(880, now + 0.12);
+
+    osc2.type = "triangle";
+    osc2.frequency.setValueAtTime(880, now);
+    osc2.frequency.exponentialRampToValueAtTime(1174.66, now + 0.18);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.6);
+    osc2.stop(now + 0.6);
+  } catch (e) {
+    console.warn("Audio chime playback blocked or not supported:", e);
+  }
+}
+
+function updateBrowserNotifButtonState() {
+  const btn = document.getElementById("btnToggleBrowserNotifs");
+  const txt = document.getElementById("txtBrowserNotif");
+  if (!btn || !txt) return;
+
+  if (!("Notification" in window)) {
+    txt.textContent = "Avisos no soportados";
+    btn.disabled = true;
+    return;
+  }
+
+  if (Notification.permission === "granted") {
+    btn.classList.add("active");
+    txt.textContent = "Avisos de escritorio: ACTIVADOS ✓";
+  } else if (Notification.permission === "denied") {
+    btn.classList.remove("active");
+    txt.textContent = "Avisos bloqueados por navegador";
+  } else {
+    btn.classList.remove("active");
+    txt.textContent = "Activar avisos de escritorio";
+  }
+}
+
+async function toggleBrowserNotifications() {
+  if (!("Notification" in window)) {
+    showToast("Tu navegador no soporta notificaciones de escritorio.");
+    return;
+  }
+
+  if (Notification.permission === "granted") {
+    showToast("Las notificaciones de escritorio ya están activadas.");
+    updateBrowserNotifButtonState();
+    return;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      showToast("¡Avisos de escritorio activados! Recibirás alertas en segundo plano.");
+      sendDesktopNotification(
+        "Radar de Oportunidades Activado 🎯",
+        "Te avisaremos cuando un valor alcance la Zona Áurea o Confluencia Alta."
+      );
+    } else {
+      showToast("Permiso de notificaciones denegado en el navegador.");
+    }
+  } catch (err) {
+    console.warn("Error requesting notification permission:", err);
+  }
+  updateBrowserNotifButtonState();
+}
+
+function sendDesktopNotification(title, body) {
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification(title, {
+        body,
+        icon: "https://www.tradingview.com/static/images/favicon.ico"
+      });
+    } catch (e) {
+      console.warn("Notification error:", e);
+    }
+  }
 }
 
 function renderFilteredCards() {
@@ -654,6 +996,8 @@ function renderFilteredCards() {
 function createAssetCard(item) {
   const card = document.createElement("article");
   card.className = "asset-card";
+  card.id = `card-${item.ticker.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  card.dataset.ticker = item.ticker;
 
   const isInBuyZone = item.current_price <= item.fib_levels["50.0%"];
   if (isInBuyZone) {
