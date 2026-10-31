@@ -2989,4 +2989,431 @@ input:checked + .slider-toggle:before {
   color: #94a3b8;
 }
 
+/* ==========================================================================
+   ÍNDICE CNN FEAR & GREED (WALL STREET SENTIMENT)
+   ========================================================================== */
+.kpi-card-sentiment {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  border-color: rgba(245, 158, 11, 0.35);
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.85), rgba(245, 158, 11, 0.06));
+}
+
+.kpi-card-sentiment:hover {
+  transform: translateY(-3px);
+}
+
+.sentiment-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.sentiment-header-row .kpi-label {
+  margin-bottom: 0;
+}
+
+.btn-sentiment-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 3px 9px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-sentiment-info:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  transform: scale(1.04);
+}
+
+.sentiment-score-group {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.sentiment-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+  transition: transform 0.25s ease;
+}
+
+.kpi-card-sentiment:hover .sentiment-icon {
+  transform: scale(1.15) rotate(-6deg);
+}
+
+.sentiment-max {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.badge-sentiment {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+  transition: all 0.3s ease;
+}
+
+/* Gauge / Termómetro */
+.sentiment-gauge-container {
+  margin: 10px 0 8px 0;
+}
+
+.sentiment-gauge-track {
+  position: relative;
+  height: 8px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, 
+    #ef4444 0%, 
+    #f97316 25%, 
+    #eab308 50%, 
+    #22c55e 75%, 
+    #10b981 100%
+  );
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+  overflow: visible;
+}
+
+.sentiment-gauge-needle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #0f172a;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  transition: left 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 2;
+}
+
+.sentiment-gauge-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 5px;
+  font-family: var(--font-mono);
+}
+
+.sentiment-sub-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.sentiment-advice-tag {
+  font-size: 0.73rem;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 5px 8px;
+  border-radius: 6px;
+  border-left: 3px solid var(--accent-gold);
+}
+
+/* Variaciones dinámicas de la tarjeta de Sentimiento */
+.sentiment-zone-extreme-fear {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.9), rgba(239, 68, 68, 0.12)) !important;
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.15);
+}
+.sentiment-zone-extreme-fear .text-sentiment { color: #f87171; text-shadow: 0 0 16px rgba(239, 68, 68, 0.4); }
+.sentiment-zone-extreme-fear .badge-sentiment { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); }
+.sentiment-zone-extreme-fear .sentiment-advice-tag { border-left-color: #ef4444; }
+
+.sentiment-zone-fear {
+  border-color: rgba(245, 158, 11, 0.5) !important;
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.9), rgba(245, 158, 11, 0.1)) !important;
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.15);
+}
+.sentiment-zone-fear .text-sentiment { color: #fbbf24; text-shadow: 0 0 16px rgba(245, 158, 11, 0.4); }
+.sentiment-zone-fear .badge-sentiment { background: rgba(245, 158, 11, 0.2); color: #fde047; border: 1px solid rgba(245, 158, 11, 0.45); }
+.sentiment-zone-fear .sentiment-advice-tag { border-left-color: #f59e0b; }
+
+.sentiment-zone-neutral {
+  border-color: rgba(56, 189, 248, 0.4) !important;
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.9), rgba(56, 189, 248, 0.08)) !important;
+}
+.sentiment-zone-neutral .text-sentiment { color: #38bdf8; }
+.sentiment-zone-neutral .badge-sentiment { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4); }
+.sentiment-zone-neutral .sentiment-advice-tag { border-left-color: #38bdf8; }
+
+.sentiment-zone-greed {
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.9), rgba(16, 185, 129, 0.1)) !important;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.15);
+}
+.sentiment-zone-greed .text-sentiment { color: #34d399; text-shadow: 0 0 16px rgba(16, 185, 129, 0.4); }
+.sentiment-zone-greed .badge-sentiment { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.45); }
+.sentiment-zone-greed .sentiment-advice-tag { border-left-color: #10b981; }
+
+.sentiment-zone-extreme-greed {
+  border-color: rgba(236, 72, 153, 0.5) !important;
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.9), rgba(236, 72, 153, 0.12)) !important;
+  box-shadow: 0 4px 20px rgba(236, 72, 153, 0.2);
+}
+.sentiment-zone-extreme-greed .text-sentiment { color: #f472b6; text-shadow: 0 0 16px rgba(236, 72, 153, 0.4); }
+.sentiment-zone-extreme-greed .badge-sentiment { background: rgba(236, 72, 153, 0.2); color: #fbcfe8; border: 1px solid rgba(236, 72, 153, 0.45); }
+.sentiment-zone-extreme-greed .sentiment-advice-tag { border-left-color: #ec4899; }
+
+/* MODAL DE DESGLOSE DE 7 FACTORES */
+.modal-sentiment-detail {
+  max-width: 680px;
+  width: 94%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.sentiment-modal-hero {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sentiment-hero-score-box {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sentiment-hero-icon {
+  font-size: 2.8rem;
+  line-height: 1;
+}
+
+.sentiment-hero-score {
+  font-size: 2.4rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  letter-spacing: -0.03em;
+  color: #fbbf24;
+}
+
+.sentiment-hero-status {
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.sentiment-hero-advice {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px 14px;
+  border-radius: 8px;
+  border-left: 3px solid var(--accent-gold);
+}
+
+.sentiment-modal-history-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 600px) {
+  .sentiment-modal-history-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.sentiment-history-box {
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hist-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.hist-val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.sentiment-factors-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.factors-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--accent-blue);
+  letter-spacing: 0.05em;
+}
+
+.factors-sub {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+
+.sentiment-factors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.factor-item {
+  background: rgba(17, 24, 39, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.factor-item:hover {
+  background: rgba(24, 33, 53, 0.7);
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.factor-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.factor-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.factor-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.factor-score-num {
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.factor-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.factor-badge-extreme-fear {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.factor-badge-fear {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fde047;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.factor-badge-neutral {
+  background: rgba(56, 189, 248, 0.2);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.factor-badge-greed {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.factor-badge-extreme-greed {
+  background: rgba(236, 72, 153, 0.2);
+  color: #fbcfe8;
+  border: 1px solid rgba(236, 72, 153, 0.4);
+}
+
+.factor-desc {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.factor-bar-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.factor-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.8s ease;
+}
+
+.sentiment-strategy-guide {
+  display: flex;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(16, 185, 129, 0.05));
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 4px;
+}
+
+.sentiment-strategy-guide .guide-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.sentiment-strategy-guide .guide-text {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  line-height: 1.45;
+}
+
+
 

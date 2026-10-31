@@ -134,6 +134,43 @@
         <span class="kpi-sub" id="kpiTopScoreDesc">Fibonacci + RSI(14) + SMA 200</span>
       </div>
 
+      <!-- KPI Sentimiento de Mercado (CNN Fear & Greed) -->
+      <div class="kpi-card kpi-card-sentiment" id="kpiSentimentCard">
+        <div class="sentiment-header-row">
+          <span class="kpi-label">Sentimiento Wall St. (CNN)</span>
+          <button class="btn-sentiment-info" id="btnSentimentInfo" type="button" title="Ver desglose de los 7 factores de Wall Street">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>7 Factores</span>
+          </button>
+        </div>
+        <div class="kpi-value-row">
+          <div class="sentiment-score-group">
+            <span class="sentiment-icon" id="kpiSentimentIcon">😨</span>
+            <span class="kpi-value text-sentiment" id="kpiSentimentScore">--</span>
+            <span class="sentiment-max">/100</span>
+          </div>
+          <span class="kpi-badge badge-sentiment" id="kpiSentimentBadge">Cargando...</span>
+        </div>
+
+        <!-- Termómetro Visual / Gauge -->
+        <div class="sentiment-gauge-container">
+          <div class="sentiment-gauge-track">
+            <div class="sentiment-gauge-fill" id="sentimentGaugeFill"></div>
+            <div class="sentiment-gauge-needle" id="sentimentGaugeNeedle" style="left: 50%;"></div>
+          </div>
+          <div class="sentiment-gauge-ticks">
+            <span>0 Miedo Extr.</span>
+            <span>50 Neutro</span>
+            <span>100 Codicia</span>
+          </div>
+        </div>
+
+        <div class="sentiment-sub-info">
+          <span class="kpi-sub" id="kpiSentimentPrev">Ayer: -- | Hace 1 sem: --</span>
+          <span class="sentiment-advice-tag" id="kpiSentimentAdvice">Consultando Wall Street...</span>
+        </div>
+      </div>
+
       <div class="kpi-card">
         <span class="kpi-label">Mayor Corrección Registrada</span>
         <div class="kpi-value-row">
@@ -720,6 +757,86 @@
 
       <div class="modal-footer">
         <button id="btnCloseSellModalFooter" class="btn btn-primary">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Desglose 7 Factores Cuantitativos CNN Fear & Greed -->
+  <div id="sentimentModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card modal-sentiment-detail">
+      <div class="modal-header">
+        <div class="modal-header-icon-col">
+          <span class="modal-icon-big">🌡️</span>
+          <div>
+            <h2 class="modal-title">Índice CNN Fear & Greed (Wall Street)</h2>
+            <p class="modal-subtitle">Desglose de los 7 pilares cuantitativos del sentimiento de mercado</p>
+          </div>
+        </div>
+        <button id="btnCloseSentimentModal" class="btn-modal-close" aria-label="Cerrar modal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Banner Resumen -->
+        <div class="sentiment-modal-hero" id="sentimentModalHero">
+          <div class="sentiment-hero-score-box">
+            <span class="sentiment-hero-icon" id="modalSentimentIcon">😨</span>
+            <div>
+              <div class="sentiment-hero-score" id="modalSentimentScore">--</div>
+              <div class="sentiment-hero-status" id="modalSentimentStatus">Cargando...</div>
+            </div>
+          </div>
+          <div class="sentiment-hero-advice" id="modalSentimentAdvice">
+            Consultando datos de Wall Street...
+          </div>
+        </div>
+
+        <!-- Historial rápido -->
+        <div class="sentiment-modal-history-grid">
+          <div class="sentiment-history-box">
+            <span class="hist-label">Cierre Previo</span>
+            <span class="hist-val" id="modalHistPrevClose">--</span>
+          </div>
+          <div class="sentiment-history-box">
+            <span class="hist-label">Hace 1 Semana</span>
+            <span class="hist-val" id="modalHist1Week">--</span>
+          </div>
+          <div class="sentiment-history-box">
+            <span class="hist-label">Hace 1 Mes</span>
+            <span class="hist-val" id="modalHist1Month">--</span>
+          </div>
+          <div class="sentiment-history-box">
+            <span class="hist-label">Hace 1 Año</span>
+            <span class="hist-val" id="modalHist1Year">--</span>
+          </div>
+        </div>
+
+        <div class="sentiment-factors-header">
+          <span class="factors-title">📊 LOS 7 INDICADORES COMPONENTES</span>
+          <span class="factors-sub">Fuentes directas de CNN Business y bolsas de Nueva York</span>
+        </div>
+
+        <!-- Lista de 7 factores dinámicos -->
+        <div class="sentiment-factors-list" id="sentimentFactorsList">
+          <!-- Se puebla desde app.js -->
+        </div>
+
+        <!-- Guía estratégica con Fibonacci -->
+        <div class="sentiment-strategy-guide">
+          <div class="guide-icon">💡</div>
+          <div class="guide-text">
+            <strong>¿Cómo sincronizar este índice con Fibonacci?</strong><br>
+            Warren Buffett: <em>"Sé temeroso cuando los demás son codiciosos y sé codicioso cuando los demás tienen miedo"</em>.<br>
+            • Cuando el índice marca <strong>Miedo</strong> o <strong>Miedo Extremo (&le; 35)</strong> y un activo de calidad toca el <strong>61.8% o 78.6% de Fibonacci</strong>, la confluencia de rebote alcista es máxima.<br>
+            • Si el índice entra en <strong>Codicia Extrema (&ge; 75)</strong>, pasa al <strong>Modo Venta</strong> y activa Trailing Stops para no devolver beneficios.
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnCloseSentimentModalFooter" class="btn btn-secondary" type="button">Cerrar</button>
+        <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+          Ver en CNN Markets ↗
+        </a>
       </div>
     </div>
   </div>

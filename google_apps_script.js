@@ -223,3 +223,36 @@ function showUpdateHelp() {
     SpreadsheetApp.getUi().ButtonSet.OK
   );
 }
+
+/**
+ * Función de prueba para ejecutar directamente desde el editor de Apps Script
+ * (Permite verificar que la fórmula SPARKLINE funciona sin desplegar versión)
+ */
+function testUpdate() {
+  var dummy = {
+    postData: {
+      contents: JSON.stringify({
+        timestamp: Utilities.formatDate(new Date(), "GMT+1", "yyyy-MM-dd HH:mm:ss"),
+        period: "3mo",
+        data: [
+          {
+            tab: "AMD",
+            ticker: "AMD",
+            current_price: 504.80,
+            min: 424.03,
+            max: 658.52,
+            range: 234.49,
+            drop_pct: 23.34,
+            zone_desc: "Zona Áurea 61.8%",
+            signal: "🟢 COMPRA ÓPTIMA (61.8%)",
+            fib_levels: {
+              "23.6%": 603.18, "38.2%": 568.95, "50.0%": 541.28, "61.8%": 513.60, "78.6%": 474.21
+            }
+          }
+        ]
+      })
+    }
+  };
+  doPost(dummy);
+}
+

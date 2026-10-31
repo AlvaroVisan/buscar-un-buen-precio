@@ -48,6 +48,11 @@
       "tab": "TSLA",
       "ticker": "TSLA",
       "name": "Tesla, Inc."
+    },
+    {
+      "tab": "Bitcoin",
+      "ticker": "BTC-USD",
+      "name": "Bitcoin (BTC)"
     }
   ]
 }

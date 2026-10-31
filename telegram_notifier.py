@@ -60,6 +60,8 @@ def get_tradingview_url(ticker):
         tv_symbol = "COMEX:GC1!"
     elif tv_symbol == "^GSPC":
         tv_symbol = "SP:SPX"
+    elif tv_symbol == "BTC-USD":
+        tv_symbol = "COINBASE:BTCUSD"
     elif tv_symbol.endswith(".MC"):
         tv_symbol = f"BME:{tv_symbol.replace('.MC', '')}"
     return f"https://www.tradingview.com/symbols/{tv_symbol}/"
@@ -304,11 +306,18 @@ def handle_resumen(bot_token, chat_id):
         period = payload.get("period", "3mo").upper()
         ts = payload.get("timestamp", "").split(" ")[-1] if payload.get("timestamp") else "--"
 
+        sentiment = payload.get("market_sentiment", {})
+        s_score = sentiment.get("score")
+        s_rating = sentiment.get("rating_es", "")
+        s_icon = sentiment.get("icon", "🌡️")
+
         lines = [
             f"📊 *RESUMEN DE MERCADO ({period})*",
-            f"🕒 _Hora de corte: {ts}_",
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            f"🕒 _Hora de corte: {ts}_"
         ]
+        if s_score is not None:
+            lines.append(f"{s_icon} *Sentimiento CNN*: `{s_score}/100` ({s_rating})")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         for it in items:
             ticker = it.get("ticker", "")

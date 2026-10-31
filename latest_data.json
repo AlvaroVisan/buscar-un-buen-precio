@@ -1,6 +1,71 @@
 {
-  "timestamp": "2026-10-31 19:23:01",
+  "timestamp": "2026-11-01 00:48:49",
   "period": "3mo",
+  "market_sentiment": {
+    "score": 26.2,
+    "rating": "fear",
+    "rating_es": "Miedo",
+    "rating_code": "FEAR",
+    "icon": "😨",
+    "advice": "Sentimiento pesimista / Descuento general. Clima favorable para buscar entradas en retrocesos sólidos.",
+    "previous_close": 34.6,
+    "previous_1_week": 16.7,
+    "previous_1_month": 30.3,
+    "previous_1_year": 37.1,
+    "timestamp": "2026-10-30T23:59:48+00:00",
+    "sub_indicators": {
+      "market_momentum_sp500": {
+        "label": "Momento S&P 500 (vs SMA 125)",
+        "description": "Mide si el S&P 500 cotiza por encima de su media de 125 días",
+        "score": 14.6,
+        "rating": "extreme fear",
+        "rating_es": "Miedo Extremo"
+      },
+      "stock_price_strength": {
+        "label": "Fuerza de Precios (Máx vs Mín 52 sem)",
+        "description": "Balance de acciones marcando máximos anuales frente a mínimos",
+        "score": 32.4,
+        "rating": "fear",
+        "rating_es": "Miedo"
+      },
+      "stock_price_breadth": {
+        "label": "Amplitud de Mercado (Volumen NYSE)",
+        "description": "Volumen negociado en acciones que suben vs las que bajan",
+        "score": 37.2,
+        "rating": "fear",
+        "rating_es": "Miedo"
+      },
+      "put_call_options": {
+        "label": "Opciones Put / Call (Cobertura)",
+        "description": "Demanda de opciones de venta defensivas vs opciones de compra",
+        "score": 27.8,
+        "rating": "fear",
+        "rating_es": "Miedo"
+      },
+      "market_volatility_vix": {
+        "label": "Volatilidad VIX (vs SMA 50)",
+        "description": "Índice de volatilidad implícita y miedo en opciones del S&P 500",
+        "score": 26.5,
+        "rating": "fear",
+        "rating_es": "Miedo"
+      },
+      "safe_haven_demand": {
+        "label": "Demanda Refugio (Bonos vs Acciones)",
+        "description": "Rendimiento relativo de bonos del Tesoro frente a renta variable",
+        "score": 2.2,
+        "rating": "extreme fear",
+        "rating_es": "Miedo Extremo"
+      },
+      "junk_bond_demand": {
+        "label": "Bonos Basura (Apetito de Riesgo)",
+        "description": "Diferencial de rendimiento entre deuda de alto riesgo e investment grade",
+        "score": 43.0,
+        "rating": "fear",
+        "rating_es": "Miedo"
+      }
+    },
+    "status": "OK"
+  },
   "data": [
     {
       "tab": "AMD",
@@ -412,6 +477,65 @@
         "dist_to_ext127_pct": 10.48,
         "dist_to_ext161_pct": 20.3,
         "trailing_stop": 377.82,
+        "trailing_stop_pct": 5.5
+      }
+    },
+    {
+      "tab": "Bitcoin",
+      "ticker": "BTC-USD",
+      "name": "Bitcoin (BTC)",
+      "current_price": 77380.89,
+      "min": 62226.58,
+      "max": 87363.76,
+      "range": 25137.18,
+      "drop_pct": 11.43,
+      "zone_desc": "Zona 38.2%",
+      "signal": "🟡 EN OBSERVACIÓN (38.2%)",
+      "status_code": "WATCH_38",
+      "fib_levels": {
+        "23.6%": 81431.38,
+        "38.2%": 77761.36,
+        "50.0%": 74795.17,
+        "61.8%": 71828.98,
+        "78.6%": 67605.93
+      },
+      "rsi": 35.3,
+      "rsi_desc": "Zona Descuento (30-40)",
+      "rsi_zone": "OVERSOLD_MILD",
+      "sma_200": 73131.41,
+      "sma_dist_pct": 5.81,
+      "is_above_sma": true,
+      "score": 61,
+      "confluence_rating": "🟡 MODERADA / SEGUIMIENTO",
+      "confluence_code": "MODERATE",
+      "risk_mgmt": {
+        "entry_price": 71828.98,
+        "entry_type": "LIMIT_618",
+        "entry_label": "Límite 61.8% ($71,828.98)",
+        "stop_loss": 61293.18,
+        "risk_per_share": 10535.8,
+        "risk_pct": 14.67,
+        "take_profit_1": 77761.36,
+        "reward_1_pct": 8.26,
+        "rr_ratio_1": 0.56,
+        "take_profit_2": 87363.76,
+        "reward_2_pct": 21.63,
+        "rr_ratio_2": 1.47,
+        "rr_rating": "⚪ Ajustado (R:R < 1:1.5)",
+        "rr_code": "TIGHT"
+      },
+      "sell_mgmt": {
+        "sell_score": 0,
+        "sell_signal": "🟢 SIN PRESIÓN DE VENTA",
+        "sell_action": "Activo en zona baja o de retroceso; no es momento de vender.",
+        "sell_status_code": "ACCUMULATE",
+        "gain_from_low_pct": 24.35,
+        "dist_to_high_pct": 11.43,
+        "ext_127": 94201.07,
+        "ext_161": 102898.53,
+        "dist_to_ext127_pct": 21.74,
+        "dist_to_ext161_pct": 32.98,
+        "trailing_stop": 73124.94,
         "trailing_stop_pct": 5.5
       }
     }

@@ -393,6 +393,34 @@ function setupModalEventListeners() {
     });
   });
 
+  // --- Modal Sentimiento de Mercado (CNN Fear & Greed) ---
+  const btnSentimentInfo = document.getElementById("btnSentimentInfo");
+  const kpiSentimentCard = document.getElementById("kpiSentimentCard");
+  const btnCloseSentimentModal = document.getElementById("btnCloseSentimentModal");
+  const btnCloseSentimentModalFooter = document.getElementById("btnCloseSentimentModalFooter");
+
+  if (btnSentimentInfo) {
+    btnSentimentInfo.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openSentimentModal();
+    });
+  }
+
+  if (kpiSentimentCard) {
+    kpiSentimentCard.addEventListener("click", () => {
+      openSentimentModal();
+    });
+  }
+
+  [btnCloseSentimentModal, btnCloseSentimentModalFooter].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const modal = document.getElementById("sentimentModal");
+        if (modal) modal.style.display = "none";
+      });
+    }
+  });
+
   // Cerrar modales con Escape y backdrop click
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -415,11 +443,13 @@ function closeAllModals() {
   const tgModal = document.getElementById("telegramModal");
   const calcModal = document.getElementById("positionCalcModal");
   const sellModal = document.getElementById("partialSellModal");
+  const sentimentModal = document.getElementById("sentimentModal");
   if (addModal) addModal.style.display = "none";
   if (delModal) delModal.style.display = "none";
   if (tgModal) tgModal.style.display = "none";
   if (calcModal) calcModal.style.display = "none";
   if (sellModal) sellModal.style.display = "none";
+  if (sentimentModal) sentimentModal.style.display = "none";
   closeFullscreenChart();
   pendingDeleteTicker = null;
   currentCalcAsset = null;
@@ -921,6 +951,9 @@ function renderDashboard(data) {
   if (elTopScore) elTopScore.textContent = `${topScore}/100`;
   if (elTopScoreName) elTopScoreName.textContent = topScoreName;
   if (elTopScoreDesc) elTopScoreDesc.textContent = topScoreDesc;
+
+  // 1b. Render KPI Sentimiento de Mercado (CNN Fear & Greed)
+  renderMarketSentiment(data.market_sentiment);
 
   // 2. Actualizar contadores en los chips de filtro
   updateFilterBadges(items);
@@ -2368,3 +2401,153 @@ async function loadAndRenderJournal() {
     container.innerHTML = `<div class="journal-empty-box"><p style="color: #f87171;">Error al cargar el diario: ${err.message}</p></div>`;
   }
 }
+
+// ==========================================================================
+// RENDERIZADOR DEL ÍNDICE CNN FEAR & GREED (WALL STREET SENTIMENT)
+// ==========================================================================
+
+function renderMarketSentiment(sentiment) {
+  const card = document.getElementById("kpiSentimentCard");
+  const elScore = document.getElementById("kpiSentimentScore");
+  const elBadge = document.getElementById("kpiSentimentBadge");
+  const elIcon = document.getElementById("kpiSentimentIcon");
+  const elNeedle = document.getElementById("sentimentGaugeNeedle");
+  const elPrev = document.getElementById("kpiSentimentPrev");
+  const elAdvice = document.getElementById("kpiSentimentAdvice");
+
+  if (!sentiment) {
+    if (elScore) elScore.textContent = "--";
+    if (elBadge) elBadge.textContent = "Sin datos";
+    return;
+  }
+
+  const score = typeof sentiment.score === "number" ? sentiment.score : (parseFloat(sentiment.score) || 50);
+  const ratingEs = sentiment.rating_es || "Neutral";
+  const icon = sentiment.icon || "😐";
+
+  if (elScore) elScore.textContent = Math.round(score);
+  if (elIcon) elIcon.textContent = icon;
+  if (elBadge) elBadge.textContent = ratingEs;
+
+  // Actualizar aguja del termómetro (de 2% a 98% para encajar perfecto en el track)
+  if (elNeedle) {
+    const clampedPos = Math.max(2, Math.min(98, score));
+    elNeedle.style.left = `${clampedPos}%`;
+  }
+
+  // Comparativa histórica rápida
+  if (elPrev) {
+    const prevClose = (sentiment.previous_close !== null && sentiment.previous_close !== undefined) ? Math.round(sentiment.previous_close) : "--";
+    const prev1w = (sentiment.previous_1_week !== null && sentiment.previous_1_week !== undefined) ? Math.round(sentiment.previous_1_week) : "--";
+    elPrev.textContent = `Ayer: ${prevClose} | Hace 1 sem: ${prev1w}`;
+  }
+
+  // Consejo estratégico macro
+  if (elAdvice) {
+    elAdvice.textContent = sentiment.advice || "Analizando el clima de Wall Street...";
+  }
+
+  // Clases semafóricas dinámicas
+  if (card) {
+    card.classList.remove(
+      "sentiment-zone-extreme-fear",
+      "sentiment-zone-fear",
+      "sentiment-zone-neutral",
+      "sentiment-zone-greed",
+      "sentiment-zone-extreme-greed"
+    );
+
+    if (score <= 24) {
+      card.classList.add("sentiment-zone-extreme-fear");
+    } else if (score <= 44) {
+      card.classList.add("sentiment-zone-fear");
+    } else if (score <= 55) {
+      card.classList.add("sentiment-zone-neutral");
+    } else if (score <= 75) {
+      card.classList.add("sentiment-zone-greed");
+    } else {
+      card.classList.add("sentiment-zone-extreme-greed");
+    }
+  }
+}
+
+function openSentimentModal() {
+  const modal = document.getElementById("sentimentModal");
+  if (!modal) return;
+  modal.style.display = "flex";
+
+  const sentiment = (marketData && marketData.market_sentiment) ? marketData.market_sentiment : null;
+  if (!sentiment) return;
+
+  const score = Math.round(sentiment.score || 50);
+  const ratingEs = sentiment.rating_es || "Neutral";
+  const icon = sentiment.icon || "😐";
+
+  const modalIcon = document.getElementById("modalSentimentIcon");
+  const modalScore = document.getElementById("modalSentimentScore");
+  const modalStatus = document.getElementById("modalSentimentStatus");
+  const modalAdvice = document.getElementById("modalSentimentAdvice");
+
+  if (modalIcon) modalIcon.textContent = icon;
+  if (modalScore) modalScore.textContent = `${score}/100`;
+  if (modalStatus) modalStatus.textContent = ratingEs;
+  if (modalAdvice) modalAdvice.textContent = sentiment.advice || "";
+
+  // Historial rápido
+  const elPrevClose = document.getElementById("modalHistPrevClose");
+  const el1Week = document.getElementById("modalHist1Week");
+  const el1Month = document.getElementById("modalHist1Month");
+  const el1Year = document.getElementById("modalHist1Year");
+
+  if (elPrevClose) elPrevClose.textContent = sentiment.previous_close !== null ? Math.round(sentiment.previous_close) : "--";
+  if (el1Week) el1Week.textContent = sentiment.previous_1_week !== null ? Math.round(sentiment.previous_1_week) : "--";
+  if (el1Month) el1Month.textContent = sentiment.previous_1_month !== null ? Math.round(sentiment.previous_1_month) : "--";
+  if (el1Year) el1Year.textContent = sentiment.previous_1_year !== null ? Math.round(sentiment.previous_1_year) : "--";
+
+  // Lista de 7 factores cuantitativos
+  const listContainer = document.getElementById("sentimentFactorsList");
+  if (listContainer && sentiment.sub_indicators) {
+    listContainer.innerHTML = "";
+    const subs = sentiment.sub_indicators;
+
+    Object.keys(subs).forEach(key => {
+      const item = subs[key];
+      const val = typeof item.score === "number" ? Math.round(item.score) : item.score;
+      const rawRating = (item.rating || "neutral").toLowerCase().replace(/\s+/g, "-");
+      const badgeClass = `factor-badge-${rawRating}`;
+      const badgeText = item.rating_es || item.rating || "Neutral";
+
+      // Gradiente de barra según nivel
+      let barGradient = "linear-gradient(90deg, #38bdf8, #0284c7)";
+      if (val <= 25) {
+        barGradient = "linear-gradient(90deg, #ef4444, #dc2626)";
+      } else if (val <= 45) {
+        barGradient = "linear-gradient(90deg, #f59e0b, #d97706)";
+      } else if (val <= 55) {
+        barGradient = "linear-gradient(90deg, #38bdf8, #0284c7)";
+      } else if (val <= 75) {
+        barGradient = "linear-gradient(90deg, #10b981, #059669)";
+      } else {
+        barGradient = "linear-gradient(90deg, #ec4899, #db2777)";
+      }
+
+      const factorEl = document.createElement("div");
+      factorEl.className = "factor-item";
+      factorEl.innerHTML = `
+        <div class="factor-top-row">
+          <span class="factor-name">${item.label || key}</span>
+          <div class="factor-badge-group">
+            <span class="factor-score-num">${val}/100</span>
+            <span class="factor-badge ${badgeClass}">${badgeText}</span>
+          </div>
+        </div>
+        <div class="factor-desc">${item.description || ""}</div>
+        <div class="factor-bar-track">
+          <div class="factor-bar-fill" style="width: ${Math.max(2, Math.min(100, val))}%; background: ${barGradient};"></div>
+        </div>
+      `;
+      listContainer.appendChild(factorEl);
+    });
+  }
+}
+

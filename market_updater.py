@@ -70,6 +70,130 @@ def save_config(config):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg_copy, f, indent=2, ensure_ascii=False)
 
+def translate_sentiment_rating(raw_rating):
+    r_map = {
+        "extreme fear": "Miedo Extremo",
+        "fear": "Miedo",
+        "neutral": "Neutral",
+        "greed": "Codicia",
+        "extreme greed": "Codicia Extrema"
+    }
+    return r_map.get(str(raw_rating).lower().strip(), str(raw_rating).capitalize())
+
+def fetch_cnn_fear_and_greed():
+    """
+    Consulta el índice oficial CNN Fear & Greed de Wall Street.
+    Devuelve score (0-100), estado, comparativas históricas y los 7 factores cuantificados.
+    """
+    url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*"
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            fg = data.get("fear_and_greed", {})
+            score = float(fg.get("score", 50.0))
+            raw_rating = str(fg.get("rating", "neutral")).strip().lower()
+
+            # Mapeo interpretativo y en español
+            if score <= 24:
+                rating_code = "EXTREME_FEAR"
+                rating_es = "Miedo Extremo"
+                icon = "😱"
+                advice = "Momento histórico de compra en rebajas (Buffett: 'Sé codicioso cuando los demás tienen miedo'). Alta confluencia con niveles 61.8% y 78.6%."
+            elif score <= 44:
+                rating_code = "FEAR"
+                rating_es = "Miedo"
+                icon = "😨"
+                advice = "Sentimiento pesimista / Descuento general. Clima favorable para buscar entradas en retrocesos sólidos."
+            elif score <= 55:
+                rating_code = "NEUTRAL"
+                rating_es = "Neutral"
+                icon = "😐"
+                advice = "Equilibrio entre compradores y vendedores. Priorizar la tendencia técnica individual de cada activo."
+            elif score <= 75:
+                rating_code = "GREED"
+                rating_es = "Codicia"
+                icon = "🤑"
+                advice = "Mercado optimista. Ajustar Stop Loss y evitar perseguir precios cerca de máximos."
+            else:
+                rating_code = "EXTREME_GREED"
+                rating_es = "Codicia Extrema"
+                icon = "🔥"
+                advice = "Euforia y sobrecalentamiento. Precaución con compras nuevas; momento óptimo para el Modo Venta y extensiones."
+
+            # Desglose de los 7 pilares cuantitativos de Wall Street
+            sub_indicators = {}
+            factor_catalog = [
+                ("market_momentum_sp500", "Momento S&P 500 (vs SMA 125)", "Mide si el S&P 500 cotiza por encima de su media de 125 días"),
+                ("stock_price_strength", "Fuerza de Precios (Máx vs Mín 52 sem)", "Balance de acciones marcando máximos anuales frente a mínimos"),
+                ("stock_price_breadth", "Amplitud de Mercado (Volumen NYSE)", "Volumen negociado en acciones que suben vs las que bajan"),
+                ("put_call_options", "Opciones Put / Call (Cobertura)", "Demanda de opciones de venta defensivas vs opciones de compra"),
+                ("market_volatility_vix", "Volatilidad VIX (vs SMA 50)", "Índice de volatilidad implícita y miedo en opciones del S&P 500"),
+                ("safe_haven_demand", "Demanda Refugio (Bonos vs Acciones)", "Rendimiento relativo de bonos del Tesoro frente a renta variable"),
+                ("junk_bond_demand", "Bonos Basura (Apetito de Riesgo)", "Diferencial de rendimiento entre deuda de alto riesgo e investment grade")
+            ]
+
+            for key, label, desc in factor_catalog:
+                if key in data and isinstance(data[key], dict):
+                    val = data[key].get("score")
+                    raw_sub_rat = data[key].get("rating", "neutral")
+                    if val is not None:
+                        sub_indicators[key] = {
+                            "label": label,
+                            "description": desc,
+                            "score": round(float(val), 1) if isinstance(val, (int, float)) else val,
+                            "rating": str(raw_sub_rat).lower().strip(),
+                            "rating_es": translate_sentiment_rating(raw_sub_rat)
+                        }
+
+            return {
+                "score": round(score, 1),
+                "rating": raw_rating,
+                "rating_es": rating_es,
+                "rating_code": rating_code,
+                "icon": icon,
+                "advice": advice,
+                "previous_close": round(float(fg.get("previous_close", 0)), 1) if fg.get("previous_close") is not None else None,
+                "previous_1_week": round(float(fg.get("previous_1_week", 0)), 1) if fg.get("previous_1_week") is not None else None,
+                "previous_1_month": round(float(fg.get("previous_1_month", 0)), 1) if fg.get("previous_1_month") is not None else None,
+                "previous_1_year": round(float(fg.get("previous_1_year", 0)), 1) if fg.get("previous_1_year") is not None else None,
+                "timestamp": fg.get("timestamp"),
+                "sub_indicators": sub_indicators,
+                "status": "OK"
+            }
+    except Exception as e:
+        print(f"[CNN Sentiment] ⚠️ Aviso consultando Fear & Greed: {e}")
+
+    # Fallback si falla la red: intentar leer el último dato guardado
+    if os.path.exists(LATEST_DATA_PATH):
+        try:
+            with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
+                old_payload = json.load(f)
+                if "market_sentiment" in old_payload and old_payload["market_sentiment"]:
+                    cached = old_payload["market_sentiment"]
+                    cached["status"] = "CACHED"
+                    return cached
+        except Exception:
+            pass
+
+    return {
+        "score": 50.0,
+        "rating": "neutral",
+        "rating_es": "Neutral (Estimado)",
+        "rating_code": "NEUTRAL",
+        "icon": "😐",
+        "advice": "No se pudo conectar con el índice de sentimiento en este momento.",
+        "previous_close": 50.0,
+        "previous_1_week": 50.0,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "sub_indicators": {},
+        "status": "FALLBACK"
+    }
+
 def compute_rsi(series, period=14):
     if len(series) < period + 1:
         return 50.0
@@ -425,10 +549,16 @@ def fetch_asset_data(asset, period="3mo"):
         "sell_mgmt": sell_mgmt
     }
 
-def print_summary_table(results, period, timestamp):
+def print_summary_table(results, period, timestamp, sentiment=None):
     print("\n" + "=" * 105)
     print(f"📊 REPORTE DE MERCADO, FIBONACCI & CONFLUENCIA TÉCNICA - {timestamp}")
     print(f"Ventana Fibonacci: {period} | Indicadores: Wilder's RSI(14) + SMA 200")
+    if sentiment:
+        s_score = sentiment.get("score", 50)
+        s_rating = sentiment.get("rating_es", "Neutral")
+        s_icon = sentiment.get("icon", "🌡️")
+        s_adv = sentiment.get("advice", "")
+        print(f"🌡️ Sentimiento CNN Fear & Greed: {s_score}/100 {s_icon} [{s_rating}] -> {s_adv}")
     print("=" * 105)
     print(f"{'Activo':<10} {'Ticker':<8} {'Precio':>10} {'Caída %':>9} {'RSI':>6} {'SMA 200':>10} {'Dist SMA':>9} {'Score':>7} {'Confluencia':<22}")
     print("-" * 105)
@@ -453,20 +583,27 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
 
     print(f"\n🚀 Iniciando sincronización de precios de mercado (Periodo: {period})...")
-    results = []
 
+    # 1. Consultar índice macroeconómico CNN Fear & Greed
+    print("  🌐 Consultando índice de sentimiento CNN Fear & Greed de Wall Street...", end="\r")
+    sentiment = fetch_cnn_fear_and_greed()
+    print(f"  🌡️ Sentimiento CNN: {sentiment.get('score', 50)}/100 ({sentiment.get('rating_es', 'Neutral')}) {sentiment.get('icon', '')}       ")
+
+    # 2. Consultar activos de la cartera
+    results = []
     for asset in config.get("assets", []):
         data = fetch_asset_data(asset, period=period)
         if data:
             results.append(data)
 
     # Imprimir reporte en consola
-    print_summary_table(results, period, timestamp)
+    print_summary_table(results, period, timestamp, sentiment=sentiment)
 
     # Guardar localmente
     payload = {
         "timestamp": timestamp,
         "period": period,
+        "market_sentiment": sentiment,
         "data": results
     }
     with open(LATEST_DATA_PATH, "w", encoding="utf-8") as f:
