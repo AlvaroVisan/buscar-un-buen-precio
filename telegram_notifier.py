@@ -872,7 +872,8 @@ def handle_alertas(bot_token, chat_id):
 
 def handle_compra(bot_token, chat_id, query=""):
     """
-    Envía el Consejo de Compra sintetizado con Plan Operativo (Entrada, Stop Loss, TP1/TP2 y R:R).
+    Envía la proyección narrativa de compra (Contexto, Hoja de Ruta, Invalidación y Veredicto).
+    Si no se indica ticker, envía directamente la oportunidad #1 del mercado con accesos a las demás.
     """
     clean_q = (query or "").strip()
     if not clean_q:
@@ -883,26 +884,20 @@ def handle_compra(bot_token, chat_id, query=""):
                 items = sorted(payload.get("data", []), key=lambda x: x.get("score", 0), reverse=True)
                 top = items[:3]
                 if top:
-                    lines = [
-                        "🟢 *CONSEJO DE COMPRA / MEJORES OPORTUNIDADES*",
-                        "━━━━━━━━━━━━━━━━━━━━━━━━━━",
-                        "Indica un activo específico escribiendo `/compra TICKER` (ej: `/compra NVDA`)\n",
-                        "🏆 *Activos con mayor puntuación ahora:*"
-                    ]
-                    for it in top:
-                        t = it.get("ticker", "")
-                        tab = escape_md(it.get("tab", t))
-                        sc = it.get("score", 0)
-                        p = it.get("current_price", 0)
-                        lines.append(f"• *{tab}* (`{t}`): `{_fmt_price(p, it)}` | Score: *{sc}/100* → `/compra {t}`")
-                    send_telegram_message(bot_token, chat_id, "\n".join(lines), reply_markup=TELEGRAM_MAIN_KEYBOARD)
+                    best = top[0]
+                    best_t = best.get("ticker", "")
+                    others = [f"`/compra {it.get('ticker')}`" for it in top[1:] if it.get("ticker")]
+                    others_txt = f"\n\n📌 *Otras oportunidades destacadas:* {' | '.join(others)}" if others else ""
+                    text = f"🏆 *OPORTUNIDAD DESTACADA #1 DEL MERCADO:*\n\n{format_buy_advice(best)}{others_txt}"
+                    kb = build_buy_advice_inline_keyboard(best_t)
+                    send_telegram_message(bot_token, chat_id, text, reply_markup=kb)
                     return
             except Exception:
                 pass
 
         send_telegram_message(
             bot_token, chat_id,
-            "🟢 *CONSEJO DE COMPRA*\n━━━━━━━━━━━━━━━━━━━━━━━━━━\nIndica el ticker que deseas analizar.\n• Ejemplo: `/compra NVDA` o `/compra AMD`",
+            "🟢 *PROYECCIÓN DE COMPRA*\n━━━━━━━━━━━━━━━━━━━━━━━━━━\nIndica el ticker que deseas analizar.\n• Ejemplo: `/compra NVDA` o `/compra AMD`",
             reply_markup=TELEGRAM_MAIN_KEYBOARD
         )
         return
@@ -1756,7 +1751,7 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         if len(parts) > 1:
             handle_ver_ticker(bot_token, chat_id, parts[1])
         else:
-            send_telegram_message(bot_token, chat_id, "Indica el ticker que deseas ver. Ej: `/ver AMD` o `/ver TSLA`.")
+            handle_compra(bot_token, chat_id, "")
         return
 
     if cmd.startswith(("/riesgo", "/risk", "🛡️ riesgo")):
