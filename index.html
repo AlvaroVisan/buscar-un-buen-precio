@@ -111,9 +111,9 @@
         <span class="kpi-label">Valores en Seguimiento</span>
         <div class="kpi-value-row">
           <span class="kpi-value" id="kpiTotal">6</span>
-          <span class="kpi-badge badge-blue">USA & Commodities</span>
+          <span class="kpi-badge badge-blue" id="kpiTotalBadge">Multi-Activo</span>
         </div>
-        <span class="kpi-sub">AMD, Meta, CEG, NVDA, Oro, S&P 500</span>
+        <span class="kpi-sub" id="kpiTotalNames">Cargando cartera...</span>
       </div>
 
       <div class="kpi-card highlight-green">
@@ -216,6 +216,15 @@
             <span class="mode-tab-sub">Historial & Tasa de Acierto</span>
           </span>
           <span class="mode-pill-stat" id="journalStatsPill">Win Rate: 0%</span>
+        </button>
+
+        <button class="mode-tab-btn" id="btnModePortfolio" data-mode="PORTFOLIO">
+          <span class="mode-icon">💼</span>
+          <span class="mode-text-col">
+            <span class="mode-tab-title">Mi Cartera Real</span>
+            <span class="mode-tab-sub">Posiciones, PnL & Alertas SL/TP</span>
+          </span>
+          <span class="mode-pill-stat" id="portfolioPnlPill">0 pos.</span>
         </button>
       </div>
     </nav>
@@ -368,6 +377,57 @@
       <!-- Journal Entries Container -->
       <div id="journalEntriesContainer" class="journal-entries-container">
         <!-- Rendered by app.js -->
+      </div>
+    </section>
+
+    <!-- Sección: Mi Cartera Real (Posiciones Abiertas, PnL en Vivo y Alertas SL/TP) -->
+    <section class="portfolio-section" id="portfolioSection" style="display: none;">
+      <div class="journal-kpi-grid">
+        <div class="journal-kpi-card highlight-winrate">
+          <span class="j-kpi-label">💼 Valor Actual de Cartera</span>
+          <div class="j-kpi-val" id="pfStatMarketVal">$0.00</div>
+          <span class="j-kpi-sub" id="pfStatInvestedSub">Capital invertido: $0.00</span>
+        </div>
+        <div class="journal-kpi-card" id="pfKpiOpenPnlCard">
+          <span class="j-kpi-label">📈 PnL Abierto (Latente)</span>
+          <div class="j-kpi-val" id="pfStatOpenPnl">$0.00</div>
+          <span class="j-kpi-sub" id="pfStatOpenPnlPct">0.00% rentabilidad actual</span>
+        </div>
+        <div class="journal-kpi-card">
+          <span class="j-kpi-label">🛡️ Posiciones & Vigilancia SL/TP</span>
+          <div class="j-kpi-val" id="pfStatPositions">0</div>
+          <span class="j-kpi-sub" id="pfStatAlertsSub">0 alertas de gestión activas</span>
+        </div>
+        <div class="journal-kpi-card highlight-success">
+          <span class="j-kpi-label">🏦 Beneficio Realizado (Ventas)</span>
+          <div class="j-kpi-val" id="pfStatRealizedPnl">$0.00</div>
+          <span class="j-kpi-sub" id="pfStatRealizedSub">0 cierres registrados</span>
+        </div>
+      </div>
+
+      <div class="journal-toolbar">
+        <div>
+          <h3 class="journal-heading">Posiciones Reales en Cartera</h3>
+          <p class="journal-subheading">Seguimiento en vivo de tu precio medio ponderado, distancia a Stop Loss / Take Profit y avisos de resultados</p>
+        </div>
+        <div class="journal-actions">
+          <button id="btnRefreshPortfolio" class="btn btn-secondary btn-sm" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Refrescar
+          </button>
+          <button id="btnOpenPortfolioAdd" class="btn btn-emerald btn-sm" type="button">
+            + Registrar Compra / Posición
+          </button>
+        </div>
+      </div>
+
+      <div id="portfolioPositionsContainer" class="portfolio-positions-grid">
+        <!-- Rendered by app.js -->
+      </div>
+
+      <div id="portfolioClosedWrapper" class="portfolio-closed-wrapper" style="display: none;">
+        <h4 class="pf-closed-heading">📜 Historial Reciente de Ventas Realizadas</h4>
+        <div id="portfolioClosedContainer" class="portfolio-closed-list"></div>
       </div>
     </section>
 
@@ -547,6 +607,17 @@
           <span class="form-hint">El monitor comprobará cotizaciones de mercado en segundo plano y enviará alertas cuando detecte entradas.</span>
         </div>
 
+        <div class="form-group toggle-row-group">
+          <div class="toggle-row-label">
+            <strong>🕒 Horario Inteligente de Mercado (L-V 08:45–22:30)</strong>
+            <span class="form-hint">Pausa consultas automáticas de acciones con bolsa cerrada y mantiene Cripto 24/7 suave. <span id="marketHoursStatusTag" class="mh-status-inline"></span></span>
+          </div>
+          <label class="switch-toggle">
+            <input type="checkbox" id="chkSmartHours" checked>
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+
         <div class="form-group">
           <label class="form-label">Criterios de Alerta</label>
           <div class="checkbox-group">
@@ -588,6 +659,18 @@
       </div>
 
       <div class="modal-body">
+        <!-- Selector de Tipo de Stop Loss: Fibonacci Estructural vs Volatilidad ATR(14) -->
+        <div class="sl-mode-bar">
+          <div class="sl-mode-left">
+            <span class="sl-mode-title">Método de Stop Loss:</span>
+            <span class="sl-atr-badge" id="calcAtrInfoBadge">ATR(14): --</span>
+          </div>
+          <div class="sl-mode-buttons">
+            <button type="button" class="btn-sl-mode active" data-sl-mode="FIBO">📐 Estructural Fibonacci (78.6%)</button>
+            <button type="button" class="btn-sl-mode" data-sl-mode="ATR">🌊 Volatilidad Dinámica (2x ATR)</button>
+          </div>
+        </div>
+
         <!-- Resumen de Niveles Clave -->
         <div class="calc-levels-grid">
           <div class="calc-level-card card-entry">
@@ -596,7 +679,7 @@
             <span class="calc-level-sub" id="calcEntryType">Al mercado</span>
           </div>
           <div class="calc-level-card card-sl">
-            <span class="calc-level-label">🛡️ Stop Loss Sugerido</span>
+            <span class="calc-level-label" id="calcStopLossLabel">🛡️ Stop Loss Sugerido</span>
             <span class="calc-level-val val-danger" id="calcStopLoss">$0.00</span>
             <span class="calc-level-sub" id="calcRiskPct">-0.0% riesgo</span>
           </div>
@@ -663,8 +746,9 @@
       </div>
 
       <div class="modal-footer">
-        <button id="btnCopyTradingPlan" class="btn btn-secondary">📋 Copiar Plan de Trading</button>
-        <button id="btnCloseCalcModalFooter" class="btn btn-primary">Cerrar</button>
+        <button id="btnRegisterInPortfolioFromCalc" class="btn btn-emerald" type="button">💼 Registrar en Mi Cartera</button>
+        <button id="btnCopyTradingPlan" class="btn btn-secondary" type="button">📋 Copiar Plan de Trading</button>
+        <button id="btnCloseCalcModalFooter" class="btn btn-primary" type="button">Cerrar</button>
       </div>
     </div>
   </div>
@@ -715,7 +799,7 @@
           </label>
           <div class="input-with-currency">
             <span class="currency-symbol">Títulos</span>
-            <input type="number" id="sellSharesInput" class="form-input" value="10" min="1" step="1">
+            <input type="number" id="sellSharesInput" class="form-input" value="10" min="0.0001" step="any">
           </div>
 
           <label class="form-label" style="margin-top: 14px;">
@@ -837,6 +921,135 @@
         <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
           Ver en CNN Markets ↗
         </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar / Editar Posición en Mi Cartera Real -->
+  <div id="portfolioModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <div class="modal-icon-badge icon-calc">
+            <span style="font-size: 1.15rem;">💼</span>
+          </div>
+          <div>
+            <h3 class="modal-title" id="pfModalTitle">Registrar Compra en Mi Cartera</h3>
+            <p class="modal-subtitle" id="pfModalSubtitle">Calcula automáticamente tu precio medio ponderado, PnL en vivo y alertas SL/TP</p>
+          </div>
+        </div>
+        <button id="btnClosePortfolioModal" class="modal-close-btn" type="button">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="pfTickerInput">Activo / Ticker *</label>
+          <input type="text" id="pfTickerInput" class="form-input" list="pfTrackedTickersList" placeholder="Ej: AMD, NVDA, BTC-USD, TSLA..." autocomplete="off">
+          <datalist id="pfTrackedTickersList"></datalist>
+        </div>
+
+        <div class="pf-form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="pfSharesInput">Nº de Títulos / Unidades *</label>
+            <input type="number" id="pfSharesInput" class="form-input" placeholder="Ej: 10 o 0.025" min="0.000001" step="any">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pfAvgPriceInput">Precio de Compra *</label>
+            <input type="number" id="pfAvgPriceInput" class="form-input" placeholder="Ej: 145.50" min="0.000001" step="any">
+          </div>
+        </div>
+
+        <div class="pf-form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="pfCustomSlInput">Stop Loss Personalizado (Opcional)</label>
+            <input type="number" id="pfCustomSlInput" class="form-input" placeholder="Auto (ATR / Fibo 78.6%)" min="0" step="any">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pfCustomTpInput">Take Profit Objetivo (Opcional)</label>
+            <input type="number" id="pfCustomTpInput" class="form-input" placeholder="Auto (Máx / Extensión)" min="0" step="any">
+          </div>
+        </div>
+
+        <div class="form-group" id="pfMergeToggleGroup">
+          <label class="checkbox-label">
+            <input type="checkbox" id="chkPfMerge" checked>
+            <span><strong>Promediar compra (DCA)</strong> si el activo ya existe en cartera (desmarca para sobrescribir valores)</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="pfNotesInput">Notas de la Operación (Opcional)</label>
+          <input type="text" id="pfNotesInput" class="form-input" placeholder="Ej: Entrada en Zona Áurea 61.8% con RSI en sobreventa">
+        </div>
+
+        <div id="pfModalError" class="modal-error-box" style="display: none;"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnCancelPortfolioModal" class="btn btn-secondary" type="button">Cancelar</button>
+        <button id="btnSubmitPortfolio" class="btn btn-emerald" type="button">
+          <span id="txtSubmitPortfolio">Guardar Posición</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Venta Parcial / Cierre de Posición en Mi Cartera Real -->
+  <div id="portfolioCloseModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <div class="modal-icon-badge icon-sell">
+            <span style="font-size: 1.15rem;">💰</span>
+          </div>
+          <div>
+            <h3 class="modal-title" id="pfCloseTitle">Registrar Venta / Cerrar Posición</h3>
+            <p class="modal-subtitle" id="pfCloseSubtitle">Registra venta parcial o total y guarda el beneficio realizado</p>
+          </div>
+        </div>
+        <button id="btnClosePfCloseModal" class="modal-close-btn" type="button">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">¿Qué porcentaje de la posición deseas vender?</label>
+          <div class="risk-presets-row">
+            <button type="button" class="btn-pf-close-preset" data-pct="25">25%</button>
+            <button type="button" class="btn-pf-close-preset" data-pct="50">50%</button>
+            <button type="button" class="btn-pf-close-preset" data-pct="75">75%</button>
+            <button type="button" class="btn-pf-close-preset active" data-pct="100">100% (Total)</button>
+          </div>
+        </div>
+
+        <div class="pf-form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="pfCloseSharesInput">Títulos a Vender *</label>
+            <input type="number" id="pfCloseSharesInput" class="form-input" min="0.000001" step="any">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pfClosePriceInput">Precio de Venta *</label>
+            <input type="number" id="pfClosePriceInput" class="form-input" min="0.000001" step="any">
+          </div>
+        </div>
+
+        <div class="calc-advice-banner" id="pfClosePreviewBanner">
+          <div class="calc-advice-icon">📊</div>
+          <div class="calc-advice-text" id="pfClosePreviewText">
+            Introduce el precio de salida para previsualizar el resultado neto de la venta.
+          </div>
+        </div>
+
+        <div id="pfCloseError" class="modal-error-box" style="display: none;"></div>
+      </div>
+
+      <div class="modal-footer pf-close-footer">
+        <button id="btnDeletePortfolioRaw" class="btn btn-secondary btn-danger-soft btn-sm" type="button" title="Eliminar registro sin contabilizar venta en el historial">
+          🗑️ Borrar sin historial
+        </button>
+        <div class="pf-close-footer-right">
+          <button id="btnCancelPfCloseModal" class="btn btn-secondary" type="button">Cancelar</button>
+          <button id="btnConfirmPfClose" class="btn btn-primary" type="button">💰 Confirmar Venta</button>
+        </div>
       </div>
     </div>
   </div>

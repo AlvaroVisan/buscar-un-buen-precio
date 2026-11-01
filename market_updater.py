@@ -1,7 +1,10 @@
 import json
 import os
 import sys
+import time
 import datetime
+import threading
+import concurrent.futures
 import requests
 import pandas as pd
 import yfinance as yf
@@ -18,6 +21,32 @@ except Exception:
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 SECRETS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "secrets.json")
 LATEST_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "latest_data.json")
+EARNINGS_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".earnings_cache.json")
+
+SUPPORTED_PERIODS = ("1mo", "3mo", "6mo", "1y")
+PERIOD_SHORT_LABELS = {"1mo": "1M", "3mo": "3M", "6mo": "6M", "1y": "1A"}
+EARNINGS_CACHE_TTL_SECONDS = 12 * 3600  # 12 horas
+
+# Candado global compartido entre Web, Auto-Scheduler y Bot de Telegram para evitar condiciones de carrera
+SYNC_LOCK = threading.Lock()
+_EARNINGS_CACHE_LOCK = threading.Lock()
+
+
+def _atomic_write_json(path, data):
+    """Escribe un archivo JSON de forma atómica para evitar lecturas corruptas en concurrencia."""
+    temp_path = f"{path}.{threading.get_ident()}.tmp"
+    try:
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(temp_path, path)
+    except Exception:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+        raise
+
 
 def load_config():
     if not os.path.exists(CONFIG_PATH):
@@ -30,7 +59,7 @@ def load_config():
         try:
             with open(SECRETS_PATH, "r", encoding="utf-8") as sf:
                 secrets = json.load(sf)
-                if "telegram" in secrets:
+                if "telegram" in secrets and isinstance(secrets["telegram"], dict):
                     config.setdefault("telegram", {})
                     for k, v in secrets["telegram"].items():
                         if v:
@@ -42,33 +71,48 @@ def load_config():
 
     return config
 
+
 def save_config(config):
-    # Separar credenciales sensibles hacia secrets.json para que config.json nunca exponga secretos
-    secrets_data = {}
+    # Separar todas las credenciales sensibles (Telegram y Webhook) hacia secrets.json
+    # para que config.json nunca exponga secretos en Git y permita limpiar valores vacíos.
     cfg_copy = json.loads(json.dumps(config))
 
-    tg = cfg_copy.get("telegram", {})
-    bot_token = tg.get("bot_token", "")
-    chat_id = tg.get("chat_id", "")
+    existing_secrets = {}
+    if os.path.exists(SECRETS_PATH):
+        try:
+            with open(SECRETS_PATH, "r", encoding="utf-8") as sf:
+                existing_secrets = json.load(sf) or {}
+        except Exception:
+            existing_secrets = {}
 
-    if bot_token or chat_id:
-        secrets_data["telegram"] = {
+    tg = cfg_copy.setdefault("telegram", {})
+    bot_token = str(tg.get("bot_token", "")).strip()
+    chat_id = str(tg.get("chat_id", "")).strip()
+
+    if "webhook_url" in cfg_copy:
+        webhook_url = str(cfg_copy.get("webhook_url", "")).strip()
+    else:
+        webhook_url = str(existing_secrets.get("webhook_url", "")).strip()
+
+    secrets_data = {
+        "webhook_url": webhook_url,
+        "telegram": {
             "bot_token": bot_token,
             "chat_id": chat_id
         }
-        # Limpiar secretos de config.json para que sea seguro subirlo a git
-        tg["bot_token"] = ""
-        tg["chat_id"] = ""
+    }
 
-    if secrets_data:
-        try:
-            with open(SECRETS_PATH, "w", encoding="utf-8") as sf:
-                json.dump(secrets_data, sf, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"[Config] Error guardando secrets.json: {e}")
+    # Limpiar secretos de config.json para que sea seguro subirlo a git
+    cfg_copy["webhook_url"] = ""
+    tg["bot_token"] = ""
+    tg["chat_id"] = ""
 
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(cfg_copy, f, indent=2, ensure_ascii=False)
+    try:
+        _atomic_write_json(SECRETS_PATH, secrets_data)
+    except Exception as e:
+        print(f"[Config] Error guardando secrets.json: {e}")
+
+    _atomic_write_json(CONFIG_PATH, cfg_copy)
 
 def translate_sentiment_rating(raw_rating):
     r_map = {
@@ -207,67 +251,251 @@ def compute_rsi(series, period=14):
     val = rsi_series.iloc[-1]
     return round(float(val), 1) if not series.empty and not pd.isna(val) else 50.0
 
-def fetch_asset_data(asset, period="3mo"):
-    tab = asset["tab"]
-    ticker = asset["ticker"]
-    name = asset.get("name", tab)
 
-    print(f"  🔍 Consultando {name} ({ticker})...", end="\r")
+def compute_atr(hist, period=14, decimals=2):
+    """Calcula el Average True Range (ATR de Wilder de 14 sesiones) para medir volatilidad real."""
+    if hist is None or hist.empty or len(hist) < 2:
+        return 0.0, 0.0
+    high = hist["High"]
+    low = hist["Low"]
+    prev_close = hist["Close"].shift(1)
+    tr = pd.concat([
+        (high - low).abs(),
+        (high - prev_close).abs(),
+        (low - prev_close).abs()
+    ], axis=1).max(axis=1)
+    min_p = min(period, len(tr))
+    atr_series = tr.ewm(alpha=1 / period, min_periods=min_p, adjust=False).mean()
+    atr_val = float(atr_series.iloc[-1]) if not pd.isna(atr_series.iloc[-1]) else 0.0
+    last_close = float(hist["Close"].iloc[-1])
+    atr_pct = round((atr_val / last_close) * 100, 2) if last_close > 0 else 0.0
+    return round(atr_val, decimals), atr_pct
 
-    t = yf.Ticker(ticker)
-    # Descargamos 1 año para tener SMA 200 y RSI robustos
-    hist = t.history(period="1y")
 
-    if hist.empty:
-        hist = t.history(period="2y")
+def is_crypto_ticker(ticker):
+    t = str(ticker or "").upper().strip()
+    return t.endswith("-USD") or t.endswith("-EUR") or t.endswith("-USDT")
 
-    if hist.empty:
-        print(f"  ❌ No se pudieron obtener datos para {ticker}")
-        return None
 
-    current_price = float(hist["Close"].iloc[-1])
+def is_equity_ticker(ticker):
+    """Determina si el símbolo corresponde a una acción corporativa con presentación de resultados (Earnings)."""
+    t = str(ticker or "").upper().strip()
+    if not t:
+        return False
+    if t.startswith("^") or t.endswith("=F") or t.endswith("=X") or is_crypto_ticker(t):
+        return False
+    return True
 
-    # 1. Indicadores Técnicos Avanzados
-    # RSI (14 días)
-    rsi_14 = compute_rsi(hist["Close"], period=14)
-    if rsi_14 < 30:
-        rsi_desc = "Sobreventa Fuerte (<30)"
-        rsi_zone = "OVERSOLD_STRONG"
-    elif rsi_14 < 40:
-        rsi_desc = "Zona Descuento (30-40)"
-        rsi_zone = "OVERSOLD_MILD"
-    elif rsi_14 <= 60:
-        rsi_desc = "Neutral (40-60)"
-        rsi_zone = "NEUTRAL"
+
+def evaluate_market_hours(assets=None, now_dt=None):
+    """
+    Evalúa si las bolsas tradicionales (Europa + Wall Street: L-V 08:45 a 22:30 hora local) están abiertas,
+    y si la cartera contiene criptoactivos 24/7.
+    """
+    dt = now_dt or datetime.datetime.now()
+    weekday = dt.weekday()  # 0=Lunes ... 6=Domingo
+    hhmm = dt.hour * 60 + dt.minute
+    open_min = 8 * 60 + 45   # 08:45
+    close_min = 22 * 60 + 30  # 22:30
+
+    equities_open = (weekday < 5) and (open_min <= hhmm <= close_min)
+    asset_list = assets or []
+    has_crypto = any(is_crypto_ticker(a.get("ticker", "")) for a in asset_list)
+    has_equities = any(not is_crypto_ticker(a.get("ticker", "")) for a in asset_list) if asset_list else True
+
+    if equities_open:
+        label = "🟢 Bolsas Abiertas (Sesión EU / Wall St.)"
+    elif weekday >= 5:
+        label = "🌙 Fin de Semana (Bolsas Cerradas • Cripto 24/7)" if has_crypto else "🌙 Fin de Semana (Bolsas Cerradas)"
     else:
-        rsi_desc = "Sobrecompra (>60)"
-        rsi_zone = "OVERBOUGHT"
+        label = "🌙 Fuera de Sesión Bursátil (08:45–22:30)"
 
-    # SMA 200 (Media Móvil de 200 días)
-    if len(hist) >= 200:
-        sma_200 = float(hist["Close"].rolling(200).mean().iloc[-1])
+    return {
+        "equities_open": equities_open,
+        "has_crypto": has_crypto,
+        "has_equities": has_equities,
+        "weekday": weekday,
+        "status_label": label
+    }
+
+
+def _load_earnings_cache():
+    if not os.path.exists(EARNINGS_CACHE_PATH):
+        return {}
+    try:
+        with open(EARNINGS_CACHE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def fetch_earnings_info(ticker, yf_ticker_obj=None):
+    """
+    Obtiene la próxima fecha de presentación de resultados (Earnings) para acciones corporativas.
+    Usa caché persistente de 12 horas en disco para velocidad instantánea (0ms) en sincronizaciones sucesivas.
+    """
+    t_sym = str(ticker or "").upper().strip()
+    if not is_equity_ticker(t_sym):
+        return {"has_earnings": False, "warning_level": "NONE"}
+
+    now_ts = time.time()
+    today = datetime.date.today()
+
+    raw_date_str = None
+    eps_avg = None
+
+    with _EARNINGS_CACHE_LOCK:
+        cache = _load_earnings_cache()
+        cached_entry = cache.get(t_sym)
+        if isinstance(cached_entry, dict) and (now_ts - cached_entry.get("fetched_at", 0)) < EARNINGS_CACHE_TTL_SECONDS:
+            raw_date_str = cached_entry.get("next_date")
+            eps_avg = cached_entry.get("eps_avg")
+            cache_hit = True
+        else:
+            cache_hit = False
+
+    if not cache_hit:
+        try:
+            yt = yf_ticker_obj or yf.Ticker(t_sym)
+            cal = yt.calendar
+            dates_raw = []
+            if isinstance(cal, dict):
+                ed = cal.get("Earnings Date")
+                if isinstance(ed, (list, tuple)):
+                    dates_raw = list(ed)
+                elif ed is not None:
+                    dates_raw = [ed]
+                eps_raw = cal.get("Earnings Average")
+                if isinstance(eps_raw, (int, float)) and not pd.isna(eps_raw):
+                    eps_avg = round(float(eps_raw), 2)
+            elif hasattr(cal, "to_dict"):
+                d_cal = cal.to_dict()
+                if "Earnings Date" in d_cal:
+                    vals = list(d_cal["Earnings Date"].values())
+                    dates_raw = vals
+
+            parsed_dates = []
+            for d in dates_raw:
+                if hasattr(d, "date") and callable(d.date):
+                    parsed_dates.append(d.date())
+                elif isinstance(d, datetime.date):
+                    parsed_dates.append(d)
+                elif isinstance(d, str) and len(d) >= 10:
+                    try:
+                        parsed_dates.append(datetime.date.fromisoformat(d[:10]))
+                    except ValueError:
+                        pass
+
+            # Priorizar fechas futuras o del día actual
+            upcoming = sorted([d for d in parsed_dates if (d - today).days >= -1])
+            if upcoming:
+                raw_date_str = upcoming[0].isoformat()
+            elif parsed_dates:
+                raw_date_str = sorted(parsed_dates)[-1].isoformat()
+        except Exception:
+            raw_date_str = None
+
+        with _EARNINGS_CACHE_LOCK:
+            cache = _load_earnings_cache()
+            cache[t_sym] = {
+                "fetched_at": now_ts,
+                "next_date": raw_date_str,
+                "eps_avg": eps_avg
+            }
+            try:
+                _atomic_write_json(EARNINGS_CACHE_PATH, cache)
+            except Exception:
+                pass
+
+    if not raw_date_str:
+        return {"has_earnings": False, "warning_level": "NONE"}
+
+    try:
+        edate = datetime.date.fromisoformat(raw_date_str[:10])
+    except ValueError:
+        return {"has_earnings": False, "warning_level": "NONE"}
+
+    days_until = (edate - today).days
+    if days_until < 0:
+        return {"has_earnings": False, "warning_level": "NONE"}
+
+    months_es = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+    short_date = f"{edate.day:02d} {months_es[edate.month - 1]}"
+
+    if days_until == 0:
+        warning_level = "IMMINENT"
+        label = f"🚨 Resultados HOY ({short_date}) — Riesgo de Gap"
+    elif days_until == 1:
+        warning_level = "IMMINENT"
+        label = f"⚠️ Resultados MAÑANA ({short_date}) — Riesgo de Gap"
+    elif days_until <= 7:
+        warning_level = "IMMINENT"
+        label = f"⚠️ Resultados en {days_until} días ({short_date}) — Riesgo de Gap"
+    elif days_until <= 21:
+        warning_level = "UPCOMING"
+        label = f"📅 Resultados en {days_until} días ({short_date})"
     else:
-        sma_200 = float(hist["Close"].mean())
+        warning_level = "DISTANT"
+        label = f"📅 Resultados: {short_date} ({days_until}d)"
 
-    sma_dist_pct = round(((current_price - sma_200) / sma_200) * 100, 2)
-    is_above_sma = current_price >= sma_200
+    return {
+        "has_earnings": True,
+        "next_date": raw_date_str[:10],
+        "short_date": short_date,
+        "days_until": days_until,
+        "eps_avg": eps_avg,
+        "warning_level": warning_level,
+        "label": label
+    }
 
-    # 2. Ventana de Fibonacci según 'period' solicitado
-    now = datetime.datetime.now(datetime.timezone.utc)
+
+def detect_asset_format(ticker, sample_price=100.0):
+    """Detecta el símbolo de divisa y el número óptimo de decimales según el mercado y precio del activo."""
+    t = str(ticker or "").upper().strip()
+    eur_suffixes = (".MC", ".PA", ".DE", ".AS", ".MI", ".BR", ".LS", ".VI", ".HE", "-EUR")
+    if t.endswith(eur_suffixes) or t in ("EUR=X",):
+        currency = "€"
+    elif t.endswith(".L"):
+        currency = "£"
+    else:
+        currency = "$"
+
+    if t.endswith("=X") or (0 < sample_price < 2.0):
+        decimals = 4
+    else:
+        decimals = 2
+
+    return currency, decimals
+
+
+def _compute_timeframe_snapshot(
+    hist,
+    period,
+    current_price,
+    currency,
+    decimals,
+    rsi_14,
+    rsi_pts,
+    sma_dist_pct,
+    is_above_sma,
+    sma_pts,
+    atr_14,
+    atr_pct,
+    earnings_info
+):
+    """Calcula todos los niveles Fibonacci, cronología, Score, Gestión de Riesgo (+ATR) y Modo Venta para un periodo dado."""
+    latest_bar_ts = hist.index[-1]
     if period == "1mo":
-        start_date = now - datetime.timedelta(days=32)
+        start_date = latest_bar_ts - datetime.timedelta(days=32)
     elif period == "3mo":
-        start_date = now - datetime.timedelta(days=95)
+        start_date = latest_bar_ts - datetime.timedelta(days=95)
     elif period == "6mo":
-        start_date = now - datetime.timedelta(days=185)
+        start_date = latest_bar_ts - datetime.timedelta(days=185)
     else:  # 1y o superior
-        start_date = now - datetime.timedelta(days=366)
+        start_date = latest_bar_ts - datetime.timedelta(days=366)
 
-    if hist.index.tz is not None:
-        fibo_hist = hist[hist.index >= start_date]
-    else:
-        fibo_hist = hist[hist.index >= start_date.replace(tzinfo=None)]
-
+    fibo_hist = hist[hist.index >= start_date]
     if fibo_hist.empty:
         fibo_hist = hist
 
@@ -275,19 +503,42 @@ def fetch_asset_data(asset, period="3mo"):
     lo = float(fibo_hist["Low"].min())
     price_range = hi - lo
 
-    # Niveles de retroceso de Fibonacci desde el Máximo hacia el Mínimo
+    hi_idx = fibo_hist["High"].idxmax()
+    lo_idx = fibo_hist["Low"].idxmin()
+    hi_date = hi_idx.strftime("%Y-%m-%d") if hasattr(hi_idx, "strftime") else str(hi_idx)[:10]
+    lo_date = lo_idx.strftime("%Y-%m-%d") if hasattr(lo_idx, "strftime") else str(lo_idx)[:10]
+
+    lo_pos = fibo_hist.index.get_loc(lo_idx)
+    if isinstance(lo_pos, slice):
+        lo_pos = lo_pos.stop - 1
+    elif hasattr(lo_pos, "__len__"):
+        lo_pos = int(lo_pos[-1])
+    bars_since_low = max(0, (len(fibo_hist) - 1) - int(lo_pos))
+    rebound_from_low_pct = ((current_price - lo) / lo) * 100 if lo > 0 else 0.0
+
     fib_levels = {
-        "23.6%": round(hi - (price_range * 0.236), 2),
-        "38.2%": round(hi - (price_range * 0.382), 2),
-        "50.0%": round(hi - (price_range * 0.500), 2),
-        "61.8%": round(hi - (price_range * 0.618), 2),
-        "78.6%": round(hi - (price_range * 0.786), 2),
+        "23.6%": round(hi - (price_range * 0.236), decimals),
+        "38.2%": round(hi - (price_range * 0.382), decimals),
+        "50.0%": round(hi - (price_range * 0.500), decimals),
+        "61.8%": round(hi - (price_range * 0.618), decimals),
+        "78.6%": round(hi - (price_range * 0.786), decimals),
     }
 
-    # Caída % desde el máximo
+    if lo_idx <= hi_idx:
+        swing_type = "BULLISH_PULLBACK"
+        swing_label = "🐂 Impulso Alcista (Mín→Máx)"
+        swing_pts = 5 if current_price <= fib_levels["50.0%"] else 0
+    elif bars_since_low <= 3 or rebound_from_low_pct <= 1.8:
+        swing_type = "FALLING_KNIFE"
+        swing_label = "⚠️ Caída Activa (Buscando Suelo)"
+        swing_pts = -10 if not is_above_sma else -5
+    else:
+        swing_type = "BOTTOM_REBOUND"
+        swing_label = "🔄 Rebote tras Suelo"
+        swing_pts = 0
+
     drop_pct = round(((hi - current_price) / hi) * 100, 2) if hi > 0 else 0.0
 
-    # Determinar zona de Fibonacci
     if current_price <= fib_levels["78.6%"]:
         zone_desc = "Zona > 78.6%"
         signal = "🟢 COMPRA FUERTE (78.6%)"
@@ -319,32 +570,6 @@ def fetch_asset_data(asset, period="3mo"):
         status_code = "EXPENSIVE"
         fibo_pts = 0
 
-    # 3. Puntuación Técnica Compuesta (Score 0 a 100)
-    # Factor RSI (0 a 30)
-    if rsi_14 <= 30:
-        rsi_pts = 30
-    elif rsi_14 <= 35:
-        rsi_pts = 26
-    elif rsi_14 <= 40:
-        rsi_pts = 20
-    elif rsi_14 <= 48:
-        rsi_pts = 14
-    elif rsi_14 <= 55:
-        rsi_pts = 8
-    elif rsi_14 <= 65:
-        rsi_pts = 3
-    else:
-        rsi_pts = 0
-
-    # Factor SMA 200 (0 a 20)
-    if is_above_sma:
-        sma_pts = 20  # Tendencia alcista estructural (setup de rebote ideal)
-    elif sma_dist_pct >= -4.0:
-        sma_pts = 12  # Cerca de la media
-    else:
-        sma_pts = 4   # Por debajo de la media
-
-    # Factor Caída acumulada (0 a 10)
     if drop_pct >= 25.0:
         drop_pts = 10
     elif drop_pct >= 18.0:
@@ -356,7 +581,12 @@ def fetch_asset_data(asset, period="3mo"):
     else:
         drop_pts = 1
 
-    total_score = min(100, fibo_pts + rsi_pts + sma_pts + drop_pts)
+    # Precaución suave (-5 pts) si presenta resultados en <= 3 días (alto riesgo de gap binario)
+    earnings_pts = 0
+    if earnings_info and earnings_info.get("warning_level") == "IMMINENT" and earnings_info.get("days_until", 99) <= 3:
+        earnings_pts = -5
+
+    total_score = max(0, min(100, fibo_pts + rsi_pts + sma_pts + drop_pts + swing_pts + earnings_pts))
 
     if total_score >= 80:
         confluence_rating = "🔥 CONFLUENCIA MÁXIMA"
@@ -371,41 +601,53 @@ def fetch_asset_data(asset, period="3mo"):
         confluence_rating = "⚪ NEUTRAL / CARO"
         confluence_code = "LOW"
 
-    # 3. MÓDULO DE GESTIÓN DE RIESGO PROFESIONAL (Stop Loss / Take Profits / Ratio R:R)
+    # MÓDULO DE GESTIÓN DE RIESGO PROFESIONAL (Estructural Fibonacci + Volatilidad ATR 14)
     fib_61 = fib_levels["61.8%"]
     fib_78 = fib_levels["78.6%"]
     fib_38 = fib_levels["38.2%"]
+    min_unit_risk = 0.0001 if decimals >= 4 else 0.01
 
     if current_price <= fib_61:
-        entry_price = round(current_price, 2)
+        entry_price = round(current_price, decimals)
         entry_type = "MARKET"
-        entry_label = f"Precio de Mercado (${entry_price:,.2f})"
+        entry_label = f"Precio de Mercado ({currency}{entry_price:,.{decimals}f})"
     else:
-        entry_price = round(fib_61, 2)
+        entry_price = round(fib_61, decimals)
         entry_type = "LIMIT_618"
-        entry_label = f"Límite 61.8% (${entry_price:,.2f})"
+        entry_label = f"Límite 61.8% ({currency}{entry_price:,.{decimals}f})"
 
-    # Stop Loss Estratégico por debajo del 78.6% / mínimo local con buffer de protección
-    suggested_sl = round(min(fib_78 * 0.98, lo * 0.985), 2)
+    # 1) Stop Loss Estructural Fibonacci (78.6% / suelo)
+    suggested_sl = round(min(fib_78 * 0.98, lo * 0.985), decimals)
     if suggested_sl >= entry_price:
-        suggested_sl = round(entry_price * 0.96, 2)
+        suggested_sl = round(entry_price * 0.96, decimals)
 
-    risk_per_share = round(max(0.01, entry_price - suggested_sl), 2)
-    risk_pct = round(((entry_price - suggested_sl) / entry_price) * 100, 2)
+    risk_per_share = round(max(min_unit_risk, entry_price - suggested_sl), decimals)
+    risk_pct = round(((entry_price - suggested_sl) / entry_price) * 100, 2) if entry_price > 0 else 5.0
 
-    # Take Profit 1 (Resistencia intermedia 38.2%):
-    tp1 = round(max(fib_38, entry_price * 1.05), 2)
-    reward_1 = round(tp1 - entry_price, 2)
+    # 2) Stop Loss Dinámico por Volatilidad (2.0x ATR 14)
+    if atr_14 > 0:
+        atr_sl_raw = entry_price - (2.0 * atr_14)
+        if atr_sl_raw <= 0 or atr_sl_raw >= entry_price:
+            atr_sl_raw = entry_price * 0.95
+        atr_stop_loss = round(atr_sl_raw, decimals)
+    else:
+        atr_stop_loss = suggested_sl
+
+    atr_risk_per_share = round(max(min_unit_risk, entry_price - atr_stop_loss), decimals)
+    atr_risk_pct = round(((entry_price - atr_stop_loss) / entry_price) * 100, 2) if entry_price > 0 else risk_pct
+
+    tp1 = round(max(fib_38, entry_price * 1.05), decimals)
+    reward_1 = round(tp1 - entry_price, decimals)
     reward_1_pct = round(((tp1 - entry_price) / entry_price) * 100, 2)
     rr_ratio_1 = round(reward_1 / risk_per_share, 2) if risk_per_share > 0 else 1.0
+    atr_rr_ratio_1 = round(reward_1 / atr_risk_per_share, 2) if atr_risk_per_share > 0 else rr_ratio_1
 
-    # Take Profit 2 (Máximos del periodo / Nivel 0.0%):
-    tp2 = round(max(hi, tp1 * 1.04), 2)
-    reward_2 = round(tp2 - entry_price, 2)
+    tp2 = round(max(hi, tp1 * 1.04), decimals)
+    reward_2 = round(tp2 - entry_price, decimals)
     reward_2_pct = round(((tp2 - entry_price) / entry_price) * 100, 2)
     rr_ratio_2 = round(reward_2 / risk_per_share, 2) if risk_per_share > 0 else 2.5
+    atr_rr_ratio_2 = round(reward_2 / atr_risk_per_share, 2) if atr_risk_per_share > 0 else rr_ratio_2
 
-    # Calificación del Ratio Riesgo/Beneficio
     if rr_ratio_2 >= 3.0:
         rr_rating = "⭐ Excelente (R:R > 1:3)"
         rr_code = "EXCELLENT"
@@ -426,6 +668,13 @@ def fetch_asset_data(asset, period="3mo"):
         "stop_loss": suggested_sl,
         "risk_per_share": risk_per_share,
         "risk_pct": risk_pct,
+        "atr_14": atr_14,
+        "atr_pct": atr_pct,
+        "atr_stop_loss": atr_stop_loss,
+        "atr_risk_per_share": atr_risk_per_share,
+        "atr_risk_pct": atr_risk_pct,
+        "atr_rr_ratio_1": atr_rr_ratio_1,
+        "atr_rr_ratio_2": atr_rr_ratio_2,
         "take_profit_1": tp1,
         "reward_1_pct": reward_1_pct,
         "rr_ratio_1": rr_ratio_1,
@@ -436,19 +685,16 @@ def fetch_asset_data(asset, period="3mo"):
         "rr_code": rr_code
     }
 
-    # 4. MÓDULO DE MODO VENTA / TOMA DE BENEFICIOS (Extensiones Fibonacci y Detección de Techos)
+    # MÓDULO DE MODO VENTA / TOMA DE BENEFICIOS
     gain_from_low = round(((current_price - lo) / lo) * 100, 2) if lo > 0 else 0.0
     dist_to_high = round(((hi - current_price) / hi) * 100, 2) if hi > 0 else 0.0
 
-    # Extensiones de Fibonacci proyectadas desde el impulso: 127.2% y 161.8%
-    ext_127 = round(hi + (price_range * 0.272), 2)
-    ext_161 = round(hi + (price_range * 0.618), 2)
+    ext_127 = round(hi + (price_range * 0.272), decimals)
+    ext_161 = round(hi + (price_range * 0.618), decimals)
 
     dist_to_ext127 = round(((ext_127 - current_price) / current_price) * 100, 2)
     dist_to_ext161 = round(((ext_161 - current_price) / current_price) * 100, 2)
 
-    # Puntuación de Presión de Venta (Sell Score 0 a 100)
-    # RSI sobrecomprado (0 a 40 pts)
     if rsi_14 >= 75:
         rsi_sell_pts = 40
     elif rsi_14 >= 70:
@@ -460,7 +706,6 @@ def fetch_asset_data(asset, period="3mo"):
     else:
         rsi_sell_pts = 0
 
-    # Proximidad a máximos / extensiones (0 a 40 pts)
     if current_price >= ext_161:
         ext_pts = 40
     elif current_price >= ext_127:
@@ -474,7 +719,6 @@ def fetch_asset_data(asset, period="3mo"):
     else:
         ext_pts = 0
 
-    # Desviación excesiva respecto a la Media SMA 200 (0 a 20 pts)
     if sma_dist_pct >= 25.0:
         sma_sell_pts = 20
     elif sma_dist_pct >= 18.0:
@@ -503,7 +747,13 @@ def fetch_asset_data(asset, period="3mo"):
         sell_action = "Activo en zona baja o de retroceso; no es momento de vender."
         sell_status_code = "ACCUMULATE"
 
-    suggested_trailing_stop = round(current_price * 0.945, 2)
+    suggested_trailing_stop = round(current_price * 0.945, decimals)
+    if atr_14 > 0 and (2.2 * atr_14) < (current_price * 0.35):
+        atr_trailing_stop = round(current_price - (2.2 * atr_14), decimals)
+        atr_trailing_pct = round(((current_price - atr_trailing_stop) / current_price) * 100, 2)
+    else:
+        atr_trailing_stop = suggested_trailing_stop
+        atr_trailing_pct = 5.5
 
     sell_mgmt = {
         "sell_score": sell_score,
@@ -517,138 +767,437 @@ def fetch_asset_data(asset, period="3mo"):
         "dist_to_ext127_pct": dist_to_ext127,
         "dist_to_ext161_pct": dist_to_ext161,
         "trailing_stop": suggested_trailing_stop,
-        "trailing_stop_pct": 5.5
+        "trailing_stop_pct": 5.5,
+        "atr_trailing_stop": atr_trailing_stop,
+        "atr_trailing_pct": atr_trailing_pct
     }
 
     return {
-        "tab": tab,
-        "ticker": ticker,
-        "name": name,
-        "current_price": round(current_price, 2),
-        "min": round(lo, 2),
-        "max": round(hi, 2),
-        "range": round(price_range, 2),
+        "period": period,
+        "min": round(lo, decimals),
+        "max": round(hi, decimals),
+        "range": round(price_range, decimals),
+        "low_date": lo_date,
+        "high_date": hi_date,
+        "bars_since_low": bars_since_low,
+        "swing_type": swing_type,
+        "swing_label": swing_label,
         "drop_pct": drop_pct,
         "zone_desc": zone_desc,
         "signal": signal,
         "status_code": status_code,
         "fib_levels": fib_levels,
-        # Nuevos campos de análisis técnico avanzado:
-        "rsi": rsi_14,
-        "rsi_desc": rsi_desc,
-        "rsi_zone": rsi_zone,
-        "sma_200": round(sma_200, 2),
-        "sma_dist_pct": sma_dist_pct,
-        "is_above_sma": is_above_sma,
         "score": total_score,
         "confluence_rating": confluence_rating,
         "confluence_code": confluence_code,
-        # Gestión de Riesgo (Stop Loss / Take Profit / R:R)
         "risk_mgmt": risk_mgmt,
-        # Modo Venta / Toma de Beneficios (Extensiones y Sobrecompra)
         "sell_mgmt": sell_mgmt
     }
 
+
+def detect_fibonacci_clusters(timeframes, current_price, currency, decimals, tolerance_pct=1.8):
+    """
+    Detecta Clusters de Confluencia Multi-Timeframe donde niveles relevantes (38.2%, 50%, 61.8%, 78.6%)
+    de ondas/impulsos genuinamente distintos (1M, 3M, 6M, 1A) convergen en la misma franja de precio (<= 1.8%).
+    """
+    distinct_swings = []
+    accepted_ranges = []
+    for p in SUPPORTED_PERIODS:
+        snap = timeframes.get(p)
+        if not snap:
+            continue
+        s_min, s_max = float(snap["min"]), float(snap["max"])
+        # Descartar ventanas cuyo suelo y techo sean prácticamente la misma onda (< 2.5% de diferencia)
+        is_near_dup = False
+        for prev_min, prev_max in accepted_ranges:
+            min_diff = abs(s_min - prev_min) / max(prev_min, 1e-9) * 100
+            max_diff = abs(s_max - prev_max) / max(prev_max, 1e-9) * 100
+            if min_diff < 2.5 and max_diff < 2.5:
+                is_near_dup = True
+                break
+        if is_near_dup:
+            continue
+        accepted_ranges.append((s_min, s_max))
+        distinct_swings.append((p, PERIOD_SHORT_LABELS.get(p, p.upper()), snap["fib_levels"]))
+
+    if len(distinct_swings) < 2:
+        return []
+
+    points = []
+    for p_key, p_lbl, fibs in distinct_swings:
+        for lvl_name in ("38.2%", "50.0%", "61.8%", "78.6%"):
+            val = float(fibs.get(lvl_name, 0))
+            if val > 0:
+                points.append({
+                    "period": p_key,
+                    "period_label": p_lbl,
+                    "level": lvl_name,
+                    "price": val
+                })
+
+    points.sort(key=lambda x: x["price"], reverse=True)
+    used = [False] * len(points)
+    clusters = []
+
+    for i, base in enumerate(points):
+        if used[i]:
+            continue
+        group = [base]
+        group_periods = {base["period"]}
+        for j in range(i + 1, len(points)):
+            if used[j]:
+                continue
+            cand = points[j]
+            if cand["period"] in group_periods:
+                continue
+            diff_pct = abs(base["price"] - cand["price"]) / base["price"] * 100
+            if diff_pct <= tolerance_pct:
+                group.append(cand)
+                group_periods.add(cand["period"])
+
+        # Exigir al menos 2 niveles de Fibonacci distintos (confluencia armónica cruzada, ej. 38.2% + 61.8%)
+        distinct_levels = {g["level"] for g in group}
+        if len(group) >= 2 and len(distinct_levels) >= 2:
+            for g in group:
+                idx_g = points.index(g)
+                used[idx_g] = True
+
+            prices = [g["price"] for g in group]
+            center = round(sum(prices) / len(prices), decimals)
+            low_b = round(min(prices), decimals)
+            high_b = round(max(prices), decimals)
+            spread_pct = round(((high_b - low_b) / center) * 100, 2) if center > 0 else 0.0
+            dist_from_curr_pct = round(((current_price - center) / center) * 100, 2) if center > 0 else 0.0
+            has_golden = any(g["level"] == "61.8%" for g in group)
+            has_buy_zone = any(g["level"] in ("50.0%", "61.8%", "78.6%") for g in group)
+            members = [f"{g['period_label']} {g['level']}" for g in group]
+            members_detail = [
+                {
+                    "period": g["period"],
+                    "period_label": g["period_label"],
+                    "level": g["level"],
+                    "price": round(g["price"], decimals)
+                }
+                for g in group
+            ]
+            is_near_price = abs(dist_from_curr_pct) <= 2.5
+
+            clusters.append({
+                "center_price": center,
+                "min_price": low_b,
+                "max_price": high_b,
+                "spread_pct": spread_pct,
+                "dist_pct": dist_from_curr_pct,
+                "members": members,
+                "members_detail": members_detail,
+                "strength": len(group),
+                "has_golden": has_golden,
+                "has_buy_zone": has_buy_zone,
+                "is_active": is_near_price,
+                "label": f"🧲 Cluster {'Áureo ' if has_golden else ''}MTF {currency}{center:,.{decimals}f} ({' + '.join(members)})"
+            })
+
+    # Ordenar priorizando clusters cercanos al precio actual y con proporción áurea
+    clusters.sort(key=lambda c: (not c["is_active"], not c["has_golden"], abs(c["dist_pct"])))
+    return clusters[:3]
+
+
+def fetch_asset_data(asset, period="3mo", return_history=False, quiet=False):
+    tab = asset["tab"]
+    ticker = asset["ticker"]
+    name = asset.get("name", tab)
+
+    if not quiet:
+        print(f"  🔍 Consultando {name} ({ticker})...", end="\r")
+
+    t = yf.Ticker(ticker)
+    # Descargamos 1 año para tener SMA 200, RSI, ATR(14) y las 4 ventanas MTF de una sola pasada
+    hist = t.history(period="1y")
+
+    if hist.empty:
+        hist = t.history(period="2y")
+
+    if hist.empty:
+        print(f"  ❌ No se pudieron obtener datos para {ticker}")
+        return (None, None) if return_history else None
+
+    current_price = float(hist["Close"].iloc[-1])
+    currency, decimals = detect_asset_format(ticker, current_price)
+
+    # 1. Indicadores Técnicos Globales (RSI 14, SMA 200, ATR 14, Calendario de Resultados)
+    rsi_14 = compute_rsi(hist["Close"], period=14)
+    if rsi_14 < 30:
+        rsi_desc = "Sobreventa Fuerte (<30)"
+        rsi_zone = "OVERSOLD_STRONG"
+    elif rsi_14 < 40:
+        rsi_desc = "Zona Descuento (30-40)"
+        rsi_zone = "OVERSOLD_MILD"
+    elif rsi_14 <= 60:
+        rsi_desc = "Neutral (40-60)"
+        rsi_zone = "NEUTRAL"
+    else:
+        rsi_desc = "Sobrecompra (>60)"
+        rsi_zone = "OVERBOUGHT"
+
+    if rsi_14 <= 30:
+        rsi_pts = 30
+    elif rsi_14 <= 35:
+        rsi_pts = 26
+    elif rsi_14 <= 40:
+        rsi_pts = 20
+    elif rsi_14 <= 48:
+        rsi_pts = 14
+    elif rsi_14 <= 55:
+        rsi_pts = 8
+    elif rsi_14 <= 65:
+        rsi_pts = 3
+    else:
+        rsi_pts = 0
+
+    if len(hist) >= 200:
+        sma_200 = float(hist["Close"].rolling(200).mean().iloc[-1])
+    else:
+        sma_200 = float(hist["Close"].mean())
+
+    sma_dist_pct = round(((current_price - sma_200) / sma_200) * 100, 2)
+    is_above_sma = current_price >= sma_200
+    if is_above_sma:
+        sma_pts = 20
+    elif sma_dist_pct >= -4.0:
+        sma_pts = 12
+    else:
+        sma_pts = 4
+
+    atr_14, atr_pct = compute_atr(hist, period=14, decimals=decimals)
+    earnings_info = fetch_earnings_info(ticker, yf_ticker_obj=t)
+
+    # 2. Precalcular las 4 temporalidades (1mo, 3mo, 6mo, 1y) en memoria (< 1ms)
+    periods_to_calc = list(SUPPORTED_PERIODS)
+    if period not in periods_to_calc:
+        periods_to_calc.append(period)
+
+    timeframes = {}
+    for p_code in periods_to_calc:
+        timeframes[p_code] = _compute_timeframe_snapshot(
+            hist=hist,
+            period=p_code,
+            current_price=current_price,
+            currency=currency,
+            decimals=decimals,
+            rsi_14=rsi_14,
+            rsi_pts=rsi_pts,
+            sma_dist_pct=sma_dist_pct,
+            is_above_sma=is_above_sma,
+            sma_pts=sma_pts,
+            atr_14=atr_14,
+            atr_pct=atr_pct,
+            earnings_info=earnings_info
+        )
+
+    # 3. Detectar Clusters de Fibonacci Multi-Timeframe y bonificar confluencia activa
+    fib_clusters = detect_fibonacci_clusters(timeframes, current_price, currency, decimals)
+    best_cluster = fib_clusters[0] if fib_clusters else None
+    has_active_buy_cluster = bool(best_cluster and best_cluster.get("is_active") and best_cluster.get("has_buy_zone"))
+
+    if has_active_buy_cluster:
+        for p_code, snap in timeframes.items():
+            boosted = min(100, snap["score"] + 4)
+            snap["score"] = boosted
+            if boosted >= 80:
+                snap["confluence_rating"] = "🔥 CONFLUENCIA MÁXIMA"
+                snap["confluence_code"] = "MAX_CONFLUENCE"
+            elif boosted >= 65:
+                snap["confluence_rating"] = "🟢 ALTA PROBABILIDAD"
+                snap["confluence_code"] = "HIGH_PROB"
+
+    active_snap = timeframes.get(period) or timeframes["3mo"]
+
+    asset_payload = {
+        "tab": tab,
+        "ticker": ticker,
+        "name": name,
+        "currency": currency,
+        "decimals": decimals,
+        "current_price": round(current_price, decimals),
+        **active_snap,
+        # Indicadores técnicos transversales:
+        "rsi": rsi_14,
+        "rsi_desc": rsi_desc,
+        "rsi_zone": rsi_zone,
+        "sma_200": round(sma_200, decimals),
+        "sma_dist_pct": sma_dist_pct,
+        "is_above_sma": is_above_sma,
+        "atr_14": atr_14,
+        "atr_pct": atr_pct,
+        "earnings": earnings_info,
+        "fib_clusters": fib_clusters,
+        "best_cluster": best_cluster,
+        "timeframes": timeframes
+    }
+    return (asset_payload, hist) if return_history else asset_payload
+
+
+def switch_cached_period(new_period):
+    """
+    Cambia la temporalidad activa en latest_data.json y config.json en < 5ms utilizando las
+    ventanas Multi-Timeframe precalculadas sin necesidad de volver a descargar de Yahoo Finance.
+    Devuelve None si aún no existen datos precalculados.
+    """
+    if new_period not in SUPPORTED_PERIODS:
+        raise ValueError(f"Periodo '{new_period}' no soportado.")
+
+    with SYNC_LOCK:
+        if not os.path.exists(LATEST_DATA_PATH):
+            return None
+        with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        items = payload.get("data", [])
+        if not items or not all(isinstance(it.get("timeframes"), dict) and new_period in it["timeframes"] for it in items):
+            return None
+
+        for it in items:
+            snap = it["timeframes"][new_period]
+            for k, v in snap.items():
+                it[k] = v
+
+        cfg = load_config()
+        payload["period"] = new_period
+        payload["market_hours"] = evaluate_market_hours(cfg.get("assets", []))
+        _atomic_write_json(LATEST_DATA_PATH, payload)
+
+        if cfg.get("period") != new_period:
+            cfg["period"] = new_period
+            save_config(cfg)
+
+        return payload
+
 def print_summary_table(results, period, timestamp, sentiment=None):
-    print("\n" + "=" * 105)
+    print("\n" + "=" * 118)
     print(f"📊 REPORTE DE MERCADO, FIBONACCI & CONFLUENCIA TÉCNICA - {timestamp}")
-    print(f"Ventana Fibonacci: {period} | Indicadores: Wilder's RSI(14) + SMA 200")
+    print(f"Ventana Fibonacci: {period} | Indicadores: Wilder's RSI(14) + SMA 200 + Estructura de Impulso")
     if sentiment:
         s_score = sentiment.get("score", 50)
         s_rating = sentiment.get("rating_es", "Neutral")
         s_icon = sentiment.get("icon", "🌡️")
         s_adv = sentiment.get("advice", "")
         print(f"🌡️ Sentimiento CNN Fear & Greed: {s_score}/100 {s_icon} [{s_rating}] -> {s_adv}")
-    print("=" * 105)
-    print(f"{'Activo':<10} {'Ticker':<8} {'Precio':>10} {'Caída %':>9} {'RSI':>6} {'SMA 200':>10} {'Dist SMA':>9} {'Score':>7} {'Confluencia':<22}")
-    print("-" * 105)
+    print("=" * 118)
+    print(f"{'Activo':<10} {'Ticker':<9} {'Precio':>11} {'Caída %':>9} {'RSI':>6} {'SMA 200':>11} {'Dist SMA':>9} {'Score':>7} {'Impulso':<18} {'Confluencia':<20}")
+    print("-" * 118)
 
     for r in results:
-        curr_str = f"${r['current_price']:,.2f}"
+        curr = r.get("currency", "$")
+        dec = r.get("decimals", 2)
+        curr_str = f"{curr}{r['current_price']:,.{dec}f}"
         drop_str = f"-{r['drop_pct']:.1f}%"
         rsi_str = f"{r.get('rsi', 0):.1f}"
-        sma_str = f"${r.get('sma_200', 0):,.2f}"
+        sma_str = f"{curr}{r.get('sma_200', 0):,.{dec}f}"
         dist_str = f"{r.get('sma_dist_pct', 0):+.1f}%"
         score_str = f"{r.get('score', 0)}/100"
-        print(f"{r['tab']:<10} {r['ticker']:<8} {curr_str:>10} {drop_str:>9} {rsi_str:>6} {sma_str:>10} {dist_str:>9} {score_str:>7} {r.get('confluence_rating', ''):<22}")
+        swing_short = "🐂 Alcista" if r.get("swing_type") == "BULLISH_PULLBACK" else ("⚠️ Caída Act." if r.get("swing_type") == "FALLING_KNIFE" else "🔄 Rebote")
+        print(f"{r['tab']:<10} {r['ticker']:<9} {curr_str:>11} {drop_str:>9} {rsi_str:>6} {sma_str:>11} {dist_str:>9} {score_str:>7} {swing_short:<18} {r.get('confluence_rating', ''):<20}")
 
-    print("=" * 105)
+    print("=" * 118)
 
 def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
-    config = load_config()
-    period = target_period or config.get("period", "3mo")
-    webhook_url = custom_webhook or config.get("webhook_url", "").strip()
+    with SYNC_LOCK:
+        t0 = time.perf_counter()
+        config = load_config()
+        period = target_period or config.get("period", "3mo")
+        webhook_url = custom_webhook or config.get("webhook_url", "").strip()
+        assets_list = config.get("assets", [])
 
-    now = datetime.datetime.now()
-    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.datetime.now()
+        timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
 
-    print(f"\n🚀 Iniciando sincronización de precios de mercado (Periodo: {period})...")
+        print(f"\n🚀 Iniciando sincronización paralela de {len(assets_list)} activos (Periodo: {period})...")
 
-    # 1. Consultar índice macroeconómico CNN Fear & Greed
-    print("  🌐 Consultando índice de sentimiento CNN Fear & Greed de Wall Street...", end="\r")
-    sentiment = fetch_cnn_fear_and_greed()
-    print(f"  🌡️ Sentimiento CNN: {sentiment.get('score', 50)}/100 ({sentiment.get('rating_es', 'Neutral')}) {sentiment.get('icon', '')}       ")
+        def _fetch_worker(idx_and_asset):
+            idx, asset_item = idx_and_asset
+            try:
+                data, hist = fetch_asset_data(asset_item, period=period, return_history=True, quiet=True)
+                return idx, data, hist
+            except Exception as err:
+                print(f"  ❌ Error consultando {asset_item.get('ticker')}: {err}")
+                return idx, None, None
 
-    # 2. Consultar activos de la cartera
-    results = []
-    for asset in config.get("assets", []):
-        data = fetch_asset_data(asset, period=period)
-        if data:
-            results.append(data)
+        max_workers = min(8, max(2, len(assets_list) + 1))
+        ordered_results = []
+        histories_by_ticker = {}
 
-    # Imprimir reporte en consola
-    print_summary_table(results, period, timestamp, sentiment=sentiment)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            sentiment_future = executor.submit(fetch_cnn_fear_and_greed)
+            asset_futures = [executor.submit(_fetch_worker, (i, a)) for i, a in enumerate(assets_list)]
 
-    # Guardar localmente
-    payload = {
-        "timestamp": timestamp,
-        "period": period,
-        "market_sentiment": sentiment,
-        "data": results
-    }
-    with open(LATEST_DATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+            collected = []
+            for fut in concurrent.futures.as_completed(asset_futures):
+                idx, data, hist = fut.result()
+                if data:
+                    collected.append((idx, data))
+                    if hist is not None and not hist.empty:
+                        histories_by_ticker[data["ticker"]] = hist
 
-    # Actualizar periodo en config.json si se especificó uno nuevo
-    if target_period and target_period != config.get("period"):
-        config["period"] = target_period
-        save_config(config)
+            sentiment = sentiment_future.result()
 
-    # Enviar a Google Sheets si hay webhook configurado y sync_sheets es True
-    if sync_sheets and webhook_url:
-        print(f"\n📤 Enviando datos a Google Sheets ({webhook_url[:40]}...)...")
+        collected.sort(key=lambda pair: pair[0])
+        results = [item for _, item in collected]
+        elapsed_fetch = time.perf_counter() - t0
+        print(f"  ⚡ Descarga paralela completada en {elapsed_fetch:.2f}s | 🌡️ Sentimiento CNN: {sentiment.get('score', 50)}/100 ({sentiment.get('rating_es', 'Neutral')}) {sentiment.get('icon', '')}")
+
+        # Imprimir reporte en consola
+        print_summary_table(results, period, timestamp, sentiment=sentiment)
+
+        # Guardar localmente de forma atómica
+        payload = {
+            "timestamp": timestamp,
+            "period": period,
+            "market_sentiment": sentiment,
+            "market_hours": evaluate_market_hours(assets_list, now),
+            "data": results
+        }
+        _atomic_write_json(LATEST_DATA_PATH, payload)
+
+        # Actualizar periodo en config.json si se especificó uno nuevo
+        if target_period and target_period != config.get("period"):
+            config["period"] = target_period
+            save_config(config)
+
+        # Enviar a Google Sheets si hay webhook configurado y sync_sheets es True
+        if sync_sheets and webhook_url:
+            print(f"\n📤 Enviando datos a Google Sheets ({webhook_url[:40]}...)...")
+            try:
+                resp = requests.post(
+                    webhook_url,
+                    data=json.dumps(payload),
+                    headers={"Content-Type": "application/json"},
+                    timeout=25
+                )
+                if resp.status_code == 200:
+                    print("✅ ¡GOOGLE SHEETS ACTUALIZADO CON ÉXITO!")
+                else:
+                    print(f"⚠️ Error al actualizar Sheet. Código HTTP: {resp.status_code}")
+                    print(f"Detalle: {resp.text}")
+            except Exception as e:
+                print(f"❌ Error de conexión al enviar a Google Sheets: {e}")
+        elif not webhook_url:
+            print("\nℹ️ [Nota]: No hay webhook configurado para Google Sheets.")
+
+        # Enviar alertas a Telegram si está configurado
         try:
-            resp = requests.post(
-                webhook_url,
-                data=json.dumps(payload),
-                headers={"Content-Type": "application/json"},
-                timeout=25
-            )
-            if resp.status_code == 200:
-                print("✅ ¡GOOGLE SHEETS ACTUALIZADO CON ÉXITO!")
-            else:
-                print(f"⚠️ Error al actualizar Sheet. Código HTTP: {resp.status_code}")
-                print(f"Detalle: {resp.text}")
+            import telegram_notifier
+            telegram_notifier.dispatch_telegram_alerts(payload, config)
         except Exception as e:
-            print(f"❌ Error de conexión al enviar a Google Sheets: {e}")
-    elif not webhook_url:
-        print("\nℹ️ [Nota]: No hay webhook configurado para Google Sheets.")
+            print(f"⚠️ [Telegram] Error procesando alertas: {e}")
 
-    # Enviar alertas a Telegram si está configurado
-    try:
-        import telegram_notifier
-        telegram_notifier.dispatch_telegram_alerts(payload, config)
-    except Exception as e:
-        print(f"⚠️ [Telegram] Error procesando alertas: {e}")
+        # Sincronizar Historial de Oportunidades y Diario de Trading (Módulo 3)
+        try:
+            import journal_manager
+            journal_manager.update_journal_with_market_data(results, histories=histories_by_ticker)
+        except Exception as e:
+            print(f"⚠️ [Journal] Error actualizando diario de trading: {e}")
 
-    # Sincronizar Historial de Oportunidades y Diario de Trading (Módulo 3)
-    try:
-        import journal_manager
-        journal_manager.update_journal_with_market_data(results)
-    except Exception as e:
-        print(f"⚠️ [Journal] Error actualizando diario de trading: {e}")
-
-    return payload
+        return payload
 
 def main():
     custom_webhook = None

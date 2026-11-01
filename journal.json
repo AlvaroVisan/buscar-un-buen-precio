@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-11-01 00:48:59",
+  "last_updated": "2026-11-01 01:54:12",
   "stats": {
     "total_opportunities": 5,
     "active_count": 5,
@@ -37,7 +37,9 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 00:48:59"
+      "last_check": "2026-11-01 01:54:12",
+      "currency": "$",
+      "decimals": 2
     },
     {
       "id": "opp_NVDA_1793470306",
@@ -64,7 +66,9 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 00:48:59"
+      "last_check": "2026-11-01 01:54:12",
+      "currency": "$",
+      "decimals": 2
     },
     {
       "id": "opp_CEG_1793470306",
@@ -91,7 +95,9 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 00:48:59"
+      "last_check": "2026-11-01 01:54:12",
+      "currency": "$",
+      "decimals": 2
     },
     {
       "id": "opp_META_1793470306",
@@ -118,7 +124,9 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 00:48:59"
+      "last_check": "2026-11-01 01:54:12",
+      "currency": "$",
+      "decimals": 2
     },
     {
       "id": "opp_AMD_1793470306",
@@ -145,7 +153,9 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 00:48:59"
+      "last_check": "2026-11-01 01:54:12",
+      "currency": "$",
+      "decimals": 2
     }
   ]
 }

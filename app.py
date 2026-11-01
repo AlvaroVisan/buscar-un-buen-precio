@@ -1,17 +1,59 @@
 import http.server
-import socketserver
 import json
 import os
 import sys
+import urllib.parse
 import webbrowser
 import threading
 import time
 import market_updater
+import portfolio_manager
 import telegram_notifier
 
 PORT = 5050
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+MASK_PREFIX = "••••••••"
 last_auto_sync_time = time.time()
+
+
+def mask_secret(val):
+    """Enmascara tokens privados antes de enviarlos por HTTP al navegador."""
+    s = str(val or "").strip()
+    if not s:
+        return ""
+    if len(s) <= 8:
+        return MASK_PREFIX
+    return f"{MASK_PREFIX}{s[-6:]}"
+
+
+def resolve_secret(incoming, current_saved):
+    """Conserva el secreto guardado si el cliente reenvía la máscara intacta; permite borrarlo si llega vacío."""
+    val = str(incoming or "").strip()
+    if val.startswith("••••"):
+        return str(current_saved or "").strip()
+    return val
+
+
+def _is_forbidden_static_path(route_path):
+    """Bloquea el acceso HTTP directo a archivos internos, código fuente y credenciales."""
+    decoded = urllib.parse.unquote(route_path or "/")
+    rel = decoded.lstrip("/").replace("\\", "/")
+    if not rel:
+        return False
+
+    parts = [p for p in rel.split("/") if p]
+    for part in parts:
+        if part == ".." or part.startswith("."):
+            return True
+
+    filename = parts[-1].lower()
+    blocked_files = {"secrets.json", "config.json", "journal.json", "portfolio.json"}
+    blocked_exts = (".py", ".pyc", ".pyo", ".bat", ".cmd", ".ps1", ".sh", ".tmp", ".log", ".env")
+    if filename in blocked_files or filename.endswith(blocked_exts):
+        return True
+
+    return False
+
 
 def auto_scheduler_worker():
     global last_auto_sync_time
@@ -23,28 +65,51 @@ def auto_scheduler_worker():
             sched_cfg = cfg.get("scheduler", {})
             enabled = sched_cfg.get("enabled", True)
             interval_min = sched_cfg.get("interval_minutes", 30)
+            smart_hours_only = sched_cfg.get("smart_hours_only", True)
 
             if not enabled or interval_min <= 0:
                 continue
 
-            interval_sec = interval_min * 60
+            if market_updater.SYNC_LOCK.locked():
+                continue
+
+            mh = market_updater.evaluate_market_hours(cfg.get("assets", []))
+            if smart_hours_only and not mh["equities_open"]:
+                if not mh["has_crypto"]:
+                    # Bolsas cerradas y sin criptoactivos 24/7: descanso inteligente
+                    continue
+                # Con cripto 24/7: suavizar cadencia nocturna/fin de semana a mín. 120m
+                effective_interval_min = max(interval_min, 120)
+            else:
+                effective_interval_min = interval_min
+
+            interval_sec = effective_interval_min * 60
             now = time.time()
             if now - last_auto_sync_time >= interval_sec:
                 last_auto_sync_time = now
                 period = cfg.get("period", "3mo")
-                print(f"\n[Auto-Scheduler] ⏰ Intervalo de {interval_min}m alcanzado. Sincronizando precios y comprobando alertas móviles...")
+                print(f"\n[Auto-Scheduler] ⏰ Intervalo de {effective_interval_min}m alcanzado ({mh['status_label']}). Sincronizando precios...")
                 market_updater.run_updater(target_period=period)
         except Exception as e:
             print(f"[Auto-Scheduler] ⚠️ Error en ciclo automático: {e}")
+
+
+class ThreadingFibonacciServer(http.server.ThreadingHTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
 
 class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 
     def do_GET(self):
-        if self.path == "/api/data":
+        route = self.path.split("?", 1)[0]
+
+        if route == "/api/data":
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             latest_path = os.path.join(DIRECTORY, "latest_data.json")
             if os.path.exists(latest_path):
@@ -53,44 +118,83 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self.wfile.write(b"{}")
             return
-        
-        if self.path == "/api/config":
+
+        if route == "/api/config":
+            cfg = market_updater.load_config()
+            safe_cfg = json.loads(json.dumps(cfg))
+            safe_cfg["has_webhook"] = bool(safe_cfg.get("webhook_url"))
+            safe_cfg["webhook_url"] = mask_secret(safe_cfg.get("webhook_url", ""))
+            if "telegram" in safe_cfg and isinstance(safe_cfg["telegram"], dict):
+                safe_cfg["telegram"]["has_token"] = bool(safe_cfg["telegram"].get("bot_token"))
+                safe_cfg["telegram"]["bot_token"] = mask_secret(safe_cfg["telegram"].get("bot_token", ""))
+
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
-            cfg_path = os.path.join(DIRECTORY, "config.json")
-            if os.path.exists(cfg_path):
-                with open(cfg_path, "rb") as f:
-                    self.wfile.write(f.read())
-            else:
-                self.wfile.write(b"{}")
+            self.wfile.write(json.dumps(safe_cfg, ensure_ascii=False).encode("utf-8"))
             return
 
-        if self.path == "/api/scheduler/status":
+        if route == "/api/scheduler/status":
             cfg = market_updater.load_config()
             sched_cfg = cfg.get("scheduler", {})
             interval_min = sched_cfg.get("interval_minutes", 30)
             enabled = sched_cfg.get("enabled", True)
+            smart_hours_only = sched_cfg.get("smart_hours_only", True)
+            mh = market_updater.evaluate_market_hours(cfg.get("assets", []))
+
+            if smart_hours_only and not mh["equities_open"]:
+                paused_by_smart_hours = not mh["has_crypto"]
+                effective_interval_min = None if paused_by_smart_hours else max(interval_min, 120)
+            else:
+                paused_by_smart_hours = False
+                effective_interval_min = interval_min
+
             elapsed = time.time() - last_auto_sync_time
-            remaining = max(0, int((interval_min * 60) - elapsed)) if enabled else None
+            remaining = max(0, int((effective_interval_min * 60) - elapsed)) if (enabled and effective_interval_min) else None
+
+            safe_tg = dict(cfg.get("telegram", {}))
+            safe_tg["has_token"] = bool(safe_tg.get("bot_token"))
+            safe_tg["bot_token"] = mask_secret(safe_tg.get("bot_token", ""))
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(json.dumps({
                 "enabled": enabled,
                 "interval_minutes": interval_min,
+                "smart_hours_only": smart_hours_only,
+                "effective_interval_minutes": effective_interval_min,
+                "paused_by_smart_hours": paused_by_smart_hours,
+                "market_hours": mh,
                 "remaining_seconds": remaining,
-                "telegram": cfg.get("telegram", {})
+                "telegram": safe_tg
             }, ensure_ascii=False).encode("utf-8"))
             return
 
-        if self.path == "/api/journal":
+        if route == "/api/portfolio":
+            try:
+                pf_data = portfolio_manager.get_enriched_portfolio()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(json.dumps(pf_data, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        if route == "/api/journal":
             try:
                 import journal_manager
                 j_data = journal_manager.load_journal()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(json.dumps(j_data, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
@@ -100,9 +204,15 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
+        if _is_forbidden_static_path(route):
+            self.send_error(403, "Acceso denegado a archivo interno")
+            return
+
         return super().do_GET()
 
     def do_POST(self):
+        global last_auto_sync_time
+        route = self.path.split("?", 1)[0]
         content_len = int(self.headers.get('Content-Length', 0))
         post_data = {}
         if content_len > 0:
@@ -112,11 +222,12 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
             except Exception:
                 pass
 
-        if self.path == "/api/sync":
+        if route == "/api/sync":
             try:
                 target_period = post_data.get("period")
                 print(f"\n[Web Dashboard] Solicitud de sincronización recibida (Periodo: {target_period or 'configurado'})...")
                 updated_payload = market_updater.run_updater(target_period=target_period)
+                last_auto_sync_time = time.time()
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -130,7 +241,129 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/journal/reset":
+        if route == "/api/period":
+            try:
+                target_period = str(post_data.get("period", "")).strip()
+                if target_period not in market_updater.SUPPORTED_PERIODS:
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": f"Periodo '{target_period}' no soportado."}).encode("utf-8"))
+                    return
+
+                updated_payload = market_updater.switch_cached_period(target_period)
+                was_cached = updated_payload is not None
+                if updated_payload is None:
+                    updated_payload = market_updater.run_updater(target_period=target_period)
+                    last_auto_sync_time = time.time()
+
+                resp_obj = dict(updated_payload)
+                resp_obj["instant_cached"] = was_cached
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(resp_obj, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        if route == "/api/portfolio/upsert":
+            try:
+                ticker = str(post_data.get("ticker", "")).strip().upper()
+                shares = post_data.get("shares")
+                avg_price = post_data.get("avg_price")
+                custom_sl = post_data.get("custom_sl")
+                custom_tp = post_data.get("custom_tp")
+                notes = post_data.get("notes", "")
+                merge = bool(post_data.get("merge", True))
+
+                # Resolver metadatos desde latest_data.json o detección rápida
+                tab = str(post_data.get("tab", "")).strip()
+                name = str(post_data.get("name", "")).strip()
+                currency = str(post_data.get("currency", "")).strip()
+                decimals = post_data.get("decimals")
+
+                latest_path = os.path.join(DIRECTORY, "latest_data.json")
+                if os.path.exists(latest_path):
+                    try:
+                        with open(latest_path, "r", encoding="utf-8") as f:
+                            ldata = json.load(f).get("data", [])
+                        found = next((it for it in ldata if str(it.get("ticker", "")).upper() == ticker), None)
+                        if found:
+                            tab = tab or found.get("tab", ticker)
+                            name = name or found.get("name", tab)
+                            currency = currency or found.get("currency", "$")
+                            if decimals is None:
+                                decimals = found.get("decimals", 2)
+                    except Exception:
+                        pass
+
+                if not currency or decimals is None:
+                    det_curr, det_dec = market_updater.detect_asset_format(ticker, float(avg_price or 100))
+                    currency = currency or det_curr
+                    decimals = det_dec if decimals is None else int(decimals)
+
+                portfolio_manager.upsert_position(
+                    ticker=ticker,
+                    shares=shares,
+                    avg_price=avg_price,
+                    tab=tab or ticker,
+                    name=name or tab or ticker,
+                    currency=currency,
+                    decimals=int(decimals),
+                    custom_sl=custom_sl,
+                    custom_tp=custom_tp,
+                    notes=notes,
+                    merge=merge
+                )
+                enriched = portfolio_manager.get_enriched_portfolio()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(enriched, ensure_ascii=False).encode("utf-8"))
+            except ValueError as ve:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(ve)}, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
+            return
+
+        if route == "/api/portfolio/remove":
+            try:
+                ticker = str(post_data.get("ticker", "")).strip().upper()
+                sell_shares = post_data.get("sell_shares")
+                sell_price = post_data.get("sell_price")
+                portfolio_manager.remove_or_reduce_position(
+                    ticker=ticker,
+                    sell_shares=sell_shares,
+                    sell_price=sell_price
+                )
+                enriched = portfolio_manager.get_enriched_portfolio()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(enriched, ensure_ascii=False).encode("utf-8"))
+            except ValueError as ve:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(ve)}, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
+            return
+
+        if route == "/api/journal/reset":
             try:
                 import journal_manager
                 empty_j = {
@@ -155,7 +388,7 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/assets/validate":
+        if route == "/api/assets/validate":
             try:
                 ticker = post_data.get("ticker", "").strip().upper()
                 if not ticker:
@@ -176,6 +409,7 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                     return
 
                 price = float(hist["Close"].iloc[-1])
+                curr, dec = market_updater.detect_asset_format(ticker, price)
                 # Intentar obtener nombre sugerido
                 suggested_name = ticker
                 try:
@@ -190,7 +424,9 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({
                     "valid": True,
                     "ticker": ticker,
-                    "price": round(price, 2),
+                    "price": round(price, dec),
+                    "currency": curr,
+                    "decimals": dec,
                     "name": suggested_name
                 }, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
@@ -200,7 +436,7 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"valid": False, "error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/assets/add":
+        if route == "/api/assets/add":
             try:
                 ticker = post_data.get("ticker", "").strip().upper()
                 tab = post_data.get("tab", "").strip() or ticker
@@ -236,6 +472,7 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
 
                 print(f"\n[Web Dashboard] Activo añadido: {tab} ({ticker}) - {name}. Actualizando mercado...")
                 updated_payload = market_updater.run_updater(target_period=config.get("period", "3mo"))
+                last_auto_sync_time = time.time()
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -249,7 +486,7 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/assets/remove":
+        if route == "/api/assets/remove":
             try:
                 ticker = post_data.get("ticker", "").strip().upper()
                 config = market_updater.load_config()
@@ -260,6 +497,7 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
 
                 print(f"\n[Web Dashboard] Activo eliminado: {ticker}. Actualizando datos...")
                 updated_payload = market_updater.run_updater(target_period=config.get("period", "3mo"))
+                last_auto_sync_time = time.time()
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -273,9 +511,11 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/telegram/test":
+        if route == "/api/telegram/test":
             try:
-                bot_token = post_data.get("bot_token", "").strip()
+                cfg = market_updater.load_config()
+                saved_token = cfg.get("telegram", {}).get("bot_token", "")
+                bot_token = resolve_secret(post_data.get("bot_token", ""), saved_token)
                 chat_id = post_data.get("chat_id", "").strip()
                 ok, msg = telegram_notifier.test_telegram_connection(bot_token, chat_id)
                 self.send_response(200 if ok else 400)
@@ -289,23 +529,31 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"success": False, "message": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/telegram/save":
+        if route == "/api/telegram/save":
             try:
                 cfg = market_updater.load_config()
+                saved_token = cfg.get("telegram", {}).get("bot_token", "")
+                resolved_token = resolve_secret(post_data.get("bot_token", ""), saved_token)
+
                 cfg["telegram"] = {
                     "enabled": bool(post_data.get("enabled", True)),
-                    "bot_token": post_data.get("bot_token", "").strip(),
+                    "bot_token": resolved_token,
                     "chat_id": post_data.get("chat_id", "").strip(),
                     "min_score": int(post_data.get("min_score", 70)),
                     "notify_on_golden_zone": bool(post_data.get("notify_on_golden_zone", True)),
                     "notify_on_high_confluence": bool(post_data.get("notify_on_high_confluence", True))
                 }
                 market_updater.save_config(cfg)
+
+                safe_tg = dict(cfg["telegram"])
+                safe_tg["has_token"] = bool(resolved_token)
+                safe_tg["bot_token"] = mask_secret(resolved_token)
+
                 print(f"[Web Dashboard] Configuración de Telegram actualizada (Activo: {cfg['telegram']['enabled']}).")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
-                self.wfile.write(json.dumps({"success": True, "telegram": cfg["telegram"]}).encode("utf-8"))
+                self.wfile.write(json.dumps({"success": True, "telegram": safe_tg}, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
@@ -313,21 +561,26 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/scheduler/save":
+        if route == "/api/scheduler/save":
             try:
                 cfg = market_updater.load_config()
+                prev_smart = cfg.get("scheduler", {}).get("smart_hours_only", True)
                 cfg["scheduler"] = {
                     "enabled": bool(post_data.get("enabled", True)),
-                    "interval_minutes": int(post_data.get("interval_minutes", 30))
+                    "interval_minutes": int(post_data.get("interval_minutes", 30)),
+                    "smart_hours_only": bool(post_data.get("smart_hours_only", prev_smart))
                 }
                 market_updater.save_config(cfg)
-                global last_auto_sync_time
                 last_auto_sync_time = time.time()
-                print(f"[Web Dashboard] Auto-Scheduler actualizado: {cfg['scheduler']['interval_minutes']} min (Activo: {cfg['scheduler']['enabled']}).")
+                print(f"[Web Dashboard] Auto-Scheduler actualizado: {cfg['scheduler']['interval_minutes']} min (Activo: {cfg['scheduler']['enabled']}, SmartHours: {cfg['scheduler']['smart_hours_only']}).")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
-                self.wfile.write(json.dumps({"success": True, "scheduler": cfg["scheduler"]}).encode("utf-8"))
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "scheduler": cfg["scheduler"],
+                    "market_hours": market_updater.evaluate_market_hours(cfg.get("assets", []))
+                }, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
@@ -337,9 +590,8 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
 
         self.send_error(404, "Endpoint no encontrado")
 
+
 def run_server():
-    socketserver.TCPServer.allow_reuse_address = True
-    
     # Iniciar hilo de sincronización automática en segundo plano
     sched_thread = threading.Thread(target=auto_scheduler_worker, daemon=True)
     sched_thread.start()
@@ -347,20 +599,21 @@ def run_server():
     # Iniciar hilo de escucha interactiva de Telegram (comandos bajo demanda)
     telegram_notifier.start_bot_listener_thread()
 
-    with socketserver.TCPServer(("", PORT), FibonacciHandler) as httpd:
+    with ThreadingFibonacciServer(("", PORT), FibonacciHandler) as httpd:
         print(f"\n=======================================================")
         print(f"  🌐 PANEL WEB 'BUSCAR UN BUEN PRECIO' ACTIVO")
         print(f"  Accede desde tu navegador en:")
         print(f"  👉 http://localhost:{PORT}")
         print(f"=======================================================\n")
-        
+
         # Abrir navegador automáticamente tras 1 segundo
         threading.Timer(1.0, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
-        
+
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
             print("\nServidor detenido.")
+
 
 if __name__ == "__main__":
     run_server()

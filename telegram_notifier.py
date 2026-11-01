@@ -15,18 +15,78 @@ import requests
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 LATEST_DATA_PATH = os.path.join(DIRECTORY, "latest_data.json")
 CONFIG_PATH = os.path.join(DIRECTORY, "config.json")
+ALERTS_CACHE_PATH = os.path.join(DIRECTORY, ".alerts_cache.json")
 
-# Caché en memoria para evitar saturación de mensajes repetidos (cooldown de 4 horas por activo)
-_last_alerts_cache = {}
+# Cooldown de 4 horas por activo persistido en disco para evitar alertas duplicadas al ejecutar .bat o reiniciar
 ALERT_COOLDOWN_SECONDS = 4 * 3600  # 4 horas
 _bot_listener_running = False
-_sync_lock = threading.Lock()
+
+
+def escape_md(val):
+    """Escapa caracteres especiales de Markdown v1 de Telegram para evitar errores HTTP 400 (can't parse entities)."""
+    if val is None:
+        return ""
+    s = str(val)
+    for ch in ("\\", "_", "*", "`", "["):
+        s = s.replace(ch, f"\\{ch}")
+    return s
+
+
+def _load_alerts_cache():
+    """Carga la caché de cooldown de alertas desde disco y limpia entradas expiradas."""
+    if not os.path.exists(ALERTS_CACHE_PATH):
+        return {}
+    try:
+        with open(ALERTS_CACHE_PATH, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+            if not isinstance(raw, dict):
+                return {}
+            now = time.time()
+            return {
+                k: v for k, v in raw.items()
+                if isinstance(v, dict) and (now - v.get("timestamp", 0)) < ALERT_COOLDOWN_SECONDS
+            }
+    except Exception:
+        return {}
+
+
+def _save_alerts_cache(cache_data):
+    """Guarda de forma atómica la caché de cooldown de alertas en disco."""
+    temp_path = f"{ALERTS_CACHE_PATH}.{threading.get_ident()}.tmp"
+    try:
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        os.replace(temp_path, ALERTS_CACHE_PATH)
+    except Exception:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+
+
+def _format_fractional_units(val):
+    """Formatea unidades fraccionadas con precisión adaptativa (útil para BTC-USD y acciones de alto precio)."""
+    if val >= 0.1:
+        return f"{val:.2f}"
+    if val >= 0.001:
+        return f"{val:.4f}"
+    return f"{val:.6f}"
+
+
+def _fmt_price(val, item=None):
+    """Formatea un precio con la divisa y precisión decimal del activo."""
+    curr = (item or {}).get("currency", "$")
+    dec = int((item or {}).get("decimals", 2))
+    num = float(val or 0)
+    return f"{curr}{num:,.{dec}f}"
 
 # Teclado persistente con botones rápidos de acceso en la app de Telegram
 TELEGRAM_MAIN_KEYBOARD = {
     "keyboard": [
         [{"text": "📊 Resumen"}, {"text": "🎯 Alertas"}],
-        [{"text": "🔄 Sincronizar"}, {"text": "ℹ️ Ayuda"}]
+        [{"text": "💼 Mi Cartera"}, {"text": "🔴 Modo Venta"}],
+        [{"text": "📔 Historial"}, {"text": "🔄 Sincronizar"}, {"text": "ℹ️ Ayuda"}]
     ],
     "resize_keyboard": True,
     "is_persistent": True
@@ -53,18 +113,95 @@ def parse_chat_ids(raw_chat_id):
 
 def get_tradingview_url(ticker):
     """
-    Devuelve la URL directa a TradingView mapeando símbolos especiales.
+    Devuelve la URL directa a TradingView mapeando símbolos internacionales, futuros, índices, cripto y divisas.
     """
-    tv_symbol = ticker
-    if tv_symbol == "GC=F":
-        tv_symbol = "COMEX:GC1!"
-    elif tv_symbol == "^GSPC":
-        tv_symbol = "SP:SPX"
-    elif tv_symbol == "BTC-USD":
-        tv_symbol = "COINBASE:BTCUSD"
+    tv_symbol = str(ticker or "").strip().upper()
+    special_map = {
+        "GC=F": "COMEX:GC1!",
+        "SI=F": "COMEX:SI1!",
+        "CL=F": "NYMEX:CL1!",
+        "^GSPC": "SP:SPX",
+        "^NDX": "NASDAQ:NDX",
+        "^IXIC": "NASDAQ:IXIC",
+        "^DJI": "DJ:DJI",
+        "^IBEX": "BME:IBC"
+    }
+    if tv_symbol in special_map:
+        tv_symbol = special_map[tv_symbol]
+    elif tv_symbol.endswith("-USD"):
+        tv_symbol = f"COINBASE:{tv_symbol.replace('-USD', '')}USD"
+    elif tv_symbol.endswith("-EUR"):
+        tv_symbol = f"COINBASE:{tv_symbol.replace('-EUR', '')}EUR"
+    elif tv_symbol.endswith("=X"):
+        tv_symbol = f"FX_IDC:{tv_symbol.replace('=X', '')}"
     elif tv_symbol.endswith(".MC"):
-        tv_symbol = f"BME:{tv_symbol.replace('.MC', '')}"
+        tv_symbol = f"BME:{tv_symbol[:-3]}"
+    elif tv_symbol.endswith(".DE"):
+        tv_symbol = f"XETR:{tv_symbol[:-3]}"
+    elif tv_symbol.endswith(".PA") or tv_symbol.endswith(".AS"):
+        tv_symbol = f"EURONEXT:{tv_symbol[:-3]}"
+    elif tv_symbol.endswith(".MI"):
+        tv_symbol = f"MIL:{tv_symbol[:-3]}"
+    elif tv_symbol.endswith(".L"):
+        tv_symbol = f"LSE:{tv_symbol[:-2]}"
     return f"https://www.tradingview.com/symbols/{tv_symbol}/"
+
+
+def answer_callback_query(bot_token, callback_id, text=""):
+    """Responde a un botón Inline de Telegram para detener la animación de carga."""
+    if not bot_token or not callback_id:
+        return False
+    try:
+        url = f"https://api.telegram.org/bot{bot_token.strip()}/answerCallbackQuery"
+        payload = {"callback_query_id": callback_id}
+        if text:
+            payload["text"] = str(text)[:180]
+        requests.post(url, json=payload, timeout=8)
+        return True
+    except Exception:
+        return False
+
+
+def build_alert_inline_keyboard(ticker):
+    """Construye botonera Inline interactiva bajo cada alerta push."""
+    t = str(ticker or "").strip().upper()
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🔍 Ver Niveles", "callback_data": f"ver:{t}"},
+                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"}
+            ],
+            [
+                {"text": "📈 Abrir en TradingView ↗", "url": get_tradingview_url(t)}
+            ]
+        ]
+    }
+
+
+def build_ticker_inline_keyboard(ticker, active_period="3mo"):
+    """Construye botonera Inline Multi-Timeframe (0ms) y dimensionamiento rápido para una ficha técnica."""
+    t = str(ticker or "").strip().upper()
+    tf_labels = [("1mo", "1M"), ("3mo", "3M"), ("6mo", "6M"), ("1y", "1A")]
+    tf_row = [
+        {
+            "text": f"• {lbl} •" if p == active_period else lbl,
+            "callback_data": f"tf:{t}:{p}"
+        }
+        for p, lbl in tf_labels
+    ]
+    return {
+        "inline_keyboard": [
+            tf_row,
+            [
+                {"text": "🛡️ Lote 50", "callback_data": f"riesgo:{t}:50"},
+                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"},
+                {"text": "🛡️ Lote 250", "callback_data": f"riesgo:{t}:250"}
+            ],
+            [
+                {"text": "📈 Abrir en TradingView ↗", "url": get_tradingview_url(t)}
+            ]
+        ]
+    }
 
 def send_telegram_message(bot_token, chat_id, text, parse_mode="Markdown", reply_markup=None):
     """
@@ -89,9 +226,18 @@ def send_telegram_message(bot_token, chat_id, text, parse_mode="Markdown", reply
         data = resp.json()
         if resp.status_code == 200 and data.get("ok"):
             return True, "Mensaje enviado con éxito"
-        else:
-            err_desc = data.get("description", f"Error HTTP {resp.status_code}")
-            return False, err_desc
+
+        err_desc = data.get("description", f"Error HTTP {resp.status_code}")
+        # Fallback automático en texto plano si falla el parseo de entidades Markdown
+        if resp.status_code == 400 and parse_mode and "parse entities" in str(err_desc).lower():
+            plain_payload = {k: v for k, v in payload.items() if k != "parse_mode"}
+            resp_plain = requests.post(url, json=plain_payload, timeout=12)
+            data_plain = resp_plain.json()
+            if resp_plain.status_code == 200 and data_plain.get("ok"):
+                return True, "Mensaje enviado con éxito (texto plano)"
+            err_desc = data_plain.get("description", err_desc)
+
+        return False, err_desc
     except Exception as e:
         return False, f"Error de conexión con Telegram: {str(e)}"
 
@@ -106,8 +252,11 @@ def setup_bot_commands(bot_token):
         cmds = [
             {"command": "resumen", "description": "📊 Precios y Scores de todos los activos"},
             {"command": "alertas", "description": "🎯 Oportunidades en Zona Áurea / Alta Confluencia"},
-            {"command": "riesgo", "description": "🛡️ Calculadora de riesgo, Stop Loss y lote"},
+            {"command": "cartera", "description": "💼 Mi Cartera Real, PnL abierto y alertas SL/TP"},
+            {"command": "riesgo", "description": "🛡️ Calculadora de riesgo, Stop Loss (Fibo/ATR) y lote"},
             {"command": "venta", "description": "🔴 Modo Venta / Toma de beneficios y extensiones"},
+            {"command": "add", "description": "➕ Añadir nuevo activo (ej: /add AAPL Apple)"},
+            {"command": "del", "description": "🗑️ Eliminar activo de la lista (ej: /del AAPL)"},
             {"command": "historial", "description": "📔 Diario de trading y tasa de acierto"},
             {"command": "sync", "description": "🔄 Sincronizar mercado y Google Sheets ahora"},
             {"command": "ayuda", "description": "ℹ️ Ayuda y lista de comandos"}
@@ -161,11 +310,11 @@ def format_telegram_alert(item, period="3mo"):
     Construye un mensaje enriquecido para una oportunidad detectada.
     """
     ticker = item.get("ticker", "")
-    tab = item.get("tab", ticker)
+    tab = escape_md(item.get("tab", ticker))
     price = item.get("current_price", 0)
     drop_pct = item.get("drop_pct", 0)
     score = item.get("score", 0)
-    confluence = item.get("confluence_rating", "Oportunidad Técnica")
+    confluence = escape_md(item.get("confluence_rating", "Oportunidad Técnica"))
     fibs = item.get("fib_levels", {})
     golden_price = fibs.get("61.8%", 0)
     buy_price = fibs.get("50.0%", 0)
@@ -174,15 +323,27 @@ def format_telegram_alert(item, period="3mo"):
     sma_sign = "+" if item.get("sma_dist_pct", 0) >= 0 else ""
     sma_str = f"{sma_sign}{item.get('sma_dist_pct', 0):.1f}%"
     sma_trend = "🐂 Alcista" if item.get("is_above_sma") else "🐻 Bajista"
+    swing_txt = escape_md(item.get("swing_label", "En rango"))
     tv_url = get_tradingview_url(ticker)
+
+    extra_lines = ""
+    best_cluster = item.get("best_cluster")
+    if isinstance(best_cluster, dict) and best_cluster.get("label"):
+        extra_lines += f"🧬 *Cluster MTF*: `{escape_md(best_cluster['label'])}`\n"
+
+    earnings = item.get("earnings") or {}
+    if earnings.get("warning_level") in ("IMMINENT", "UPCOMING") and earnings.get("label"):
+        extra_lines += f"📅 *Resultados*: `{escape_md(earnings['label'])}`\n"
 
     msg = (
         f"🎯 *¡ALERTA FIBONACCI: {tab} ({ticker})!*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🔥 *Score de Confluencia*: `{score}/100` ({confluence})\n"
-        f"💰 *Precio Actual*: `${price:,.2f}` (-{drop_pct:.1f}% desde máx)\n"
-        f"🏆 *Zona Áurea (61.8%)*: `${golden_price:,.2f}`\n"
-        f"🟢 *Zona de Compra (50%)*: `${buy_price:,.2f}`\n"
+        f"💰 *Precio Actual*: `{_fmt_price(price, item)}` (-{drop_pct:.1f}% desde máx)\n"
+        f"🏆 *Zona Áurea (61.8%)*: `{_fmt_price(golden_price, item)}`\n"
+        f"🟢 *Zona de Compra (50%)*: `{_fmt_price(buy_price, item)}`\n"
+        f"{extra_lines}"
+        f"🧭 *Impulso*: `{swing_txt}`\n"
         f"📉 *RSI (14 días)*: `{rsi_str}`\n"
         f"📈 *Estructura SMA 200*: `{sma_str}` ({sma_trend})\n"
         f"⏳ *Ventana de Análisis*: `{period.upper()}`\n\n"
@@ -193,7 +354,7 @@ def format_telegram_alert(item, period="3mo"):
 def dispatch_telegram_alerts(market_payload, config):
     """
     Evalúa los activos del payload y envía notificaciones a Telegram si cumplen los criterios.
-    Usa caché con cooldown para evitar inundar el chat.
+    Usa caché con cooldown para evitar inundar el chat y respeta Horario Inteligente de Mercado.
     Soporta múltiples destinatarios (Chat IDs separados por comas).
     """
     tg_config = config.get("telegram", {})
@@ -210,11 +371,21 @@ def dispatch_telegram_alerts(market_payload, config):
     notify_confluence = tg_config.get("notify_on_high_confluence", True)
     period = market_payload.get("period", config.get("period", "3mo"))
 
+    import market_updater
+    smart_hours = config.get("scheduler", {}).get("smart_hours_only", True)
+    mh = market_updater.evaluate_market_hours(config.get("assets", []))
+
     sent_count = 0
     now = time.time()
+    alerts_cache = _load_alerts_cache()
+    cache_modified = False
 
     for item in market_payload.get("data", []):
         ticker = item.get("ticker")
+        # Con Horario Inteligente activo, silenciar alertas push de bolsa cerrada (manteniendo Cripto 24/7)
+        if smart_hours and not mh["equities_open"] and not market_updater.is_crypto_ticker(ticker):
+            continue
+
         current_price = item.get("current_price", 0)
         fib_golden = item.get("fib_levels", {}).get("61.8%", 0)
         score = item.get("score", 0)
@@ -226,18 +397,19 @@ def dispatch_telegram_alerts(market_payload, config):
         if not qualifies:
             continue
 
-        # Comprobar cooldown
-        last_alert = _last_alerts_cache.get(ticker)
+        # Comprobar cooldown persistido en disco
+        last_alert = alerts_cache.get(ticker)
         if last_alert:
             elapsed = now - last_alert.get("timestamp", 0)
             if elapsed < ALERT_COOLDOWN_SECONDS:
                 continue
 
-        # Enviar alerta a todos los destinatarios autorizados
+        # Enviar alerta con botonera Inline interactiva a todos los destinatarios autorizados
         alert_text = format_telegram_alert(item, period=period)
+        inline_kb = build_alert_inline_keyboard(ticker)
         delivered_to_any = False
         for cid in chat_ids:
-            ok, res = send_telegram_message(bot_token, cid, alert_text, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+            ok, res = send_telegram_message(bot_token, cid, alert_text, reply_markup=inline_kb)
             if ok:
                 delivered_to_any = True
                 print(f"[Telegram Notifier] 📲 Alerta enviada para {ticker} ({item.get('tab')}) al chat {cid}")
@@ -247,11 +419,15 @@ def dispatch_telegram_alerts(market_payload, config):
 
         if delivered_to_any:
             sent_count += 1
-            _last_alerts_cache[ticker] = {
+            alerts_cache[ticker] = {
                 "timestamp": now,
                 "price": current_price,
                 "score": score
             }
+            cache_modified = True
+
+    if cache_modified:
+        _save_alerts_cache(alerts_cache)
 
     return {"sent": sent_count, "status": "Completado"}
 
@@ -270,11 +446,15 @@ def handle_start_or_help(bot_token, chat_id):
         "📊 */resumen* o */precios*\n"
         "Lista general de todos tus activos con precio, caída y score de confluencia.\n\n"
         "🎯 */alertas* u */oportunidades*\n"
-        "Filtra solo los activos en Zona Áurea (61.8%) o con Score $\\ge 70$.\n\n"
+        "Filtra solo los activos en Zona Áurea (61.8%) o con Score ≥ 70.\n\n"
         "🔍 */ver TICKER* (ej: `/ver AMD` o simplemente escribe `AMD`)\n"
         "Ficha técnica con todos los retrocesos Fibonacci, RSI, SMA 200 y enlace a TradingView.\n\n"
         "🛡️ */riesgo TICKER [capital]* (ej: `/riesgo AMD 100`)\n"
-        "Calculadora de posición: Stop Loss, Take Profit 1 y 2, Ratio R:R y número exacto de acciones a comprar según tu presupuesto de riesgo.\n\n"
+        "Calculadora de posición: Stop Loss (Fibonacci 78.6% y Volatilidad 2x ATR), Take Profit 1 y 2, Ratio R:R y lote exacto.\n\n"
+        "💼 */cartera*\n"
+        "Mi Cartera Real: PnL abierto en vivo, precio medio, distancia a Stop Loss / Take Profit y diagnósticos.\n\n"
+        "➕ */add TICKER [Nombre]* y 🗑️ */del TICKER*\n"
+        "Añade o elimina activos de tu lista desde el móvil (ej: `/add AAPL Apple`, `/del AAPL`).\n\n"
         "🔴 */venta* o */salidas*\n"
         "Modo Venta: Radar de activos sobrecomprados (RSI > 65), extensiones de Fibonacci (127.2% y 161.8%) y Trailing Stop para recogida de beneficios.\n\n"
         "📔 */historial* o */diario*\n"
@@ -282,7 +462,7 @@ def handle_start_or_help(bot_token, chat_id):
         "🔄 */sync*\n"
         "Fuerza la actualización de precios con Yahoo Finance y actualiza tu Google Sheets en remoto.\n\n"
         "⏱ */periodo <1mo|3mo|6mo|1y>*\n"
-        "Cambia la ventana de cálculo de Fibonacci (ej: `/periodo 1mo`)."
+        "Cambia al instante (0 ms) la ventana de cálculo de Fibonacci (ej: `/periodo 1mo`)."
     )
     send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
@@ -335,7 +515,7 @@ def handle_resumen(bot_token, chat_id):
             else:
                 icon = "⚪"
 
-            lines.append(f"{icon} *{tab}* (`{ticker}`): `${price:,.2f}` (-{drop:.1f}%)\n   └ Score: *{score}/100* | {it.get('signal', '')}")
+            lines.append(f"{icon} *{escape_md(tab)}* (`{ticker}`): `{_fmt_price(price, it)}` (-{drop:.1f}%)\n   └ Score: *{score}/100* | {escape_md(it.get('signal', ''))}")
 
         lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━")
         lines.append("💡 _Escribe `/ver TICKER` (ej: `/ver AMD`) para ver todos sus niveles Fibonacci._")
@@ -343,7 +523,7 @@ def handle_resumen(bot_token, chat_id):
         msg = "\n".join(lines)
         send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
     except Exception as e:
-        send_telegram_message(bot_token, chat_id, f"❌ Error al generar resumen: {e}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+        send_telegram_message(bot_token, chat_id, f"❌ Error al generar resumen: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
 def handle_alertas(bot_token, chat_id):
     """
@@ -376,7 +556,7 @@ def handle_alertas(bot_token, chat_id):
             msg = (
                 "🎯 *RADAR DE OPORTUNIDADES*\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "✅ Ningún activo está actualmente en Zona Áurea (61.8%) ni con Score $\\ge 70$.\n\n"
+                "✅ Ningún activo está actualmente en Zona Áurea (61.8%) ni con Score ≥ 70.\n\n"
                 "Todos cotizan por encima de las zonas de compra recomendadas. El mercado no presenta sobreventas extremas en tu lista."
             )
             send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
@@ -389,7 +569,7 @@ def handle_alertas(bot_token, chat_id):
 
         for it in opportunities:
             ticker = it.get("ticker", "")
-            tab = it.get("tab", ticker)
+            tab = escape_md(it.get("tab", ticker))
             price = it.get("current_price", 0)
             drop = it.get("drop_pct", 0)
             score = it.get("score", 0)
@@ -401,20 +581,21 @@ def handle_alertas(bot_token, chat_id):
 
             lines.append(
                 f"🔥 *{tab}* (`{ticker}`) — Score: *{score}/100*\n"
-                f"• Precio: `${price:,.2f}` (-{drop:.1f}%)\n"
-                f"• Zona Áurea (61.8%): `${fib_golden:,.2f}`\n"
-                f"• Zona 50%: `${fib_buy:,.2f}` | RSI: `{rsi}`\n"
+                f"• Precio: `{_fmt_price(price, it)}` (-{drop:.1f}%)\n"
+                f"• Zona Áurea (61.8%): `{_fmt_price(fib_golden, it)}`\n"
+                f"• Zona 50%: `{_fmt_price(fib_buy, it)}` | RSI: `{rsi}`\n"
                 f"• [Ver en TradingView]({tv_url})\n"
             )
 
         msg = "\n".join(lines)
         send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
     except Exception as e:
-        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar alertas: {e}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar alertas: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
-def handle_ver_ticker(bot_token, chat_id, query):
+def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
     """
     Muestra la radiografía técnica completa de un activo solicitado.
+    Soporta previsualización Multi-Timeframe instantánea (0ms) mediante forced_period.
     """
     clean_query = query.strip().upper().replace("$", "").replace("/", "")
 
@@ -438,41 +619,61 @@ def handle_ver_ticker(bot_token, chat_id, query):
 
     if not matched_item:
         msg = (
-            f"🔍 *Activo no encontrado: '{clean_query}'*\n"
+            f"🔍 *Activo no encontrado: '{escape_md(clean_query)}'*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "El activo no está en tu lista de seguimiento actual.\n\n"
-            "💡 _Puedes añadir cualquier acción (ej: AAPL, BTC-USD) abriendo tu panel web en:_ http://localhost:5050"
+            f"💡 _Puedes añadirlo ahora mismo escribiendo:_ `/add {escape_md(clean_query)}`"
         )
         send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
         return
 
+    view_item = dict(matched_item)
+    if forced_period and isinstance(matched_item.get("timeframes"), dict) and forced_period in matched_item["timeframes"]:
+        view_item.update(matched_item["timeframes"][forced_period])
+        period = forced_period
+
     # Construir tarjeta técnica detallada
-    ticker = matched_item.get("ticker", "")
-    tab = matched_item.get("tab", ticker)
-    name = matched_item.get("name", tab)
-    price = matched_item.get("current_price", 0)
-    drop_pct = matched_item.get("drop_pct", 0)
-    p_min = matched_item.get("min", 0)
-    p_max = matched_item.get("max", 0)
-    score = matched_item.get("score", 0)
-    confluence = matched_item.get("confluence_rating", "")
-    signal = matched_item.get("signal", "")
-    fibs = matched_item.get("fib_levels", {})
-    rsi = matched_item.get("rsi", "--")
-    rsi_desc = matched_item.get("rsi_desc", "")
-    sma_200 = matched_item.get("sma_200", 0)
-    sma_dist = matched_item.get("sma_dist_pct", 0)
+    ticker = view_item.get("ticker", "")
+    tab = escape_md(view_item.get("tab", ticker))
+    name = escape_md(view_item.get("name", tab))
+    price = view_item.get("current_price", 0)
+    drop_pct = view_item.get("drop_pct", 0)
+    p_min = view_item.get("min", 0)
+    p_max = view_item.get("max", 0)
+    score = view_item.get("score", 0)
+    confluence = view_item.get("confluence_rating", "")
+    signal = view_item.get("signal", "")
+    fibs = view_item.get("fib_levels", {})
+    rsi = view_item.get("rsi", "--")
+    rsi_desc = view_item.get("rsi_desc", "")
+    sma_200 = view_item.get("sma_200", 0)
+    sma_dist = view_item.get("sma_dist_pct", 0)
     sma_sign = "+" if sma_dist >= 0 else ""
-    sma_trend = "🐂 Alcista (Sobre SMA)" if matched_item.get("is_above_sma") else "🐻 Bajista (Bajo SMA)"
+    sma_trend = "🐂 Alcista (Sobre SMA)" if view_item.get("is_above_sma") else "🐻 Bajista (Bajo SMA)"
+    swing_txt = escape_md(view_item.get("swing_label", "En rango"))
+    atr_14 = view_item.get("atr_14")
+    atr_pct = view_item.get("atr_pct", 0)
     tv_url = get_tradingview_url(ticker)
+
+    extra_badges = ""
+    best_cluster = view_item.get("best_cluster")
+    if isinstance(best_cluster, dict) and best_cluster.get("label"):
+        extra_badges += f"🧬 *Cluster MTF*: `{escape_md(best_cluster['label'])}`\n"
+    earnings = view_item.get("earnings") or {}
+    if earnings.get("has_earnings") and earnings.get("label"):
+        extra_badges += f"📅 *Resultados*: `{escape_md(earnings['label'])}`\n"
+    if atr_14:
+        extra_badges += f"🌊 *Volatilidad ATR(14)*: `{_fmt_price(atr_14, view_item)}` ({atr_pct:.1f}% diario)\n"
 
     # Bloque de gestión de riesgo
     risk_info = ""
-    risk_data = matched_item.get("risk_mgmt")
+    risk_data = view_item.get("risk_mgmt")
     if risk_data:
         entry_p = risk_data.get("entry_price", price)
         sl = risk_data.get("stop_loss", 0)
         sl_pct = risk_data.get("risk_pct", 0)
+        atr_sl = risk_data.get("atr_stop_loss")
+        atr_sl_pct = risk_data.get("atr_risk_pct", 0)
         tp1 = risk_data.get("take_profit_1", 0)
         tp1_pct = risk_data.get("reward_1_pct", 0)
         tp2 = risk_data.get("take_profit_2", 0)
@@ -480,36 +681,42 @@ def handle_ver_ticker(bot_token, chat_id, query):
         rr2 = risk_data.get("rr_ratio_2", 0)
         rr_rating = risk_data.get("rr_rating", "")
 
+        atr_sl_line = ""
+        if atr_sl:
+            atr_sl_line = f"• Stop Volatilidad (2x ATR): `{_fmt_price(atr_sl, view_item)}` (-{atr_sl_pct:.1f}%)\n"
+
         risk_info = (
             f"🛡️ *GESTIÓN DE RIESGO SUGERIDA:*\n"
-            f"• Entrada: `${entry_p:,.2f}` ({risk_data.get('entry_label', '')})\n"
-            f"• Stop Loss: `${sl:,.2f}` (-{sl_pct:.1f}%)\n"
-            f"• TP 1 (38.2%): `${tp1:,.2f}` (+{tp1_pct:.1f}%)\n"
-            f"• TP 2 (Máx): `${tp2:,.2f}` (+{tp2_pct:.1f}%)\n"
-            f"• Ratio R:R (TP2): `1:{rr2}` ({rr_rating})\n"
-            f"💡 _Calcula tu lote con:_ `/riesgo {ticker} 100`\n\n"
+            f"• Entrada: `{_fmt_price(entry_p, view_item)}` ({escape_md(risk_data.get('entry_label', ''))})\n"
+            f"• Stop Fibonacci (78.6%): `{_fmt_price(sl, view_item)}` (-{sl_pct:.1f}%)\n"
+            f"{atr_sl_line}"
+            f"• TP 1 (38.2%): `{_fmt_price(tp1, view_item)}` (+{tp1_pct:.1f}%)\n"
+            f"• TP 2 (Máx): `{_fmt_price(tp2, view_item)}` (+{tp2_pct:.1f}%)\n"
+            f"• Ratio R:R (TP2): `1:{rr2}` ({escape_md(rr_rating)})\n\n"
         )
 
     msg = (
         f"🎯 *ANÁLISIS TÉCNICO: {name} ({ticker})*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💰 *Precio Actual*: `${price:,.2f}` (-{drop_pct:.1f}% desde máx)\n"
-        f"📊 *Rango ({period.upper()})*: `${p_min:,.2f}` - `${p_max:,.2f}`\n"
-        f"🚦 *Estado*: `{signal}`\n\n"
-        f"🏆 *RETROCESOS DE FIBONACCI:*\n"
-        f"• 23.6%: `${fibs.get('23.6%', 0):,.2f}`\n"
-        f"• 38.2%: `${fibs.get('38.2%', 0):,.2f}`\n"
-        f"• 50.0% (Zona Compra): `${fibs.get('50.0%', 0):,.2f}`\n"
-        f"• 61.8% (Zona Áurea): `${fibs.get('61.8%', 0):,.2f}`\n"
-        f"• 78.6% (Soporte Extremo): `${fibs.get('78.6%', 0):,.2f}`\n\n"
+        f"💰 *Precio Actual*: `{_fmt_price(price, view_item)}` (-{drop_pct:.1f}% desde máx)\n"
+        f"📊 *Rango ({period.upper()})*: `{_fmt_price(p_min, view_item)}` - `{_fmt_price(p_max, view_item)}`\n"
+        f"🧭 *Estructura*: `{swing_txt}`\n"
+        f"🚦 *Estado*: `{escape_md(signal)}`\n"
+        f"{extra_badges}\n"
+        f"🏆 *RETROCESOS DE FIBONACCI ({period.upper()}):*\n"
+        f"• 23.6%: `{_fmt_price(fibs.get('23.6%', 0), view_item)}`\n"
+        f"• 38.2%: `{_fmt_price(fibs.get('38.2%', 0), view_item)}`\n"
+        f"• 50.0% (Zona Compra): `{_fmt_price(fibs.get('50.0%', 0), view_item)}`\n"
+        f"• 61.8% (Zona Áurea): `{_fmt_price(fibs.get('61.8%', 0), view_item)}`\n"
+        f"• 78.6% (Soporte Extremo): `{_fmt_price(fibs.get('78.6%', 0), view_item)}`\n\n"
         f"📈 *CONFLUENCIA TÉCNICA:*\n"
-        f"🔥 *Score*: `{score}/100` ({confluence})\n"
-        f"📉 *RSI (14 sesiones)*: `{rsi}` ({rsi_desc})\n"
-        f"📊 *SMA 200*: `${sma_200:,.2f}` ({sma_sign}{sma_dist:.1f}% - {sma_trend})\n\n"
+        f"🔥 *Score*: `{score}/100` ({escape_md(confluence)})\n"
+        f"📉 *RSI (14 sesiones)*: `{rsi}` ({escape_md(rsi_desc)})\n"
+        f"📊 *SMA 200*: `{_fmt_price(sma_200, view_item)}` ({sma_sign}{sma_dist:.1f}% - {sma_trend})\n\n"
         f"{risk_info}"
         f"[📊 Abrir Gráfico Interactivo en TradingView]({tv_url})"
     )
-    send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+    send_telegram_message(bot_token, chat_id, msg, reply_markup=build_ticker_inline_keyboard(ticker, period))
 
 def handle_riesgo(bot_token, chat_id, raw_args):
     """
@@ -561,14 +768,14 @@ def handle_riesgo(bot_token, chat_id, raw_args):
     if not matched_item:
         send_telegram_message(
             bot_token, chat_id,
-            f"🔍 *Activo no encontrado: '{query_ticker}'*\n"
+            f"🔍 *Activo no encontrado: '{escape_md(query_ticker)}'*\n"
             "Por favor indica un ticker de tu lista (ej: `AMD`, `TSLA`, `NVDA`, `META`).",
             reply_markup=TELEGRAM_MAIN_KEYBOARD
         )
         return
 
     ticker = matched_item.get("ticker", "")
-    tab = matched_item.get("tab", ticker)
+    tab = escape_md(matched_item.get("tab", ticker))
     price = matched_item.get("current_price", 0)
     risk_mgmt = matched_item.get("risk_mgmt")
 
@@ -580,9 +787,12 @@ def handle_riesgo(bot_token, chat_id, raw_args):
         )
         return
 
+    dec = int(matched_item.get("decimals", 2))
+    curr_sym = matched_item.get("currency", "$")
+    min_risk_unit = 0.0001 if dec >= 4 else 0.01
     entry = risk_mgmt.get("entry_price", price)
     sl = risk_mgmt.get("stop_loss", price * 0.95)
-    risk_per_share = risk_mgmt.get("risk_per_share", max(0.01, entry - sl))
+    risk_per_share = risk_mgmt.get("risk_per_share", max(min_risk_unit, entry - sl))
     risk_pct = risk_mgmt.get("risk_pct", 5.0)
     tp1 = risk_mgmt.get("take_profit_1", entry * 1.05)
     tp1_pct = risk_mgmt.get("reward_1_pct", 5.0)
@@ -597,11 +807,15 @@ def handle_riesgo(bot_token, chat_id, raw_args):
         shares_min = 1
         needed_risk = round(risk_per_share, 2)
         total_inv_min = round(shares_min * entry, 2)
+        exact_frac = (budget / risk_per_share) if risk_per_share > 0 else 0.0
+        frac_str = _format_fractional_units(exact_frac)
+        frac_inv = round(exact_frac * entry, 2)
+        frac_gain_tp2 = round(exact_frac * (tp2 - entry), 2)
         sizing_text = (
-            f"⚠️ *Presupuesto de riesgo inferior al de 1 acción.*\n"
-            f"• Con tu presupuesto ({budget:,.2f}€/$), el riesgo por acción ({risk_per_share:,.2f}€/$) es superior.\n"
-            f"• Para comprar *1 acción* de {ticker}, tu riesgo real si toca Stop Loss será de *{needed_risk:,.2f}€/$* (Inversión: *${total_inv_min:,.2f}*).\n"
-            f"• _Alternativa: compra acciones fraccionadas ({round(budget / risk_per_share, 2)} títulos)._"
+            f"⚠️ *Presupuesto de riesgo inferior al de 1 título entero.*\n"
+            f"• Con tu presupuesto (`{curr_sym}{budget:,.2f}`), el riesgo de 1 título completo (`{_fmt_price(risk_per_share, matched_item)}`) es superior.\n"
+            f"• *Opción Fraccionada (recomendada)*: Compra *{frac_str} títulos* (Inversión: *{curr_sym}{frac_inv:,.2f}*) para limitar tu riesgo exactamente a *-{curr_sym}{budget:,.2f}* (Beneficio TP2: *+{curr_sym}{frac_gain_tp2:,.2f}*).\n"
+            f"• *Opción 1 Título Entero*: Tu riesgo real si toca Stop Loss sería de *-{curr_sym}{needed_risk:,.2f}* (Inversión: *{curr_sym}{total_inv_min:,.2f}*)."
         )
     else:
         total_inv = round(shares * entry, 2)
@@ -611,22 +825,33 @@ def handle_riesgo(bot_token, chat_id, raw_args):
         sizing_text = (
             f"📦 *DIMENSIONAMIENTO DE POSICIÓN:*\n"
             f"• Acciones a comprar: *{shares} títulos*\n"
-            f"• Capital total a invertir: *${total_inv:,.2f}*\n"
-            f"• Pérdida máxima controlada (Stop Loss): *-${max_loss:,.2f}*\n"
-            f"• Beneficio estimado TP1: *+${gain_tp1:,.2f}* (+{tp1_pct:.1f}%)\n"
-            f"• Beneficio estimado TP2: *+${gain_tp2:,.2f}* (+{tp2_pct:.1f}%)"
+            f"• Capital total a invertir: *{curr_sym}{total_inv:,.2f}*\n"
+            f"• Pérdida máxima controlada (Stop Loss): *-{curr_sym}{max_loss:,.2f}*\n"
+            f"• Beneficio estimado TP1: *+{curr_sym}{gain_tp1:,.2f}* (+{tp1_pct:.1f}%)\n"
+            f"• Beneficio estimado TP2: *+{curr_sym}{gain_tp2:,.2f}* (+{tp2_pct:.1f}%)"
         )
 
     tv_url = get_tradingview_url(ticker)
+    atr_sl = risk_mgmt.get("atr_stop_loss")
+    atr_sl_pct = risk_mgmt.get("atr_risk_pct", 0)
+    atr_line = f"🌊 *Stop Volatilidad (2x ATR 14)*: `{_fmt_price(atr_sl, matched_item)}` (-{atr_sl_pct:.1f}%)\n" if atr_sl else ""
+
+    earnings = matched_item.get("earnings") or {}
+    earn_warn = ""
+    if earnings.get("warning_level") == "IMMINENT" and earnings.get("label"):
+        earn_warn = f"⚠️ *Aviso Resultados*: `{escape_md(earnings['label'])}` _(riesgo de gap)_\n"
+
     msg = (
         f"🛡️ *PLAN DE TRADING Y RIESGO: {tab} ({ticker})*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💼 *Presupuesto de Riesgo Máximo*: `{budget:,.2f}€/$`\n"
-        f"📍 *Punto de Entrada*: `${entry:,.2f}` ({risk_mgmt.get('entry_label', '')})\n"
-        f"🛑 *Stop Loss Estratégico*: `${sl:,.2f}` (-{risk_pct:.1f}%)\n"
-        f"🎯 *Take Profit 1 (38.2%)*: `${tp1:,.2f}` (+{tp1_pct:.1f}%)\n"
-        f"🏆 *Take Profit 2 (Máximos)*: `${tp2:,.2f}` (+{tp2_pct:.1f}%)\n"
-        f"⚖️ *Ratio Riesgo/Beneficio*: `1:{rr2}` ({rr_rating})\n\n"
+        f"{earn_warn}"
+        f"💼 *Presupuesto de Riesgo Máximo*: `{curr_sym}{budget:,.2f}`\n"
+        f"📍 *Punto de Entrada*: `{_fmt_price(entry, matched_item)}` ({escape_md(risk_mgmt.get('entry_label', ''))})\n"
+        f"🛑 *Stop Loss Fibonacci (78.6%)*: `{_fmt_price(sl, matched_item)}` (-{risk_pct:.1f}%)\n"
+        f"{atr_line}"
+        f"🎯 *Take Profit 1 (38.2%)*: `{_fmt_price(tp1, matched_item)}` (+{tp1_pct:.1f}%)\n"
+        f"🏆 *Take Profit 2 (Máximos)*: `{_fmt_price(tp2, matched_item)}` (+{tp2_pct:.1f}%)\n"
+        f"⚖️ *Ratio Riesgo/Beneficio*: `1:{rr2}` ({escape_md(rr_rating)})\n\n"
         f"{sizing_text}\n\n"
         f"💡 _Regla de oro: No aumentes tu posición sin desplazar antes el Stop Loss a precio de entrada (Break-Even)._\n\n"
         f"[📊 Abrir Gráfico en TradingView]({tv_url})"
@@ -680,12 +905,12 @@ def handle_venta(bot_token, chat_id):
 
         for it in sell_candidates:
             ticker = it.get("ticker", "")
-            tab = it.get("tab", ticker)
+            tab = escape_md(it.get("tab", ticker))
             price = it.get("current_price", 0)
             sm = it.get("sell_mgmt", {})
             score = sm.get("sell_score", 0)
-            signal = sm.get("sell_signal", "Atención")
-            action = sm.get("sell_action", "Revisar")
+            signal = escape_md(sm.get("sell_signal", "Atención"))
+            action = escape_md(sm.get("sell_action", "Revisar"))
             rsi = it.get("rsi", "--")
             gain_low = sm.get("gain_from_low_pct", 0)
             dist_hi = sm.get("dist_to_high_pct", 0)
@@ -696,17 +921,17 @@ def handle_venta(bot_token, chat_id):
             icon = "🔥" if score >= 70 else ("🟠" if score >= 50 else "🟡")
             lines.append(
                 f"{icon} *{tab}* (`{ticker}`) — Presión Venta: *{score}/100*\n"
-                f"• Precio: `${price:,.2f}` (+{gain_low:.1f}% desde mín | -{dist_hi:.1f}% de máx)\n"
+                f"• Precio: `{_fmt_price(price, it)}` (+{gain_low:.1f}% desde mín | -{dist_hi:.1f}% de máx)\n"
                 f"• RSI: `{rsi}` | Estado: *{signal}*\n"
-                f"• Extensión 127.2%: `${ext127:,.2f}` | 161.8%: `${ext161:,.2f}`\n"
-                f"• Trailing Stop Sugerido: `${t_stop:,.2f}` (-5.5%)\n"
+                f"• Extensión 127.2%: `{_fmt_price(ext127, it)}` | 161.8%: `{_fmt_price(ext161, it)}`\n"
+                f"• Trailing Stop Sugerido: `{_fmt_price(t_stop, it)}` (-5.5%)\n"
                 f"💡 _{action}_\n"
             )
 
         msg = "\n".join(lines)
         send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
     except Exception as e:
-        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar modo venta: {e}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar modo venta: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
 def handle_historial(bot_token, chat_id):
     """
@@ -738,23 +963,25 @@ def handle_historial(bot_token, chat_id):
         ]
 
         if not entries:
-            lines.append("ℹ️ Aún no hay registros en el diario. Las oportunidades se guardarán automáticamente cada vez que un activo entre en Zona Áurea (61.8%) o alcance Confluencia $\\ge 70$.")
+            lines.append("ℹ️ Aún no hay registros en el diario. Las oportunidades se guardarán automáticamente cada vez que un activo entre en Zona Áurea (61.8%) o alcance Confluencia ≥ 70.")
         else:
             lines.append("📋 *Últimas Oportunidades en Seguimiento:*\n")
             for e in entries[:5]:
-                tab = e.get("tab", e.get("ticker", ""))
+                tab = escape_md(e.get("tab", e.get("ticker", "")))
                 ticker = e.get("ticker", "")
                 entry_p = e.get("entry_price", 0)
                 curr_p = e.get("current_price", entry_p)
-                ret = e.get("current_return_pct", 0.0)
+                ret = e.get("final_return_pct") if e.get("final_return_pct") is not None else e.get("current_return_pct", 0.0)
                 max_ret = e.get("max_return_pct", 0.0)
                 status = e.get("status", "ACTIVA")
                 date = e.get("signal_date", "").split()[0]
 
                 if status == "TP2_ALCANZADO":
                     status_badge = "🟢 TP2 Alcanzado (+Ganada)"
+                elif status == "BREAKEVEN_EJECUTADO":
+                    status_badge = "🟢 Break-Even (+TP1 Asegurado)"
                 elif status == "TP1_ALCANZADO":
-                    status_badge = "🟡 TP1 Alcanzado (Break-Even)"
+                    status_badge = "🟡 TP1 Alcanzado (Stop en Break-Even)"
                 elif status == "STOP_EJECUTADO":
                     status_badge = "🔴 Stop Ejecutado"
                 else:
@@ -763,7 +990,7 @@ def handle_historial(bot_token, chat_id):
                 sign = "+" if ret >= 0 else ""
                 lines.append(
                     f"• *{tab}* (`{ticker}`) — {status_badge}\n"
-                    f"  Entrada: `${entry_p:,.2f}` ({date}) | Actual: `${curr_p:,.2f}`\n"
+                    f"  Entrada: `{_fmt_price(entry_p, e)}` ({date}) | Actual: `{_fmt_price(curr_p, e)}`\n"
                     f"  Retorno: *{sign}{ret:.1f}%* (Máx alcanzado: +{max_ret:.1f}%)\n"
                 )
 
@@ -771,13 +998,15 @@ def handle_historial(bot_token, chat_id):
         msg = "\n".join(lines)
         send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
     except Exception as e:
-        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar historial: {e}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar historial: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
 
 def handle_sync(bot_token, chat_id):
     """
     Fuerza la ejecución de la sincronización de precios y Google Sheets desde Telegram.
     """
-    if _sync_lock.locked():
+    import market_updater
+    if market_updater.SYNC_LOCK.locked():
         send_telegram_message(
             bot_token, chat_id,
             "⏳ Ya hay una sincronización en progreso en este momento. Por favor espera unos segundos...",
@@ -786,51 +1015,59 @@ def handle_sync(bot_token, chat_id):
         return
 
     def run_sync_task():
-        with _sync_lock:
-            try:
-                send_telegram_message(
-                    bot_token, chat_id,
-                    "⏳ *Sincronizando mercado...*\nDescargando precios frescos de Yahoo Finance y actualizando Google Sheets..."
-                )
-                import market_updater
-                updated_payload = market_updater.run_updater()
-                count = len(updated_payload.get("data", []))
-                ts = updated_payload.get("timestamp", "").split(" ")[-1]
+        try:
+            send_telegram_message(
+                bot_token, chat_id,
+                "⏳ *Sincronizando mercado...*\nDescargando precios frescos de Yahoo Finance y actualizando Google Sheets..."
+            )
+            updated_payload = market_updater.run_updater()
+            count = len(updated_payload.get("data", []))
+            ts = updated_payload.get("timestamp", "").split(" ")[-1]
 
-                msg = (
-                    "✅ *¡SINCRONIZACIÓN EXITOSA!*\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"• Activos actualizados: `{count}`\n"
-                    f"• Hora: `{ts}`\n"
-                    "• Google Sheets y panel web sincronizados al 100%.\n\n"
-                    "Pulsa *📊 Resumen* o *🎯 Alertas* para consultar los nuevos datos."
-                )
-                send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
-            except Exception as e:
-                send_telegram_message(
-                    bot_token, chat_id,
-                    f"❌ Error durante la sincronización: {e}",
-                    reply_markup=TELEGRAM_MAIN_KEYBOARD
-                )
+            msg = (
+                "✅ *¡SINCRONIZACIÓN EXITOSA!*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"• Activos actualizados: `{count}`\n"
+                f"• Hora: `{ts}`\n"
+                "• Google Sheets y panel web sincronizados al 100%.\n\n"
+                "Pulsa *📊 Resumen* o *🎯 Alertas* para consultar los nuevos datos."
+            )
+            send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+        except Exception as e:
+            send_telegram_message(
+                bot_token, chat_id,
+                f"❌ Error durante la sincronización: {escape_md(e)}",
+                reply_markup=TELEGRAM_MAIN_KEYBOARD
+            )
 
     threading.Thread(target=run_sync_task, daemon=True).start()
 
 def handle_periodo(bot_token, chat_id, arg):
     """
-    Permite cambiar la temporalidad (1mo, 3mo, 6mo, 1y) y recalcular.
+    Permite cambiar la temporalidad (1mo, 3mo, 6mo, 1y) al instante desde caché Multi-Timeframe (0ms).
     """
     valid = ["1mo", "3mo", "6mo", "1y"]
     period = arg.strip().lower()
     if period not in valid:
         send_telegram_message(
             bot_token, chat_id,
-            f"⚠️ Periodo no reconocido: `{arg}`.\nOpciones válidas: `1mo`, `3mo`, `6mo`, `1y`.\nEjemplo: `/periodo 1mo`",
+            f"⚠️ Periodo no reconocido: `{escape_md(arg)}`.\nOpciones válidas: `1mo`, `3mo`, `6mo`, `1y`.\nEjemplo: `/periodo 1mo`",
             reply_markup=TELEGRAM_MAIN_KEYBOARD
         )
         return
 
     try:
         import market_updater
+        cached_payload = market_updater.switch_cached_period(period)
+        if cached_payload is not None:
+            send_telegram_message(
+                bot_token, chat_id,
+                f"⚡ *Temporalidad cambiada al instante a {period.upper()}* _(0 ms desde caché Multi-Timeframe)_.\n"
+                "Pulsa *📊 Resumen* o *🎯 Alertas* para ver los niveles actualizados.",
+                reply_markup=TELEGRAM_MAIN_KEYBOARD
+            )
+            return
+
         cfg = market_updater.load_config()
         cfg["period"] = period
         market_updater.save_config(cfg)
@@ -840,7 +1077,240 @@ def handle_periodo(bot_token, chat_id, arg):
         )
         handle_sync(bot_token, chat_id)
     except Exception as e:
-        send_telegram_message(bot_token, chat_id, f"❌ Error al cambiar periodo: {e}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+        send_telegram_message(bot_token, chat_id, f"❌ Error al cambiar periodo: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
+
+def handle_cartera(bot_token, chat_id):
+    """
+    Muestra el resumen en vivo de 'Mi Cartera Real', PnL abierto y diagnósticos de Stop Loss / Take Profit.
+    """
+    try:
+        import portfolio_manager
+        pf = portfolio_manager.get_enriched_portfolio()
+        summary = pf.get("summary", {})
+        positions = pf.get("positions", [])
+
+        if not positions:
+            msg = (
+                "💼 *MI CARTERA REAL*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "ℹ️ Aún no tienes posiciones registradas en tu cartera real.\n\n"
+                "💡 _Abre la pestaña *💼 Mi Cartera Real* en tu panel web (http://localhost:5050) para registrar tus compras y monitorizar su PnL, Stop Loss y Take Profit en vivo._"
+            )
+            send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+            return
+
+        lines = [
+            f"💼 *MI CARTERA REAL ({summary.get('positions_count', 0)} posiciones)*",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        ]
+
+        totals_by_curr = summary.get("totals_by_currency", {})
+        for c_sym, b in totals_by_curr.items():
+            pnl_abs = b.get("pnl_abs", 0.0)
+            pnl_pct = b.get("pnl_pct", 0.0)
+            sign = "+" if pnl_abs >= 0 else ""
+            icon = "🟢" if pnl_abs >= 0 else "🔴"
+            lines.append(
+                f"{icon} *Balance ({c_sym})*: `{c_sym}{b.get('market_val', 0):,.2f}` "
+                f"(_Inv: {c_sym}{b.get('invested', 0):,.2f}_ | PnL: *{sign}{c_sym}{pnl_abs:,.2f}* / *{sign}{pnl_pct:.2f}%*)"
+            )
+
+        realized_map = summary.get("realized_by_currency", {})
+        if realized_map:
+            real_parts = [f"{'+' if v >= 0 else ''}{k}{v:,.2f}" for k, v in realized_map.items()]
+            lines.append(f"🏦 *PnL Realizado (Histórico)*: `{', '.join(real_parts)}`")
+
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        for p in positions:
+            t = p.get("ticker", "")
+            tab = escape_md(p.get("tab", t))
+            c = p.get("currency", "$")
+            shares = p.get("shares", 0)
+            avg_p = p.get("avg_price", 0)
+            curr_p = p.get("current_price", avg_p)
+            pnl_abs = p.get("pnl_abs", 0)
+            pnl_pct = p.get("pnl_pct", 0)
+            sl = p.get("effective_sl", 0)
+            tp = p.get("effective_tp", 0)
+            badge = escape_md(p.get("status_badge", ""))
+            sign = "+" if pnl_abs >= 0 else ""
+            shares_str = f"{int(shares)}" if abs(shares - round(shares)) < 1e-6 else _format_fractional_units(shares)
+
+            lines.append(
+                f"• *{tab}* (`{t}`) — {badge}\n"
+                f"  Títulos: `{shares_str}` @ `{_fmt_price(avg_p, p)}` → Actual: `{_fmt_price(curr_p, p)}`\n"
+                f"  PnL: *{sign}{c}{pnl_abs:,.2f} ({sign}{pnl_pct:.2f}%)* | SL: `{_fmt_price(sl, p)}` | TP: `{_fmt_price(tp, p)}`"
+            )
+
+        msg = "\n".join(lines)
+        send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+    except Exception as e:
+        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar cartera: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
+
+def handle_add_asset(bot_token, chat_id, raw_args):
+    """
+    Añade un nuevo activo a config.json desde Telegram tras validarlo en Yahoo Finance.
+    Sintaxis: /add <TICKER> [NombreCorto]
+    """
+    parts = raw_args.strip().split(maxsplit=1)
+    if not parts:
+        send_telegram_message(
+            bot_token, chat_id,
+            "➕ *AÑADIR ACTIVO A SEGUIMIENTO*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "📌 *Uso:* `/add <TICKER> [Nombre]`\n"
+            "• Ejemplo EEUU: `/add AAPL Apple`\n"
+            "• Ejemplo España: `/add SAN.MC Santander`\n"
+            "• Ejemplo Cripto: `/add ETH-USD Ethereum`",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+        return
+
+    ticker = parts[0].strip().upper().replace("$", "")
+    custom_tab = parts[1].strip() if len(parts) > 1 else ""
+
+    def _worker():
+        try:
+            import market_updater
+            import yfinance as yf
+
+            cfg = market_updater.load_config()
+            assets = cfg.get("assets", [])
+            if any(a.get("ticker", "").upper() == ticker for a in assets):
+                send_telegram_message(
+                    bot_token, chat_id,
+                    f"ℹ️ El activo `{escape_md(ticker)}` ya está en tu lista de seguimiento.",
+                    reply_markup=TELEGRAM_MAIN_KEYBOARD
+                )
+                return
+
+            send_telegram_message(bot_token, chat_id, f"🔎 Validando `{escape_md(ticker)}` en Yahoo Finance...")
+            yt = yf.Ticker(ticker)
+            hist = yt.history(period="5d")
+            if hist.empty:
+                send_telegram_message(
+                    bot_token, chat_id,
+                    f"❌ No se encontraron cotizaciones para `{escape_md(ticker)}` en Yahoo Finance.",
+                    reply_markup=TELEGRAM_MAIN_KEYBOARD
+                )
+                return
+
+            suggested_name = custom_tab or ticker
+            try:
+                info = yt.info
+                suggested_name = info.get("shortName") or info.get("longName") or suggested_name
+            except Exception:
+                pass
+
+            tab_name = custom_tab or (suggested_name.split()[0][:12] if suggested_name else ticker)
+            with market_updater.SYNC_LOCK:
+                cfg = market_updater.load_config()
+                assets = cfg.get("assets", [])
+                if not any(a.get("ticker", "").upper() == ticker for a in assets):
+                    assets.append({"tab": tab_name, "ticker": ticker, "name": suggested_name})
+                    cfg["assets"] = assets
+                    market_updater.save_config(cfg)
+
+            payload = market_updater.run_updater(target_period=cfg.get("period", "3mo"))
+            added_item = next((it for it in payload.get("data", []) if it.get("ticker", "").upper() == ticker), None)
+            if added_item:
+                msg = (
+                    f"✅ *¡ACTIVO AÑADIDO: {escape_md(tab_name)} ({escape_md(ticker)})!*\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"• Nombre: `{escape_md(suggested_name)}`\n"
+                    f"• Precio Actual: `{_fmt_price(added_item.get('current_price', 0), added_item)}`\n"
+                    f"• Score Confluencia: *{added_item.get('score', 0)}/100*\n"
+                    f"• Estado: `{escape_md(added_item.get('signal', ''))}`"
+                )
+                send_telegram_message(
+                    bot_token, chat_id, msg,
+                    reply_markup=build_ticker_inline_keyboard(ticker, payload.get("period", "3mo"))
+                )
+            else:
+                send_telegram_message(bot_token, chat_id, f"✅ `{escape_md(ticker)}` añadido a la lista.", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+        except Exception as e:
+            send_telegram_message(bot_token, chat_id, f"❌ Error añadiendo activo: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def handle_del_asset(bot_token, chat_id, raw_args):
+    """
+    Elimina un activo de config.json y latest_data.json desde Telegram.
+    Sintaxis: /del <TICKER>
+    """
+    ticker = raw_args.strip().upper().replace("$", "")
+    if not ticker:
+        send_telegram_message(
+            bot_token, chat_id,
+            "🗑️ *ELIMINAR ACTIVO*\nUso: `/del <TICKER>` (ej: `/del AAPL`).",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+        return
+
+    try:
+        import market_updater
+        with market_updater.SYNC_LOCK:
+            cfg = market_updater.load_config()
+            assets = cfg.get("assets", [])
+            remaining = [a for a in assets if a.get("ticker", "").upper() != ticker and a.get("tab", "").upper() != ticker]
+            if len(remaining) == len(assets):
+                send_telegram_message(
+                    bot_token, chat_id,
+                    f"⚠️ No se encontró `{escape_md(ticker)}` en tu lista de seguimiento.",
+                    reply_markup=TELEGRAM_MAIN_KEYBOARD
+                )
+                return
+
+            removed_asset = next(a for a in assets if a not in remaining)
+            removed_ticker = removed_asset.get("ticker", ticker).upper()
+            cfg["assets"] = remaining
+            market_updater.save_config(cfg)
+
+            if os.path.exists(LATEST_DATA_PATH):
+                try:
+                    with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
+                        ldata = json.load(f)
+                    ldata["data"] = [it for it in ldata.get("data", []) if it.get("ticker", "").upper() != removed_ticker]
+                    ldata["market_hours"] = market_updater.evaluate_market_hours(remaining)
+                    market_updater._atomic_write_json(LATEST_DATA_PATH, ldata)
+                except Exception:
+                    pass
+
+        send_telegram_message(
+            bot_token, chat_id,
+            f"🗑️ Activo *{escape_md(removed_asset.get('tab', removed_ticker))}* (`{escape_md(removed_ticker)}`) eliminado de tu seguimiento.",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+    except Exception as e:
+        send_telegram_message(bot_token, chat_id, f"❌ Error eliminando activo: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
+
+def process_callback_query(bot_token, chat_id, callback_id, data_str):
+    """
+    Procesa pulsaciones en botones Inline (ver:TICKER, tf:TICKER:PERIOD, riesgo:TICKER:BUDGET).
+    """
+    raw = str(data_str or "").strip()
+    parts = raw.split(":")
+    action = parts[0].lower() if parts else ""
+
+    if action == "ver" and len(parts) >= 2:
+        t = parts[1]
+        answer_callback_query(bot_token, callback_id, f"Ficha técnica de {t}")
+        handle_ver_ticker(bot_token, chat_id, t)
+    elif action == "tf" and len(parts) >= 3:
+        t, per = parts[1], parts[2].lower()
+        answer_callback_query(bot_token, callback_id, f"⚡ {t} en ventana {per.upper()}")
+        handle_ver_ticker(bot_token, chat_id, t, forced_period=per)
+    elif action == "riesgo" and len(parts) >= 3:
+        t, bud = parts[1], parts[2]
+        answer_callback_query(bot_token, callback_id, f"🛡️ Calculando lote ({bud}) para {t}...")
+        handle_riesgo(bot_token, chat_id, f"{t} {bud}")
+    else:
+        answer_callback_query(bot_token, callback_id, "Acción recibida")
 
 def process_user_telegram_command(bot_token, chat_id, raw_text):
     """
@@ -890,8 +1360,22 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         handle_riesgo(bot_token, chat_id, raw_args)
         return
 
-    if cmd in ("/venta", "/salidas", "/vender", "🔴 venta", "venta"):
+    if cmd in ("/venta", "/salidas", "/vender", "🔴 venta", "🔴 modo venta", "modo venta", "venta"):
         handle_venta(bot_token, chat_id)
+        return
+
+    if cmd in ("/cartera", "/portfolio", "💼 mi cartera", "💼 cartera", "mi cartera", "cartera"):
+        handle_cartera(bot_token, chat_id)
+        return
+
+    if cmd.startswith(("/add", "/añadir")):
+        parts = text.split(maxsplit=1)
+        handle_add_asset(bot_token, chat_id, parts[1] if len(parts) > 1 else "")
+        return
+
+    if cmd.startswith(("/del", "/borrar", "/eliminar", "/rm")):
+        parts = text.split(maxsplit=1)
+        handle_del_asset(bot_token, chat_id, parts[1] if len(parts) > 1 else "")
         return
 
     if cmd in ("/historial", "/diario", "/journal", "/stats", "📔 historial", "historial", "diario"):
@@ -914,8 +1398,9 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
             pass
 
     # Comando desconocido: mostrar ayuda amable
+    safe_cmd = text.replace("`", "'")
     msg = (
-        f"🤔 No he reconocido el comando: `{text}`\n\n"
+        f"🤔 No he reconocido el comando: `{safe_cmd}`\n\n"
         "Puedes usar los botones del teclado inferior o escribir:\n"
         "• `/resumen` (Ver todos los precios)\n"
         "• `/alertas` (Ver oportunidades)\n"
@@ -997,6 +1482,22 @@ def telegram_bot_listener_worker():
             updates = data.get("result", [])
             for u in updates:
                 offset = u["update_id"] + 1
+
+                # 1. Gestionar pulsaciones en botones Inline (callback_query)
+                cb = u.get("callback_query")
+                if cb:
+                    cb_id = cb.get("id")
+                    cb_msg = cb.get("message") or {}
+                    cb_chat_id = str(cb_msg.get("chat", {}).get("id", "")).strip()
+                    cb_data = cb.get("data", "")
+                    if cb_chat_id not in cached_chat_ids:
+                        answer_callback_query(cached_token, cb_id, "⛔ Acceso denegado")
+                        continue
+                    print(f"[Telegram Bot] 🔘 Botón Inline pulsado en chat {cb_chat_id}: '{cb_data}'")
+                    process_callback_query(cached_token, cb_chat_id, cb_id, cb_data)
+                    continue
+
+                # 2. Gestionar mensajes de texto normales
                 msg = u.get("message")
                 if not msg:
                     continue

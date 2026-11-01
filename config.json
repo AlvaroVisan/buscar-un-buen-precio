@@ -1,5 +1,6 @@
 {
-  "webhook_url": "https://script.google.com/macros/s/AKfycbw8X4Z_Uz4bpcbttl358uR1tW8is_oXOnMI15ZMtpZm8mrgObBXYXm0Dg6LIVuaYmXW/exec",
+  "webhook_url": "",
+  "google_sheet_url": "https://docs.google.com/spreadsheets/d/1_R_z-hBe1q0HGY2-co8U6MDROldoyhfwhwJwQaE3D9o/edit#gid=0",
   "period": "3mo",
   "telegram": {
     "enabled": true,
@@ -11,7 +12,8 @@
   },
   "scheduler": {
     "enabled": true,
-    "interval_minutes": 30
+    "interval_minutes": 30,
+    "smart_hours_only": true
   },
   "assets": [
     {

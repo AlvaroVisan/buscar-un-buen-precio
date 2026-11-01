@@ -1,54 +1,42 @@
 # 📈 Proyecto: "Buscar un buen precio"
-### Monitor Inteligente de Retrocesos de Fibonacci y Oportunidades de Compra
+### Monitor Inteligente de Retrocesos de Fibonacci, Confluencia Técnica y Gestión de Riesgo
 
-Este proyecto automatiza la extracción de datos de mercado (acciones de Wall Street, Oro e Índices) y calcula automáticamente los retrocesos de Fibonacci para identificar puntos de entrada óptimos, sincronizando todo con tu hoja de cálculo de Google Sheets.
+Este proyecto automatiza la extracción en paralelo de datos de mercado (acciones de EE. UU. y Europa, Materias Primas, Índices, Forex y Criptomonedas), evalúa la **confluencia técnica** (`Fibonacci + RSI(14) + SMA 200 + Estructura del Impulso`) junto al sentimiento **CNN Fear & Greed**, y sincroniza todo con tu **Panel Web**, **Bot de Telegram 24/7** y **Google Sheets**.
+
+---
+
+## ⚙️ Instalación Rápida (Requisitos)
+
+```powershell
+pip install -r requirements.txt
+```
+
+Las credenciales privadas (`bot_token`, `chat_id` y `webhook_url`) se almacenan automáticamente de forma local en `secrets.json` (excluido de Git por seguridad).
 
 ---
 
 ## 🎯 ¿Cómo usarlo en tu día a día?
 
-Tienes **3 formas muy sencillas** de actualizar los precios:
+### 1. Panel Web Interactivo (`Abrir_Panel_Web.bat`)
+* Haz doble clic en **`Abrir_Panel_Web.bat`** (abre `http://localhost:5050` con servidor multihilo, auto-scheduler con **Horario Inteligente de Mercado** y escucha de Telegram en segundo plano).
+* Cambio **Multi-Timeframe instantáneo (`0 ms`)** entre `1 Mes`, `3 Meses`, `6 Meses` y `1 Año`, con detección automática de **Clusters de Fibonacci Multi-Timeframe** y aviso de **próximos resultados (*Earnings*)**.
+* Incluye **4 modos de operación**:
+  * 🟢 **Modo Compra (Dip Hunter)**: Escalera de Fibonacci (`23.6%` a `78.6%`), Score `0-100`, detección de impulso alcista vs. caída activa, mini-gráficos TradingView y **Calculadora de Posición / Riesgo** (con selector entre Stop Fibonacci `78.6%` y Stop por Volatilidad `2x ATR(14)` + unidades fraccionadas).
+  * 🔴 **Modo Venta (Profit Taking)**: Radar de sobrecompra, extensiones `127.2%` y `161.8%`, Trailing Stop y simulador de recogida parcial de beneficios.
+  * 📔 **Diario de Oportunidades**: Historial automático con tasa de acierto (*Win Rate*), movimiento automático de Stop a *Break-Even* tras `TP1` y seguimiento de velas diarias.
+  * 💼 **Mi Cartera Real**: Seguimiento local (`portfolio.json`) de tus compras reales, precio medio ponderado (*DCA*), PnL abierto en vivo, termómetro `Stop Loss ↔ Entrada ↔ Take Profit` y ventas parciales/totales con beneficio realizado.
 
-### 1. Pidiéndoselo a tu Asistente AI
-Siempre que estés en este chat, solo di:
-> *"Actualiza el excel"* o *"Mira los precios hoy"*
-Y se sincronizará automáticamente al instante.
+### 2. Bot Interactivo de Telegram (24/7)
+* Configúralo en 1 minuto desde el icono de campana 🔔 del panel web (`Alertas Móvil`).
+* Botones **Inline** interactivos bajo cada alerta y ficha técnica (`[1M] [3M] [6M] [1A]`, `[🛡️ Lote 50/100/250]`, `[📈 TradingView ↗]`).
+* Comandos disponibles desde el móvil: `/resumen`, `/alertas`, `/cartera`, `/ver <TICKER>`, `/riesgo <TICKER> [presupuesto]`, `/add <TICKER> [Nombre]`, `/del <TICKER>`, `/venta`, `/historial`, `/periodo <1mo|3mo|6mo|1y>` y `/sync`.
 
-### 2. Con un solo clic (Archivo .bat)
-* Ve a la carpeta `e:\Proyectos\Buscar un buen precio\`
-* Haz doble clic en **`Actualizar_Precios.bat`**
-* En 3 segundos verás el reporte en pantalla y tu Google Sheet quedará actualizado.
-
-### 3. Desde el Panel Web Visual
-* Haz doble clic en **`Abrir_Panel_Web.bat`** (o abre `http://localhost:5050` en tu navegador).
-* Verás las tarjetas interactivas de cada valor con:
-  * Su precio actual y caída % desde máximos.
-  * El termómetro visual del rango (suelo vs techo).
-  * La escalera de Fibonacci con los niveles alcanzados.
-  * Los enlaces directos a sus gráficos en **TradingView**.
-* Pulsa el botón azul **"Actualizar Precios"** para refrescar todo.
+### 3. Actualización Rápida en 1 Clic (`Actualizar_Precios.bat`)
+* Ejecuta **`Actualizar_Precios.bat`** para descargar toda la cartera en paralelo (~1.5 - 2 s), actualizar `latest_data.json`, disparar alertas y refrescar Google Sheets.
 
 ---
 
-## 📊 Estructura de tu Google Sheet
+## 📊 Google Sheets (`google_apps_script.js`)
 
-1. **Pestaña `RESUMEN GENERAL`**:
-   * Vista consolidada de todos tus activos (`AMD`, `Meta`, `CEG`, `NVIDIA`, `Gold`, `SP500`).
-   * Columnas: Precio actual, Mínimo y Máximo de 3 meses, Caída %, Zona de Fibonacci, Señal de compra y Posición en el rango.
-   * Semáforos de color:
-     * 🟢 **COMPRA ÓPTIMA / FUERTE**: Precios en la zona áurea del 61.8% o soporte del 78.6%.
-     * 🟢 **ENTRADA BUENA**: Corrección del 50%.
-     * 🟡 **EN OBSERVACIÓN**: Caídas iniciales (23.6% - 38.2%).
-     * ⚪ **RESISTENCIA / CARO**: Cerca de máximos.
-
-2. **Pestañas Individuales (`AMD`, `Meta`, `CEG`, `NVIDIA`, `Gold`, `SP500`)**:
-   * Contienen tus parámetros detallados, fecha/hora exacta de sincronización y los precios objetivos calculados de cada retroceso.
-
----
-
-## ⚙️ Configuración y Personalización
-
-En el archivo **`config.json`**:
-* **`webhook_url`**: La dirección de conexión con tu Google Sheet.
-* **`period`**: Periodo de cálculo del Máximo y Mínimo (por defecto `"3mo"` = 3 meses). Puedes poner `"1mo"`, `"6mo"`, `"1y"`.
-* **`assets`**: Puedes agregar o quitar cualquier acción o activo que quieras seguir en el futuro.
+* **Pestaña `RESUMEN GENERAL`**: Vista consolidada de todos los activos con Score `0-100`, RSI(14), distancia a SMA 200, estructura del impulso, sentimiento CNN y barra Sparkline (limpiando filas antiguas automáticamente si eliminas algún activo).
+* **Pestañas Individuales**: Desglose completo de retrocesos Fibonacci, confluencia técnica, niveles de Stop Loss / Take Profit y extensiones de venta.

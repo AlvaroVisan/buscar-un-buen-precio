@@ -4,6 +4,10 @@ __pycache__/
 *.log
 .env
 secrets.json
+portfolio.json
+.alerts_cache.json
+.earnings_cache.json
 *.local.json
+*.tmp
 .vscode/
 .idea/

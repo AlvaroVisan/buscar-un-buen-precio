@@ -1,12 +1,16 @@
-const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1_R_z-hBe1q0HGY2-co8U6MDROldoyhfwhwJwQaE3D9o/edit#gid=0";
+const DEFAULT_GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1_R_z-hBe1q0HGY2-co8U6MDROldoyhfwhwJwQaE3D9o/edit#gid=0";
+let googleSheetUrl = DEFAULT_GOOGLE_SHEET_URL;
 
 let marketData = null;
 let currentPeriod = "3mo";
 let currentFilter = "ALL";
 let searchQuery = "";
 let currentSort = "score_desc"; // Recomendado: Ordenar por Score de Confluencia
-let currentAppMode = "BUY"; // 'BUY', 'SELL', 'JOURNAL'
+let currentAppMode = "BUY"; // 'BUY', 'SELL', 'JOURNAL', 'PORTFOLIO'
 let currentSellAsset = null;
+let currentCalcSlMode = "FIBO"; // 'FIBO' | 'ATR'
+let portfolioData = null;
+let currentPortfolioClosePos = null;
 let pendingDeleteTicker = null;
 let alertSoundEnabled = localStorage.getItem("alertSoundEnabled") !== "false";
 let previousAlertTickers = new Set();
@@ -18,8 +22,23 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initApp() {
   setupEventListeners();
   setupModalEventListeners();
+  loadClientConfig();
   await loadMarketData();
   startLivePolling();
+}
+
+async function loadClientConfig() {
+  try {
+    const resp = await fetch("/api/config");
+    if (resp.ok) {
+      const cfg = await resp.json();
+      if (cfg && cfg.google_sheet_url) {
+        googleSheetUrl = cfg.google_sheet_url;
+      }
+    }
+  } catch (e) {
+    // Fallback silencioso a URL por defecto en modo estático sin servidor
+  }
 }
 
 function setupEventListeners() {
@@ -33,7 +52,7 @@ function setupEventListeners() {
   // Botón Google Sheet
   if (btnOpenSheet) {
     btnOpenSheet.addEventListener("click", () => {
-      window.open(GOOGLE_SHEET_URL, "_blank");
+      window.open(googleSheetUrl, "_blank");
     });
   }
 
@@ -44,18 +63,34 @@ function setupEventListeners() {
     });
   }
 
-  // --- Selector de Modo de Operación (Compra / Venta / Diario) ---
+  // --- Selector de Modo de Operación (Compra / Venta / Diario / Cartera Real) ---
   const btnModeBuy = document.getElementById("btnModeBuy");
   const btnModeSell = document.getElementById("btnModeSell");
   const btnModeJournal = document.getElementById("btnModeJournal");
+  const btnModePortfolio = document.getElementById("btnModePortfolio");
 
-  [btnModeBuy, btnModeSell, btnModeJournal].forEach(btn => {
+  [btnModeBuy, btnModeSell, btnModeJournal, btnModePortfolio].forEach(btn => {
     if (btn) {
       btn.addEventListener("click", () => {
         setAppMode(btn.dataset.mode);
       });
     }
   });
+
+  const btnRefreshPortfolio = document.getElementById("btnRefreshPortfolio");
+  if (btnRefreshPortfolio) {
+    btnRefreshPortfolio.addEventListener("click", async () => {
+      await loadAndRenderPortfolio();
+      showToast("Mi Cartera Real actualizada 🔄");
+    });
+  }
+
+  const btnOpenPortfolioAdd = document.getElementById("btnOpenPortfolioAdd");
+  if (btnOpenPortfolioAdd) {
+    btnOpenPortfolioAdd.addEventListener("click", () => {
+      openPortfolioModal();
+    });
+  }
 
   const btnRefreshJournal = document.getElementById("btnRefreshJournal");
   if (btnRefreshJournal) {
@@ -80,7 +115,7 @@ function setupEventListeners() {
     });
   }
 
-  // Selector de Temporalidad (Pill buttons: 1mo, 3mo, 6mo, 1y)
+  // Selector de Temporalidad Multi-Timeframe Instantáneo (0ms desde caché + persistencia asíncrona)
   const periodPills = document.querySelectorAll(".period-btn");
   periodPills.forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -90,6 +125,28 @@ function setupEventListeners() {
       periodPills.forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       currentPeriod = selectedPeriod;
+
+      const hasPrecalculated = marketData
+        && Array.isArray(marketData.data)
+        && marketData.data.length > 0
+        && marketData.data.every(it => it.timeframes && it.timeframes[selectedPeriod]);
+
+      if (hasPrecalculated) {
+        marketData.data.forEach(it => {
+          Object.assign(it, it.timeframes[selectedPeriod]);
+        });
+        marketData.period = selectedPeriod;
+        renderDashboard(marketData);
+        showToast(`⚡ Ventana cambiada al instante a ${formatPeriodLabel(selectedPeriod)} (0 ms)`);
+
+        // Persistir cambio de periodo en segundo plano sin bloquear la UI
+        fetch("/api/period", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ period: selectedPeriod })
+        }).catch(() => {});
+        return;
+      }
 
       showToast(`Cambiando temporalidad a ${formatPeriodLabel(currentPeriod)} y calculando...`);
       await syncMarketData(selectedPeriod);
@@ -116,16 +173,18 @@ function setupEventListeners() {
     });
   }
 
-  // Chips de Filtro
-  const chipButtons = document.querySelectorAll(".chip-btn");
-  chipButtons.forEach(chip => {
-    chip.addEventListener("click", () => {
-      chipButtons.forEach(c => c.classList.remove("active"));
+  // Chips de Filtro (delegación dinámica para soportar Modo Compra y Modo Venta)
+  const filterChipsContainer = document.getElementById("filterChips");
+  if (filterChipsContainer) {
+    filterChipsContainer.addEventListener("click", (e) => {
+      const chip = e.target.closest(".chip-btn");
+      if (!chip) return;
+      filterChipsContainer.querySelectorAll(".chip-btn").forEach(c => c.classList.remove("active"));
       chip.classList.add("active");
       currentFilter = chip.dataset.filter || "ALL";
       renderFilteredCards();
     });
-  });
+  }
 
   // Selector de Ordenación
   if (sortSelect) {
@@ -147,7 +206,7 @@ function setupEventListeners() {
       if (btnClearSearch) btnClearSearch.style.display = "none";
       if (sortSelect) sortSelect.value = "score_desc";
 
-      chipButtons.forEach(c => {
+      document.querySelectorAll("#filterChips .chip-btn").forEach(c => {
         c.classList.toggle("active", c.dataset.filter === "ALL");
       });
 
@@ -363,6 +422,27 @@ function setupModalEventListeners() {
     });
   }
 
+  // Selector de Método de Stop Loss (Fibonacci 78.6% vs Volatilidad 2x ATR)
+  const slModeButtons = document.querySelectorAll(".btn-sl-mode");
+  slModeButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      slModeButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentCalcSlMode = btn.dataset.slMode || "FIBO";
+      recalcPositionPlan();
+    });
+  });
+
+  const btnRegisterInPortfolioFromCalc = document.getElementById("btnRegisterInPortfolioFromCalc");
+  if (btnRegisterInPortfolioFromCalc) {
+    btnRegisterInPortfolioFromCalc.addEventListener("click", () => {
+      registerCalcPlanIntoPortfolio();
+    });
+  }
+
+  // --- Modales de Mi Cartera Real (Alta/Edición y Venta/Cierre) ---
+  setupPortfolioModalListeners();
+
   // --- Modal Venta Parcial (Módulo 2) ---
   const btnCloseSellModal = document.getElementById("btnCloseSellModal");
   const btnCloseSellModalFooter = document.getElementById("btnCloseSellModalFooter");
@@ -444,16 +524,21 @@ function closeAllModals() {
   const calcModal = document.getElementById("positionCalcModal");
   const sellModal = document.getElementById("partialSellModal");
   const sentimentModal = document.getElementById("sentimentModal");
+  const pfModal = document.getElementById("portfolioModal");
+  const pfCloseModal = document.getElementById("portfolioCloseModal");
   if (addModal) addModal.style.display = "none";
   if (delModal) delModal.style.display = "none";
   if (tgModal) tgModal.style.display = "none";
   if (calcModal) calcModal.style.display = "none";
   if (sellModal) sellModal.style.display = "none";
   if (sentimentModal) sentimentModal.style.display = "none";
+  if (pfModal) pfModal.style.display = "none";
+  if (pfCloseModal) pfCloseModal.style.display = "none";
   closeFullscreenChart();
   pendingDeleteTicker = null;
   currentCalcAsset = null;
   currentSellAsset = null;
+  currentPortfolioClosePos = null;
 }
 
 function closeFullscreenChart() {
@@ -471,6 +556,8 @@ async function openTelegramModal() {
   const tgBotTokenInput = document.getElementById("tgBotTokenInput");
   const tgChatIdInput = document.getElementById("tgChatIdInput");
   const syncIntervalSelect = document.getElementById("syncIntervalSelect");
+  const chkSmartHours = document.getElementById("chkSmartHours");
+  const marketHoursStatusTag = document.getElementById("marketHoursStatusTag");
   const chkNotifyGolden = document.getElementById("chkNotifyGolden");
   const chkNotifyConfluence = document.getElementById("chkNotifyConfluence");
   const resultBox = document.getElementById("tgTestResultBox");
@@ -490,6 +577,10 @@ async function openTelegramModal() {
       if (tgChatIdInput) tgChatIdInput.value = tg.chat_id || "";
       if (chkNotifyGolden) chkNotifyGolden.checked = tg.notify_on_golden_zone !== false;
       if (chkNotifyConfluence) chkNotifyConfluence.checked = tg.notify_on_high_confluence !== false;
+      if (chkSmartHours) chkSmartHours.checked = data.smart_hours_only !== false;
+      if (marketHoursStatusTag && data.market_hours && data.market_hours.status_label) {
+        marketHoursStatusTag.textContent = `(${data.market_hours.status_label})`;
+      }
       if (syncIntervalSelect) {
         if (!data.enabled) {
           syncIntervalSelect.value = "0";
@@ -566,6 +657,7 @@ async function saveTelegramSettingsAction() {
   const tokenInput = document.getElementById("tgBotTokenInput");
   const chatInput = document.getElementById("tgChatIdInput");
   const syncIntervalSelect = document.getElementById("syncIntervalSelect");
+  const chkSmartHours = document.getElementById("chkSmartHours");
   const chkNotifyGolden = document.getElementById("chkNotifyGolden");
   const chkNotifyConfluence = document.getElementById("chkNotifyConfluence");
   const btnSave = document.getElementById("btnSaveTelegramSettings");
@@ -575,6 +667,7 @@ async function saveTelegramSettingsAction() {
   const bot_token = tokenInput ? tokenInput.value.trim() : "";
   const chat_id = chatInput ? chatInput.value.trim() : "";
   const interval_val = syncIntervalSelect ? parseInt(syncIntervalSelect.value, 10) : 30;
+  const smart_hours_only = chkSmartHours ? chkSmartHours.checked : true;
   const notify_on_golden_zone = chkNotifyGolden ? chkNotifyGolden.checked : true;
   const notify_on_high_confluence = chkNotifyConfluence ? chkNotifyConfluence.checked : true;
 
@@ -596,13 +689,14 @@ async function saveTelegramSettingsAction() {
       })
     });
 
-    // 2. Guardar Scheduler
+    // 2. Guardar Scheduler + Smart Market Hours
     const respSched = await fetch("/api/scheduler/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         enabled: interval_val > 0,
-        interval_minutes: interval_val > 0 ? interval_val : 30
+        interval_minutes: interval_val > 0 ? interval_val : 30,
+        smart_hours_only
       })
     });
 
@@ -668,7 +762,7 @@ async function validateTickerAction() {
       if (previewBox) {
         document.getElementById("previewTicker").textContent = data.ticker;
         document.getElementById("previewName").textContent = data.name || data.ticker;
-        document.getElementById("previewPrice").textContent = `$${formatCurrency(data.price)}`;
+        document.getElementById("previewPrice").textContent = formatPrice(data.price, data);
         previewBox.style.display = "flex";
       }
 
@@ -904,13 +998,60 @@ function formatPeriodLabel(p) {
   }
 }
 
+function summarizePortfolioBadge(items) {
+  if (!items || items.length === 0) return "Sin Activos";
+  let hasUS = false;
+  let hasEU = false;
+  let hasCrypto = false;
+  let hasCommodities = false;
+  let hasIndices = false;
+  let hasForex = false;
+
+  items.forEach(it => {
+    const t = (it.ticker || "").toUpperCase();
+    if (t.endsWith("-USD") || t.endsWith("-EUR")) hasCrypto = true;
+    else if (t.endsWith("=F")) hasCommodities = true;
+    else if (t.startsWith("^")) hasIndices = true;
+    else if (t.endsWith("=X")) hasForex = true;
+    else if (t.includes(".")) hasEU = true;
+    else hasUS = true;
+  });
+
+  const tags = [];
+  if (hasUS) tags.push("USA");
+  if (hasEU) tags.push("Europa");
+  if (hasCrypto) tags.push("Cripto");
+  if (hasCommodities) tags.push("Materias");
+  if (hasIndices) tags.push("Índices");
+  if (hasForex) tags.push("Forex");
+
+  if (tags.length === 0) return "Multi-Activo";
+  if (tags.length <= 2) return tags.join(" & ");
+  if (tags.length === 3) return `${tags[0]}, ${tags[1]} & ${tags[2]}`;
+  return "Cartera Multi-Activo";
+}
+
 function renderDashboard(data) {
   if (!data || !data.data) return;
 
   const items = data.data;
 
-  // 1. Render KPIs Generales
+  // 1. Render KPIs Generales (100% dinámicos según los activos configurados)
   document.getElementById("kpiTotal").textContent = items.length;
+  const elTotalBadge = document.getElementById("kpiTotalBadge");
+  const elTotalNames = document.getElementById("kpiTotalNames");
+  if (elTotalBadge) {
+    elTotalBadge.textContent = summarizePortfolioBadge(items);
+  }
+  if (elTotalNames) {
+    if (items.length === 0) {
+      elTotalNames.textContent = "Añade tu primer ticker con + Añadir Activo";
+    } else if (items.length <= 8) {
+      elTotalNames.textContent = items.map(i => i.tab).join(", ");
+    } else {
+      elTotalNames.textContent = `${items.slice(0, 7).map(i => i.tab).join(", ")} +${items.length - 7} más`;
+    }
+  }
   document.getElementById("kpiLastUpdate").textContent = data.timestamp ? data.timestamp.split(" ")[1] : "--:--:--";
   document.getElementById("kpiPeriod").textContent = `Ventana de cálculo: ${formatPeriodLabel(data.period || currentPeriod)}`;
 
@@ -975,8 +1116,13 @@ function renderDashboard(data) {
     elSellPill.style.color = sellAlerts > 0 ? '#fda4af' : '#94a3b8';
   }
 
-  // 3c. Cargar métricas del diario en segundo plano
+  // 3c. Cargar métricas del diario y de Mi Cartera Real en segundo plano
+  const elMarketStatus = document.getElementById("marketStatus");
+  if (elMarketStatus && data.market_hours && data.market_hours.status_label) {
+    elMarketStatus.title = data.market_hours.status_label;
+  }
   loadAndRenderJournal();
+  loadAndRenderPortfolio();
 
   // 4. Renderizar tarjetas filtradas y ordenadas
   renderFilteredCards();
@@ -989,24 +1135,43 @@ function updateFilterBadges(items) {
   let countGolden = 0;
   let countWatch = 0;
 
+  let countSellStrong = 0;
+  let countSellAlert = 0;
+  let countOverbought = 0;
+  let countHoldAccum = 0;
+
   items.forEach(it => {
     if ((it.score || 0) >= 70) countConfluence++;
     if (it.current_price <= it.fib_levels["50.0%"]) countBuy++;
     if (it.current_price <= it.fib_levels["61.8%"]) countGolden++;
     if (it.status_code === "WATCH_38" || it.status_code === "WATCH_23") countWatch++;
+
+    const sm = it.sell_mgmt || {};
+    const sScore = sm.sell_score || 0;
+    const sCode = sm.sell_status_code || "ACCUMULATE";
+    if (sCode === "STRONG_SELL" || sScore >= 70) countSellStrong++;
+    if (sCode === "STRONG_SELL" || sCode === "PARTIAL_SELL" || sScore >= 35 || (sm.dist_to_high_pct !== undefined && sm.dist_to_high_pct <= 4.0)) {
+      countSellAlert++;
+    }
+    if ((it.rsi || 50) >= 62) countOverbought++;
+    if (sCode === "HOLD" || sCode === "ACCUMULATE") countHoldAccum++;
   });
 
-  const elAll = document.getElementById("countAll");
-  const elConfluence = document.getElementById("countConfluence");
-  const elBuy = document.getElementById("countBuy");
-  const elGolden = document.getElementById("countGolden");
-  const elWatch = document.getElementById("countWatch");
+  const setCount = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
 
-  if (elAll) elAll.textContent = countAll;
-  if (elConfluence) elConfluence.textContent = countConfluence;
-  if (elBuy) elBuy.textContent = countBuy;
-  if (elGolden) elGolden.textContent = countGolden;
-  if (elWatch) elWatch.textContent = countWatch;
+  setCount("countAll", countAll);
+  setCount("countConfluence", countConfluence);
+  setCount("countBuy", countBuy);
+  setCount("countGolden", countGolden);
+  setCount("countWatch", countWatch);
+
+  setCount("countSellStrong", countSellStrong);
+  setCount("countSellAlert", countSellAlert);
+  setCount("countOverbought", countOverbought);
+  setCount("countHoldAccum", countHoldAccum);
 }
 
 function updateAlertsCenter(items) {
@@ -1115,7 +1280,7 @@ function updateAlertsCenter(items) {
     const topAlert = alertItems[0];
     sendDesktopNotification(
       `🎯 Oportunidad: ${topAlert.item.tab} (${topAlert.item.ticker})`,
-      `${topAlert.priorityBadge} a $${formatCurrency(topAlert.item.current_price)}. Score Técnico: ${topAlert.score}/100.`
+      `${topAlert.priorityBadge} a ${formatPrice(topAlert.item.current_price, topAlert.item)}. Score Técnico: ${topAlert.score}/100.`
     );
   }
 
@@ -1130,6 +1295,10 @@ function updateAlertsCenter(items) {
     if (score >= 80) scoreClass = "score-fire";
     else if (score >= 65) scoreClass = "score-high";
 
+    const earnWarnHtml = (item.earnings && item.earnings.warning_level === "IMMINENT" && item.earnings.label)
+      ? `<div style="margin-top:4px; color:#fbbf24; font-size:0.74rem; font-weight:600;">${item.earnings.label}</div>`
+      : "";
+
     cardItem.innerHTML = `
       <div class="alert-item-header">
         <div class="alert-item-title">
@@ -1139,8 +1308,9 @@ function updateAlertsCenter(items) {
         <span class="alert-item-score ${scoreClass}">Score: ${score}/100</span>
       </div>
       <div class="alert-item-desc">
-        <strong>${priorityBadge}</strong>: Cotizando a <strong>$${formatCurrency(item.current_price)}</strong> 
+        <strong>${priorityBadge}</strong>: Cotizando a <strong>${formatPrice(item.current_price, item)}</strong> 
         (-${item.drop_pct.toFixed(1)}% desde máx). RSI: <strong>${item.rsi ? item.rsi.toFixed(1) : '--'}</strong>.
+        ${earnWarnHtml}
       </div>
       <div class="alert-item-actions">
         <button class="btn-alert-nav" data-ticker="${item.ticker}" title="Ver tarjeta de ${item.tab}">
@@ -1299,7 +1469,7 @@ function sendDesktopNotification(title, body) {
 }
 
 function renderFilteredCards() {
-  if (currentAppMode === "JOURNAL") return;
+  if (currentAppMode === "JOURNAL" || currentAppMode === "PORTFOLIO") return;
   if (!marketData || !marketData.data) return;
 
   const rawItems = [...marketData.data];
@@ -1314,9 +1484,11 @@ function renderFilteredCards() {
     return matchTab || matchTicker || matchName;
   });
 
-  // Aplicar Filtro de Categoría
+  // Aplicar Filtro de Categoría (adaptativo según Modo Compra / Modo Venta)
   filtered = filtered.filter(item => {
     if (currentFilter === "ALL") return true;
+
+    // Filtros Modo Compra (BUY)
     if (currentFilter === "CONFLUENCE") {
       return (item.score || 0) >= 70;
     }
@@ -1329,15 +1501,49 @@ function renderFilteredCards() {
     if (currentFilter === "WATCH") {
       return item.status_code === "WATCH_38" || item.status_code === "WATCH_23";
     }
+
+    // Filtros Modo Venta (SELL)
+    const sm = item.sell_mgmt || {};
+    const sScore = sm.sell_score || 0;
+    const sCode = sm.sell_status_code || "ACCUMULATE";
+    if (currentFilter === "SELL_STRONG") {
+      return sCode === "STRONG_SELL" || sScore >= 70;
+    }
+    if (currentFilter === "SELL_ALERT") {
+      return sCode === "STRONG_SELL" || sCode === "PARTIAL_SELL" || sScore >= 35 || (sm.dist_to_high_pct !== undefined && sm.dist_to_high_pct <= 4.0);
+    }
+    if (currentFilter === "OVERBOUGHT") {
+      return (item.rsi || 50) >= 62;
+    }
+    if (currentFilter === "HOLD_ACCUM") {
+      return sCode === "HOLD" || sCode === "ACCUMULATE";
+    }
     return true;
   });
 
   // Aplicar Ordenación
   filtered.sort((a, b) => {
-    if (currentAppMode === "SELL" && currentSort === "score_desc") {
-      const scoreA = a.sell_mgmt ? (a.sell_mgmt.sell_score || 0) : 0;
-      const scoreB = b.sell_mgmt ? (b.sell_mgmt.sell_score || 0) : 0;
-      return scoreB - scoreA;
+    if (currentAppMode === "SELL") {
+      const smA = a.sell_mgmt || {};
+      const smB = b.sell_mgmt || {};
+      switch (currentSort) {
+        case "score_desc":
+          return (smB.sell_score || 0) - (smA.sell_score || 0);
+        case "gain_desc":
+          return (smB.gain_from_low_pct || 0) - (smA.gain_from_low_pct || 0);
+        case "rsi_desc":
+          return (b.rsi || 50) - (a.rsi || 50);
+        case "high_dist_asc":
+          return (smA.dist_to_high_pct ?? 100) - (smB.dist_to_high_pct ?? 100);
+        case "price_desc":
+          return b.current_price - a.current_price;
+        case "price_asc":
+          return a.current_price - b.current_price;
+        case "name_asc":
+          return a.tab.localeCompare(b.tab);
+        default:
+          return (smB.sell_score || 0) - (smA.sell_score || 0);
+      }
     }
     switch (currentSort) {
       case "score_desc":
@@ -1474,6 +1680,50 @@ function createAssetCard(item) {
   else if (risk.rr_code === "ACCEPTABLE") rrBadgeClass = "rr-acceptable";
   else if (risk.rr_code === "TIGHT") rrBadgeClass = "rr-tight";
 
+  // Cronología del Impulso (Mínimo -> Máximo vs Cuchillo Cayendo)
+  const swingType = item.swing_type || "NEUTRAL";
+  const swingLabel = item.swing_label || "";
+  let swingClass = "swing-neutral";
+  if (swingType === "BULLISH_PULLBACK") swingClass = "swing-bullish";
+  else if (swingType === "BOTTOM_REBOUND") swingClass = "swing-rebound";
+  else if (swingType === "FALLING_KNIFE") swingClass = "swing-falling";
+
+  const swingTooltip = (item.low_date && item.high_date)
+    ? `Suelo registrado: ${item.low_date} | Techo registrado: ${item.high_date}`
+    : "Cronología entre el mínimo y el máximo de la ventana seleccionada";
+  const swingBadgeHtml = swingLabel
+    ? `<div class="swing-row"><span class="swing-pill ${swingClass}" title="${swingTooltip}">${swingLabel}</span></div>`
+    : "";
+
+  // Píldoras de Inteligencia Bloque 3: Aviso de Resultados (Earnings) + Cluster Multi-Timeframe
+  const intelBadges = [];
+  if (item.earnings && item.earnings.has_earnings && (item.earnings.warning_level === "IMMINENT" || item.earnings.warning_level === "UPCOMING")) {
+    const eCls = item.earnings.warning_level === "IMMINENT" ? "earnings-imminent" : "earnings-upcoming";
+    const epsHint = (item.earnings.eps_avg !== null && item.earnings.eps_avg !== undefined)
+      ? ` | BPA estimado: ${item.earnings.eps_avg}`
+      : "";
+    intelBadges.push(
+      `<span class="earnings-pill ${eCls}" title="Próxima presentación de resultados: ${item.earnings.next_date}${epsHint}">${item.earnings.label}</span>`
+    );
+  }
+  if (item.best_cluster && item.best_cluster.label) {
+    const cCls = item.best_cluster.is_active ? "cluster-active" : "cluster-nearby";
+    const rawMembers = item.best_cluster.members_detail || item.best_cluster.members || [];
+    const cTooltip = rawMembers
+      .map(m => typeof m === "string" ? m : `${m.period_label || (m.period || "").toUpperCase()} ${m.level} (${formatPrice(m.price, item)})`)
+      .join(" + ");
+    intelBadges.push(
+      `<span class="cluster-pill ${cCls}" title="Confluencia Multi-Timeframe: ${cTooltip}">${item.best_cluster.label}</span>`
+    );
+  }
+  const intelPillsHtml = intelBadges.length > 0
+    ? `<div class="card-intel-pills">${intelBadges.join("")}</div>`
+    : "";
+
+  const atrTooltipExtra = risk.atr_stop_loss
+    ? ` | Stop Volatilidad 2x ATR(14): ${formatPrice(risk.atr_stop_loss, item)} (-${(risk.atr_risk_pct || 0).toFixed(1)}%)`
+    : "";
+
   card.innerHTML = `
     <div class="card-header-row">
       <div class="asset-identity">
@@ -1485,7 +1735,7 @@ function createAssetCard(item) {
       </div>
       <div style="display: flex; align-items: flex-start; gap: 8px;">
         <div class="asset-price-box">
-          <div class="asset-current-price">$${formatCurrency(item.current_price)}</div>
+          <div class="asset-current-price">${formatPrice(item.current_price, item)}</div>
           <span class="asset-drop-pill drop-negative">-${item.drop_pct.toFixed(1)}% desde máx</span>
         </div>
         <button class="btn-card-delete" title="Dejar de seguir ${item.tab} (${item.ticker})">
@@ -1493,6 +1743,8 @@ function createAssetCard(item) {
         </button>
       </div>
     </div>
+
+    ${intelPillsHtml}
 
     <!-- Banner de Señal Principal -->
     <div class="signal-banner ${signalClass}">
@@ -1532,37 +1784,38 @@ function createAssetCard(item) {
           Tendencia SMA 200
         </span>
         <div class="tech-metric-value">
-          <span class="sma-pill ${smaClass}" title="Media de 200 días: $${formatCurrency(item.sma_200)}">
+          <span class="sma-pill ${smaClass}" title="Media de 200 días: ${formatPrice(item.sma_200, item)}">
             ${smaLabel}
           </span>
         </div>
       </div>
     </div>
 
-    <!-- Termómetro visual del Rango (Mínimo a Máximo) -->
+    <!-- Termómetro visual del Rango (Mínimo a Máximo) y Cronología -->
     <div class="range-gauge-container">
+      ${swingBadgeHtml}
       <div class="range-label-row">
-        <span>Suelo (Mín): <strong>$${formatCurrency(item.min)}</strong></span>
-        <span>Techo (Máx): <strong>$${formatCurrency(item.max)}</strong></span>
+        <span>Suelo (Mín): <strong>${formatPrice(item.min, item)}</strong></span>
+        <span>Techo (Máx): <strong>${formatPrice(item.max, item)}</strong></span>
       </div>
       <div class="range-track">
         <div class="range-fill" style="width: ${pctPos}%;"></div>
-        <div class="range-pin" style="left: ${pctPos}%;" title="Precio actual: $${formatCurrency(item.current_price)}"></div>
+        <div class="range-pin" style="left: ${pctPos}%;" title="Precio actual: ${formatPrice(item.current_price, item)}"></div>
       </div>
       <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #64748b; margin-top: 4px;">
         <span>Descuento Máximo</span>
-        <span>Rango: $${formatCurrency(item.range)}</span>
+        <span>Rango: ${formatPrice(item.range, item)}</span>
         <span>Resistencia</span>
       </div>
     </div>
 
     <!-- Escalera de Retrocesos de Fibonacci -->
     <div class="fib-ladder">
-      ${renderFibRow("23.6%", item.fib_levels["23.6%"], item.current_price, "🟡")}
-      ${renderFibRow("38.2%", item.fib_levels["38.2%"], item.current_price, "🟡")}
-      ${renderFibRow("50.0%", item.fib_levels["50.0%"], item.current_price, "🟢")}
-      ${renderFibRow("61.8%", item.fib_levels["61.8%"], item.current_price, "🏆", true)}
-      ${renderFibRow("78.6%", item.fib_levels["78.6%"], item.current_price, "💎")}
+      ${renderFibRow("23.6%", item.fib_levels["23.6%"], item.current_price, "🟡", false, item)}
+      ${renderFibRow("38.2%", item.fib_levels["38.2%"], item.current_price, "🟡", false, item)}
+      ${renderFibRow("50.0%", item.fib_levels["50.0%"], item.current_price, "🟢", false, item)}
+      ${renderFibRow("61.8%", item.fib_levels["61.8%"], item.current_price, "🏆", true, item)}
+      ${renderFibRow("78.6%", item.fib_levels["78.6%"], item.current_price, "💎", false, item)}
     </div>
 
     <!-- Panel de Gestión de Riesgo (Módulo 1) -->
@@ -1576,27 +1829,32 @@ function createAssetCard(item) {
       </div>
 
       <div class="risk-metrics-row">
-        <div class="risk-col stop-loss-col" title="Stop Loss sugerido por debajo del 78.6% / soporte">
+        <div class="risk-col stop-loss-col" title="Stop Loss estructural bajo 78.6%${atrTooltipExtra}">
           <span class="risk-label">🛡️ Stop Loss</span>
-          <span class="risk-val val-danger">$${formatCurrency(risk.stop_loss)}</span>
-          <span class="risk-sub">-${(risk.risk_pct || 0).toFixed(1)}% riesgo</span>
+          <span class="risk-val val-danger">${formatPrice(risk.stop_loss, item)}</span>
+          <span class="risk-sub">-${(risk.risk_pct || 0).toFixed(1)}%${item.atr_pct ? ` • ATR ${item.atr_pct.toFixed(1)}%` : " riesgo"}</span>
         </div>
         <div class="risk-col tp1-col" title="Take Profit 1 en resistencia 38.2%">
           <span class="risk-label">🎯 TP 1 (38.2%)</span>
-          <span class="risk-val val-success">$${formatCurrency(risk.take_profit_1)}</span>
+          <span class="risk-val val-success">${formatPrice(risk.take_profit_1, item)}</span>
           <span class="risk-sub">+${(risk.reward_1_pct || 0).toFixed(1)}% | 1:${risk.rr_ratio_1 || 1}</span>
         </div>
         <div class="risk-col tp2-col" title="Take Profit 2 en re-test de máximos">
           <span class="risk-label">🚀 TP 2 (Máx)</span>
-          <span class="risk-val val-rocket">$${formatCurrency(risk.take_profit_2)}</span>
+          <span class="risk-val val-rocket">${formatPrice(risk.take_profit_2, item)}</span>
           <span class="risk-sub">+${(risk.reward_2_pct || 0).toFixed(1)}% | 1:${risk.rr_ratio_2 || 2}</span>
         </div>
       </div>
 
-      <button class="btn-calc-position" data-ticker="${item.ticker}" title="Calcular posición y capital necesario según tu presupuesto de riesgo">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
-        🧮 Calcular Posición
-      </button>
+      <div class="risk-actions-row">
+        <button class="btn-calc-position" data-ticker="${item.ticker}" title="Calcular posición con Stop Fibonacci o Volatilidad 2x ATR">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+          🧮 Calcular Posición
+        </button>
+        <button class="btn-card-portfolio" data-ticker="${item.ticker}" title="Registrar compra de ${item.tab} en Mi Cartera Real">
+          💼 Cartera
+        </button>
+      </div>
     </div>
 
     <!-- Toolbar de Gráficos -->
@@ -1672,7 +1930,7 @@ function createAssetCard(item) {
         </div>
         <div style="display: flex; align-items: flex-start; gap: 8px;">
           <div class="asset-price-box">
-            <div class="asset-current-price">$${formatCurrency(item.current_price)}</div>
+            <div class="asset-current-price">${formatPrice(item.current_price, item)}</div>
             <span class="asset-drop-pill drop-positive" style="color: #4ade80;">+${sell.gain_from_low_pct.toFixed(1)}% desde mín</span>
           </div>
           <button class="btn-card-delete" title="Dejar de seguir ${item.tab} (${item.ticker})">
@@ -1680,6 +1938,8 @@ function createAssetCard(item) {
           </button>
         </div>
       </div>
+
+      ${intelPillsHtml}
 
       <!-- Banner de Señal de Venta -->
       <div class="signal-banner" style="background: rgba(225, 29, 72, 0.15); border: 1px solid rgba(225, 29, 72, 0.35); color: #fda4af;">
@@ -1715,15 +1975,16 @@ function createAssetCard(item) {
         </div>
       </div>
 
-      <!-- Termómetro visual del Rango (Mínimo a Máximo) -->
+      <!-- Termómetro visual del Rango (Mínimo a Máximo) y Cronología -->
       <div class="range-gauge-container">
+        ${swingBadgeHtml}
         <div class="range-label-row">
-          <span>Suelo (Mín): <strong>$${formatCurrency(item.min)}</strong></span>
-          <span>Techo (Máx): <strong>$${formatCurrency(item.max)}</strong></span>
+          <span>Suelo (Mín): <strong>${formatPrice(item.min, item)}</strong></span>
+          <span>Techo (Máx): <strong>${formatPrice(item.max, item)}</strong></span>
         </div>
-        <div class="gauge-track">
-          <div class="gauge-bar" style="width: ${pctPos}%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);"></div>
-          <div class="gauge-pointer" style="left: ${pctPos}%;"></div>
+        <div class="range-track">
+          <div class="range-fill" style="width: ${pctPos}%;"></div>
+          <div class="range-pin" style="left: ${pctPos}%;" title="Precio actual: ${formatPrice(item.current_price, item)}"></div>
         </div>
       </div>
 
@@ -1740,17 +2001,17 @@ function createAssetCard(item) {
         <div class="sell-levels-grid">
           <div class="sell-level-item">
             <span class="sell-level-label">Extensión 127.2%</span>
-            <span class="sell-level-price" style="color: #67e8f9;">$${formatCurrency(sell.ext_127)}</span>
+            <span class="sell-level-price" style="color: #67e8f9;">${formatPrice(sell.ext_127, item)}</span>
             <span class="sell-level-sub">a ${sell.dist_to_ext127_pct >= 0 ? '+' : ''}${sell.dist_to_ext127_pct.toFixed(1)}%</span>
           </div>
           <div class="sell-level-item">
             <span class="sell-level-label">Extensión 161.8%</span>
-            <span class="sell-level-price" style="color: #c084fc;">$${formatCurrency(sell.ext_161)}</span>
+            <span class="sell-level-price" style="color: #c084fc;">${formatPrice(sell.ext_161, item)}</span>
             <span class="sell-level-sub">a ${sell.dist_to_ext161_pct >= 0 ? '+' : ''}${sell.dist_to_ext161_pct.toFixed(1)}%</span>
           </div>
           <div class="sell-level-item">
             <span class="sell-level-label">Trailing Stop (-5.5%)</span>
-            <span class="sell-level-price" style="color: #fb7185;">$${formatCurrency(sell.trailing_stop)}</span>
+            <span class="sell-level-price" style="color: #fb7185;">${formatPrice(sell.trailing_stop, item)}</span>
             <span class="sell-level-sub">Protector ganancias</span>
           </div>
         </div>
@@ -1759,10 +2020,15 @@ function createAssetCard(item) {
           💡 <strong>Estrategia recomendada:</strong> ${sell.sell_action}
         </div>
 
-        <button class="btn-calc-sell" data-ticker="${item.ticker}" title="Simular venta parcial de beneficios">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V9"/></svg>
-          🧮 Simular Venta Parcial / Recogida de Efectivo
-        </button>
+        <div class="risk-actions-row">
+          <button class="btn-calc-sell" data-ticker="${item.ticker}" title="Simular venta parcial de beneficios">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V9"/></svg>
+            🧮 Simular Venta Parcial
+          </button>
+          <button class="btn-card-portfolio" data-ticker="${item.ticker}" title="Gestionar ${item.tab} en Mi Cartera Real">
+            💼 Cartera
+          </button>
+        </div>
       </div>
 
       <!-- Toolbar de Gráficos -->
@@ -1856,6 +2122,15 @@ function attachCardCommonEvents(card, item) {
       openFullscreenChart(item.ticker, item.tab);
     });
   });
+
+  // Asignar evento al botón rápido "💼 Cartera"
+  const btnPortfolio = card.querySelector(".btn-card-portfolio");
+  if (btnPortfolio) {
+    btnPortfolio.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPortfolioModalForAsset(item);
+    });
+  }
 }
 
 function toggleMiniChart(ticker, cardElement, tabName) {
@@ -1893,6 +2168,8 @@ function toggleMiniChart(ticker, cardElement, tabName) {
 
 function loadTradingViewMiniWidget(containerEl, ticker) {
   const tvSymbol = getTradingViewSymbol(ticker);
+  const periodToTvRange = { "1mo": "1M", "3mo": "3M", "6mo": "6M", "1y": "12M" };
+  const tvDateRange = periodToTvRange[currentPeriod] || "3M";
   containerEl.innerHTML = "";
 
   const widgetContainer = document.createElement("div");
@@ -1915,7 +2192,7 @@ function loadTradingViewMiniWidget(containerEl, ticker) {
     width: "100%",
     height: "220",
     locale: "es",
-    dateRange: "3M",
+    dateRange: tvDateRange,
     colorTheme: "dark",
     isTransparent: true,
     autosize: true,
@@ -1979,11 +2256,17 @@ function getTradingViewSymbol(ticker) {
   };
 
   if (specialMap[t]) return specialMap[t];
+  if (t.endsWith("=X")) return `FX:${t.replace("=X", "")}`;
   if (t.endsWith(".MC")) return `BME:${t.replace(".MC", "")}`;
+  if (t.endsWith(".DE")) return `XETR:${t.replace(".DE", "")}`;
+  if (t.endsWith(".PA")) return `EURONEXT:${t.replace(".PA", "")}`;
+  if (t.endsWith(".AS")) return `EURONEXT:${t.replace(".AS", "")}`;
+  if (t.endsWith(".MI")) return `MIL:${t.replace(".MI", "")}`;
+  if (t.endsWith(".L")) return `LSE:${t.replace(".L", "")}`;
   return t;
 }
 
-function renderFibRow(level, targetPrice, currentPrice, icon, isGolden = false) {
+function renderFibRow(level, targetPrice, currentPrice, icon, isGolden = false, item = null) {
   const isReached = currentPrice <= targetPrice;
   const distPct = (((currentPrice - targetPrice) / targetPrice) * 100).toFixed(1);
   const goldenClass = isGolden ? "fib-golden" : "";
@@ -2002,15 +2285,22 @@ function renderFibRow(level, targetPrice, currentPrice, icon, isGolden = false) 
         <span>${icon}</span>
         <span>${level} ${isGolden ? "(Áureo)" : ""}</span>
       </span>
-      <span class="fib-target-price">$${formatCurrency(targetPrice)}</span>
+      <span class="fib-target-price">${formatPrice(targetPrice, item)}</span>
       <span class="fib-distance">${distLabel}</span>
     </div>
   `;
 }
 
-function formatCurrency(val) {
+function formatCurrency(val, decimals = 2) {
   if (typeof val !== "number") val = parseFloat(val) || 0;
-  return val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const d = (typeof decimals === "number" && decimals >= 0) ? decimals : 2;
+  return val.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+function formatPrice(val, item = null) {
+  const sym = (item && item.currency) ? item.currency : "$";
+  const dec = (item && typeof item.decimals === "number") ? item.decimals : 2;
+  return `${sym}${formatCurrency(val, dec)}`;
 }
 
 function showToast(message) {
@@ -2038,17 +2328,39 @@ function showToast(message) {
 
 let currentCalcAsset = null;
 
+function resolveActiveCalcStop(item, risk) {
+  const entry = risk.entry_price || item.current_price;
+  if (currentCalcSlMode === "ATR" && risk.atr_stop_loss && risk.atr_stop_loss > 0) {
+    const slVal = risk.atr_stop_loss;
+    const pct = risk.atr_risk_pct || (entry > 0 ? ((entry - slVal) / entry) * 100 : 5.0);
+    return {
+      sl: slVal,
+      riskPct: Math.max(0.1, pct),
+      label: "🌊 Stop Volatilidad (2x ATR)"
+    };
+  }
+  const slVal = risk.stop_loss || (entry * 0.95);
+  const pct = risk.risk_pct || (entry > 0 ? ((entry - slVal) / entry) * 100 : 5.0);
+  return {
+    sl: slVal,
+    riskPct: Math.max(0.1, pct),
+    label: "🛡️ Stop Fibonacci (78.6%)"
+  };
+}
+
 function openPositionCalculator(item) {
   currentCalcAsset = item;
+  currentCalcSlMode = "FIBO";
   const modal = document.getElementById("positionCalcModal");
   if (!modal) return;
 
+  const minRiskUnit = ((item.decimals || 2) >= 4) ? 0.0001 : 0.01;
   const risk = item.risk_mgmt || {
     entry_price: item.current_price,
-    entry_label: `Al mercado ($${formatCurrency(item.current_price)})`,
+    entry_label: `Al mercado (${formatPrice(item.current_price, item)})`,
     stop_loss: item.fib_levels["78.6%"] * 0.98,
     risk_pct: 5.0,
-    risk_per_share: Math.max(0.01, item.current_price * 0.05),
+    risk_per_share: Math.max(minRiskUnit, item.current_price * 0.05),
     take_profit_1: item.fib_levels["38.2%"],
     reward_1_pct: 10.0,
     rr_ratio_1: 1.5,
@@ -2061,17 +2373,28 @@ function openPositionCalculator(item) {
   document.getElementById("calcAssetTitle").textContent = `Calculadora de Riesgo: ${item.tab} (${item.ticker})`;
   document.getElementById("calcAssetSubtitle").textContent = `Plan de gestión de capital institucional para ${item.name}`;
 
-  document.getElementById("calcEntryPrice").textContent = `$${formatCurrency(risk.entry_price)}`;
+  const elAtrBadge = document.getElementById("calcAtrInfoBadge");
+  if (elAtrBadge) {
+    if (item.atr_14 && item.atr_14 > 0) {
+      elAtrBadge.textContent = `ATR(14): ${formatPrice(item.atr_14, item)} (${(item.atr_pct || 0).toFixed(1)}%)`;
+    } else {
+      elAtrBadge.textContent = "ATR(14): N/D";
+    }
+  }
+
+  document.querySelectorAll(".btn-sl-mode").forEach(b => {
+    const isAtrBtn = b.dataset.slMode === "ATR";
+    if (isAtrBtn) {
+      b.disabled = !(risk.atr_stop_loss && risk.atr_stop_loss > 0);
+    }
+    b.classList.toggle("active", b.dataset.slMode === "FIBO");
+  });
+
+  document.getElementById("calcEntryPrice").textContent = formatPrice(risk.entry_price, item);
   document.getElementById("calcEntryType").textContent = risk.entry_label || "Precio de Mercado";
 
-  document.getElementById("calcStopLoss").textContent = `$${formatCurrency(risk.stop_loss)}`;
-  document.getElementById("calcRiskPct").textContent = `-${risk.risk_pct.toFixed(1)}% riesgo`;
-
-  document.getElementById("calcTP1").textContent = `$${formatCurrency(risk.take_profit_1)}`;
-  document.getElementById("calcTP1Ratio").textContent = `+${risk.reward_1_pct.toFixed(1)}% | R:R 1:${risk.rr_ratio_1}`;
-
-  document.getElementById("calcTP2").textContent = `$${formatCurrency(risk.take_profit_2)}`;
-  document.getElementById("calcTP2Ratio").textContent = `+${risk.reward_2_pct.toFixed(1)}% | R:R 1:${risk.rr_ratio_2}`;
+  document.getElementById("calcTP1").textContent = formatPrice(risk.take_profit_1, item);
+  document.getElementById("calcTP2").textContent = formatPrice(risk.take_profit_2, item);
 
   // Resetear preset por defecto a 100€
   const calcRiskInput = document.getElementById("calcRiskInput");
@@ -2084,31 +2407,63 @@ function openPositionCalculator(item) {
   modal.style.display = "flex";
 }
 
+function formatFractionalUnits(val) {
+  if (val >= 0.1) return val.toFixed(2);
+  if (val >= 0.001) return val.toFixed(4);
+  return val.toFixed(6);
+}
+
 function recalcPositionPlan() {
   if (!currentCalcAsset) return;
   const item = currentCalcAsset;
+  const sym = item.currency || "$";
+  const minRiskUnit = ((item.decimals || 2) >= 4) ? 0.0001 : 0.01;
   const risk = item.risk_mgmt || {
     entry_price: item.current_price,
     stop_loss: item.fib_levels["78.6%"] * 0.98,
     take_profit_1: item.fib_levels["38.2%"],
-    take_profit_2: item.max
+    take_profit_2: item.max,
+    reward_1_pct: 10.0,
+    reward_2_pct: 20.0
   };
 
   const inputEl = document.getElementById("calcRiskInput");
   const budget = Math.max(1, parseFloat(inputEl ? inputEl.value : 100) || 100);
 
   const entry = risk.entry_price || item.current_price;
-  const sl = risk.stop_loss;
-  const riskPerShare = Math.max(0.01, entry - sl);
+  const activeStop = resolveActiveCalcStop(item, risk);
+  const sl = activeStop.sl;
+  const riskPerShare = Math.max(minRiskUnit, entry - sl);
 
-  // Número de acciones a comprar
-  let shares = Math.floor(budget / riskPerShare);
-  if (shares <= 0) shares = 1;
+  // Actualizar tarjeta de Stop Loss y ratios R:R dinámicamente según modo FIBO / ATR
+  const elSlLabel = document.getElementById("calcStopLossLabel");
+  const elSlVal = document.getElementById("calcStopLoss");
+  const elSlPct = document.getElementById("calcRiskPct");
+  const elTp1Ratio = document.getElementById("calcTP1Ratio");
+  const elTp2Ratio = document.getElementById("calcTP2Ratio");
 
-  const totalCapital = shares * entry;
-  const actualLoss = shares * riskPerShare;
-  const reward1 = (risk.take_profit_1 - entry) * shares;
-  const reward2 = (risk.take_profit_2 - entry) * shares;
+  if (elSlLabel) elSlLabel.textContent = activeStop.label;
+  if (elSlVal) elSlVal.textContent = formatPrice(sl, item);
+  if (elSlPct) elSlPct.textContent = `-${activeStop.riskPct.toFixed(1)}% riesgo`;
+
+  const rew1PerShare = Math.max(0, (risk.take_profit_1 || entry) - entry);
+  const rew2PerShare = Math.max(0, (risk.take_profit_2 || item.max) - entry);
+  const rr1 = (rew1PerShare / riskPerShare).toFixed(2);
+  const rr2 = (rew2PerShare / riskPerShare).toFixed(2);
+  const rew1Pct = entry > 0 ? (rew1PerShare / entry) * 100 : (risk.reward_1_pct || 0);
+  const rew2Pct = entry > 0 ? (rew2PerShare / entry) * 100 : (risk.reward_2_pct || 0);
+
+  if (elTp1Ratio) elTp1Ratio.textContent = `+${rew1Pct.toFixed(1)}% | R:R 1:${rr1}`;
+  if (elTp2Ratio) elTp2Ratio.textContent = `+${rew2Pct.toFixed(1)}% | R:R 1:${rr2}`;
+
+  const exactShares = budget / riskPerShare;
+  const wholeShares = Math.floor(exactShares);
+  const isFractionalOnly = wholeShares <= 0;
+  const effectiveShares = isFractionalOnly ? exactShares : wholeShares;
+
+  const totalCapital = effectiveShares * entry;
+  const actualLoss = effectiveShares * riskPerShare;
+  const reward2 = (risk.take_profit_2 - entry) * effectiveShares;
   const effectiveRR = (actualLoss > 0 ? (reward2 / actualLoss) : 1).toFixed(2);
 
   const elShares = document.getElementById("calcSharesCount");
@@ -2117,47 +2472,112 @@ function recalcPositionPlan() {
   const elLoss = document.getElementById("calcMaxLoss");
   const elProfit = document.getElementById("calcMaxProfit");
   const elRatio = document.getElementById("calcProfitRatio");
+  const adviceBanner = document.getElementById("calcAdviceBanner");
+  const adviceIcon = adviceBanner ? adviceBanner.querySelector(".calc-advice-icon") : null;
   const adviceEl = document.getElementById("calcAdviceText");
 
-  if (elShares) elShares.textContent = `${shares}`;
-  if (elSharesSub) elSharesSub.textContent = shares === 1 ? "1 acción" : `${shares} acciones`;
-  if (elCapital) elCapital.textContent = `$${formatCurrency(totalCapital)}`;
-  if (elLoss) elLoss.textContent = `-$${formatCurrency(actualLoss)}`;
-  if (elProfit) elProfit.textContent = `+$${formatCurrency(reward2)}`;
-  if (elRatio) elRatio.textContent = `Ratio R:R 1:${effectiveRR}`;
+  const earnNote = (item.earnings && item.earnings.warning_level === "IMMINENT" && item.earnings.label)
+    ? `<br><span style="color:#fbbf24;"><strong>${item.earnings.label}:</strong> Valora reducir lote a la mitad ante posible gap de resultados.</span>`
+    : "";
 
-  if (adviceEl) {
-    adviceEl.innerHTML = `Comprando <strong>${shares} ${shares === 1 ? 'acción' : 'acciones'}</strong> a <strong>$${formatCurrency(entry)}</strong>, tu pérdida máxima estará acotada exactamente a <strong>-$${formatCurrency(actualLoss)}</strong> si el precio toca tu Stop Loss en <strong>$${formatCurrency(sl)}</strong>. Si el activo alcanza tu objetivo principal (TP 2 en $${formatCurrency(risk.take_profit_2)}), tu beneficio neto estimado será de <strong>+$${formatCurrency(reward2)}</strong>.`;
+  if (isFractionalOnly) {
+    const fracStr = formatFractionalUnits(exactShares);
+    if (elShares) elShares.textContent = fracStr;
+    if (elSharesSub) elSharesSub.textContent = "títulos fraccionados (0 enteros)";
+    if (elCapital) elCapital.textContent = `${sym}${formatCurrency(totalCapital, 2)}`;
+    if (elLoss) elLoss.textContent = `-${sym}${formatCurrency(actualLoss, 2)}`;
+    if (elProfit) elProfit.textContent = `+${sym}${formatCurrency(reward2, 2)}`;
+    if (elRatio) elRatio.textContent = `Ratio R:R 1:${effectiveRR}`;
+
+    if (adviceBanner) adviceBanner.classList.add("calc-advice-warning");
+    if (adviceIcon) adviceIcon.textContent = "⚠️";
+    if (adviceEl) {
+      adviceEl.innerHTML = `<strong>Presupuesto inferior al riesgo de 1 título entero (-${formatPrice(riskPerShare, item)}):</strong> Para respetar estrictamente tu límite de <strong>-${sym}${formatCurrency(budget, 2)}</strong>, debes comprar <strong>${fracStr} títulos fraccionados</strong> (inversión: <strong>${sym}${formatCurrency(totalCapital, 2)}</strong>). Si tu broker no permite fracciones, comprar <strong>1 título entero</strong> requerirá invertir <strong>${formatPrice(entry, item)}</strong> y asumir un riesgo real de <strong>-${formatPrice(riskPerShare, item)}</strong>.${earnNote}`;
+    }
+  } else {
+    if (elShares) elShares.textContent = `${wholeShares}`;
+    if (elSharesSub) {
+      const wholeLabel = wholeShares === 1 ? "1 acción entera" : `${wholeShares} acciones enteras`;
+      elSharesSub.textContent = `${wholeLabel} (${exactShares.toFixed(2)} fracc.)`;
+    }
+    if (elCapital) elCapital.textContent = `${sym}${formatCurrency(totalCapital, 2)}`;
+    if (elLoss) elLoss.textContent = `-${sym}${formatCurrency(actualLoss, 2)}`;
+    if (elProfit) elProfit.textContent = `+${sym}${formatCurrency(reward2, 2)}`;
+    if (elRatio) elRatio.textContent = `Ratio R:R 1:${effectiveRR}`;
+
+    if (adviceBanner) adviceBanner.classList.remove("calc-advice-warning");
+    if (adviceIcon) adviceIcon.textContent = "💡";
+    if (adviceEl) {
+      adviceEl.innerHTML = `Comprando <strong>${wholeShares} ${wholeShares === 1 ? 'acción' : 'acciones'}</strong> a <strong>${formatPrice(entry, item)}</strong>, tu pérdida máxima estará acotada exactamente a <strong>-${sym}${formatCurrency(actualLoss, 2)}</strong> si el precio toca tu Stop Loss en <strong>${formatPrice(sl, item)}</strong>. Si el activo alcanza tu objetivo principal (TP 2 en ${formatPrice(risk.take_profit_2, item)}), tu beneficio neto estimado será de <strong>+${sym}${formatCurrency(reward2, 2)}</strong>.${earnNote}`;
+    }
   }
+}
+
+function registerCalcPlanIntoPortfolio() {
+  if (!currentCalcAsset) return;
+  const item = currentCalcAsset;
+  const minRiskUnit = ((item.decimals || 2) >= 4) ? 0.0001 : 0.01;
+  const risk = item.risk_mgmt || {};
+  const inputEl = document.getElementById("calcRiskInput");
+  const budget = Math.max(1, parseFloat(inputEl ? inputEl.value : 100) || 100);
+  const entry = risk.entry_price || item.current_price;
+  const activeStop = resolveActiveCalcStop(item, risk);
+  const riskPerShare = Math.max(minRiskUnit, entry - activeStop.sl);
+  const exactShares = budget / riskPerShare;
+  const wholeShares = Math.floor(exactShares);
+  const effectiveShares = wholeShares > 0 ? wholeShares : parseFloat(formatFractionalUnits(exactShares));
+  const tp2 = risk.take_profit_2 || item.max;
+
+  const calcModal = document.getElementById("positionCalcModal");
+  if (calcModal) calcModal.style.display = "none";
+
+  openPortfolioModal({
+    ticker: item.ticker,
+    shares: effectiveShares,
+    avg_price: entry,
+    custom_sl: activeStop.sl,
+    custom_tp: tp2,
+    notes: `Plan calculado (${currentCalcSlMode === "ATR" ? "Stop 2x ATR" : "Stop Fibo 78.6%"}, riesgo ${item.currency || "$"}${budget})`,
+    merge: true
+  });
 }
 
 function copyTradingPlanToClipboard() {
   if (!currentCalcAsset) return;
   const item = currentCalcAsset;
+  const sym = item.currency || "$";
+  const minRiskUnit = ((item.decimals || 2) >= 4) ? 0.0001 : 0.01;
   const risk = item.risk_mgmt || {};
   const inputEl = document.getElementById("calcRiskInput");
-  const budget = parseFloat(inputEl ? inputEl.value : 100) || 100;
+  const budget = Math.max(1, parseFloat(inputEl ? inputEl.value : 100) || 100);
   const entry = risk.entry_price || item.current_price;
-  const sl = risk.stop_loss || (entry * 0.95);
-  const riskPerShare = Math.max(0.01, entry - sl);
-  let shares = Math.floor(budget / riskPerShare);
-  if (shares <= 0) shares = 1;
-  const totalCapital = shares * entry;
-  const reward2 = ((risk.take_profit_2 || item.max) - entry) * shares;
+  const activeStop = resolveActiveCalcStop(item, risk);
+  const sl = activeStop.sl;
+  const riskPerShare = Math.max(minRiskUnit, entry - sl);
+  const exactShares = budget / riskPerShare;
+  const wholeShares = Math.floor(exactShares);
+  const isFractionalOnly = wholeShares <= 0;
+  const effectiveShares = isFractionalOnly ? exactShares : wholeShares;
+  const sharesLabel = isFractionalOnly
+    ? `${formatFractionalUnits(exactShares)} títulos fraccionados (1 título entero arriesgaría -${formatPrice(riskPerShare, item)})`
+    : `${wholeShares} ${wholeShares === 1 ? 'acción' : 'acciones'} (${exactShares.toFixed(2)} fracc.)`;
+  const totalCapital = effectiveShares * entry;
+  const reward2 = ((risk.take_profit_2 || item.max) - entry) * effectiveShares;
+  const effectiveRR = ((effectiveShares * riskPerShare) > 0 ? (reward2 / (effectiveShares * riskPerShare)) : 2).toFixed(2);
 
   const text = 
 `📋 PLAN DE TRADING: ${item.tab} (${item.ticker})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 Precio Entrada: $${formatCurrency(entry)}
-🛡️ Stop Loss: $${formatCurrency(sl)} (-${(risk.risk_pct || 5).toFixed(1)}%)
-🎯 Take Profit 1 (38.2%): $${formatCurrency(risk.take_profit_1 || 0)} (+${(risk.reward_1_pct || 0).toFixed(1)}%)
-🚀 Take Profit 2 (Máx): $${formatCurrency(risk.take_profit_2 || 0)} (+${(risk.reward_2_pct || 0).toFixed(1)}%)
-⚖️ Ratio Riesgo/Beneficio: 1:${risk.rr_ratio_2 || 2} (${risk.rr_rating || 'Favorable'})
+💰 Precio Entrada: ${formatPrice(entry, item)}
+${activeStop.label}: ${formatPrice(sl, item)} (-${activeStop.riskPct.toFixed(1)}%)
+🎯 Take Profit 1 (38.2%): ${formatPrice(risk.take_profit_1 || 0, item)} (+${(risk.reward_1_pct || 0).toFixed(1)}%)
+🚀 Take Profit 2 (Máx): ${formatPrice(risk.take_profit_2 || 0, item)} (+${(risk.reward_2_pct || 0).toFixed(1)}%)
+⚖️ Ratio Riesgo/Beneficio: 1:${effectiveRR}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-📦 Posición Recomendada: ${shares} ${shares === 1 ? 'acción' : 'acciones'}
-💵 Capital Necesario: $${formatCurrency(totalCapital)}
-🛑 Pérdida Máxima Asumida: -$${formatCurrency(shares * riskPerShare)}
-🏆 Ganancia Estimada (TP 2): +$${formatCurrency(reward2)}`;
+📦 Posición Recomendada: ${sharesLabel}
+💵 Capital Necesario: ${sym}${formatCurrency(totalCapital, 2)}
+🛑 Pérdida Máxima Asumida: -${sym}${formatCurrency(effectiveShares * riskPerShare, 2)}
+🏆 Ganancia Estimada (TP 2): +${sym}${formatCurrency(reward2, 2)}`;
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(() => {
@@ -2174,17 +2594,109 @@ function copyTradingPlanToClipboard() {
    MÓDULO 2 & 3: CONTROLADOR DE MODO, VENTA PARCIAL Y DIARIO DE TRADING
    ========================================================================== */
 
+function renderModeToolbarControls(mode) {
+  const filterChips = document.getElementById("filterChips");
+  const sortSelect = document.getElementById("sortSelect");
+
+  if (mode === "SELL") {
+    if (filterChips) {
+      filterChips.innerHTML = `
+        <button class="chip-btn ${currentFilter === 'ALL' ? 'active' : ''}" data-filter="ALL">
+          Todos <span class="chip-count" id="countAll">0</span>
+        </button>
+        <button class="chip-btn chip-red ${currentFilter === 'SELL_STRONG' ? 'active' : ''}" data-filter="SELL_STRONG">
+          <span class="chip-dot dot-red"></span>
+          🔥 Venta Fuerte (Score ≥ 70) <span class="chip-count" id="countSellStrong">0</span>
+        </button>
+        <button class="chip-btn chip-orange ${currentFilter === 'SELL_ALERT' ? 'active' : ''}" data-filter="SELL_ALERT">
+          <span class="chip-dot dot-orange"></span>
+          🟠 Toma Parcial / Techo <span class="chip-count" id="countSellAlert">0</span>
+        </button>
+        <button class="chip-btn chip-gold ${currentFilter === 'OVERBOUGHT' ? 'active' : ''}" data-filter="OVERBOUGHT">
+          <span class="chip-dot dot-gold"></span>
+          📈 RSI Alto (≥ 62) <span class="chip-count" id="countOverbought">0</span>
+        </button>
+        <button class="chip-btn chip-green ${currentFilter === 'HOLD_ACCUM' ? 'active' : ''}" data-filter="HOLD_ACCUM">
+          <span class="chip-dot dot-green"></span>
+          🟢 Sin Presión / Mantener <span class="chip-count" id="countHoldAccum">0</span>
+        </button>
+      `;
+    }
+    if (sortSelect) {
+      sortSelect.innerHTML = `
+        <option value="score_desc">🔥 Mayor Presión de Venta (0-100)</option>
+        <option value="gain_desc">Mayor Subida desde Mín %</option>
+        <option value="rsi_desc">RSI Más Alto (Sobrecompra)</option>
+        <option value="high_dist_asc">Más Cerca del Techo (Máx)</option>
+        <option value="price_desc">Precio: Mayor a Menor</option>
+        <option value="price_asc">Precio: Menor a Mayor</option>
+        <option value="name_asc">Nombre (A - Z)</option>
+      `;
+      sortSelect.value = currentSort;
+    }
+  } else if (mode === "BUY") {
+    if (filterChips) {
+      filterChips.innerHTML = `
+        <button class="chip-btn ${currentFilter === 'ALL' ? 'active' : ''}" data-filter="ALL">
+          Todos <span class="chip-count" id="countAll">0</span>
+        </button>
+        <button class="chip-btn chip-fire ${currentFilter === 'CONFLUENCE' ? 'active' : ''}" data-filter="CONFLUENCE">
+          <span class="chip-dot dot-fire"></span>
+          🔥 Alta Confluencia (Score ≥ 70) <span class="chip-count" id="countConfluence">0</span>
+        </button>
+        <button class="chip-btn chip-green ${currentFilter === 'BUY_ZONE' ? 'active' : ''}" data-filter="BUY_ZONE">
+          <span class="chip-dot dot-green"></span>
+          Zona de Compra (≥50%) <span class="chip-count" id="countBuy">0</span>
+        </button>
+        <button class="chip-btn chip-gold ${currentFilter === 'GOLDEN' ? 'active' : ''}" data-filter="GOLDEN">
+          <span class="chip-dot dot-gold"></span>
+          Zona Áurea (61.8%) <span class="chip-count" id="countGolden">0</span>
+        </button>
+        <button class="chip-btn chip-yellow ${currentFilter === 'WATCH' ? 'active' : ''}" data-filter="WATCH">
+          <span class="chip-dot dot-yellow"></span>
+          En Observación <span class="chip-count" id="countWatch">0</span>
+        </button>
+      `;
+    }
+    if (sortSelect) {
+      sortSelect.innerHTML = `
+        <option value="score_desc">🔥 Mayor Score Técnico (0-100)</option>
+        <option value="drop_desc">Mayor Caída %</option>
+        <option value="rsi_asc">RSI Más Bajo (Sobreventa)</option>
+        <option value="drop_asc">Menor Caída %</option>
+        <option value="price_asc">Precio: Menor a Mayor</option>
+        <option value="price_desc">Precio: Mayor a Menor</option>
+        <option value="name_asc">Nombre (A - Z)</option>
+      `;
+      sortSelect.value = currentSort;
+    }
+  }
+
+  if (marketData && marketData.data) {
+    updateFilterBadges(marketData.data);
+  }
+}
+
 function setAppMode(mode) {
+  const prevMode = currentAppMode;
   currentAppMode = mode;
   document.querySelectorAll(".mode-tab-btn").forEach(b => {
     b.classList.toggle("active", b.dataset.mode === mode);
   });
 
+  if (prevMode !== mode && (mode === "BUY" || mode === "SELL")) {
+    currentFilter = "ALL";
+    currentSort = "score_desc";
+    renderModeToolbarControls(mode);
+  }
+
   const buyLegend = document.getElementById("buyLegendBar");
   const sellLegend = document.getElementById("sellLegendBar");
   const controlsToolbar = document.querySelector(".controls-toolbar");
   const assetsGrid = document.getElementById("assetsGrid");
+  const emptyState = document.getElementById("emptyState");
   const journalSection = document.getElementById("journalSection");
+  const portfolioSection = document.getElementById("portfolioSection");
 
   if (mode === "BUY") {
     if (buyLegend) buyLegend.style.display = "flex";
@@ -2192,6 +2704,7 @@ function setAppMode(mode) {
     if (controlsToolbar) controlsToolbar.style.display = "flex";
     if (assetsGrid) assetsGrid.style.display = "grid";
     if (journalSection) journalSection.style.display = "none";
+    if (portfolioSection) portfolioSection.style.display = "none";
     renderFilteredCards();
   } else if (mode === "SELL") {
     if (buyLegend) buyLegend.style.display = "none";
@@ -2199,14 +2712,26 @@ function setAppMode(mode) {
     if (controlsToolbar) controlsToolbar.style.display = "flex";
     if (assetsGrid) assetsGrid.style.display = "grid";
     if (journalSection) journalSection.style.display = "none";
+    if (portfolioSection) portfolioSection.style.display = "none";
     renderFilteredCards();
   } else if (mode === "JOURNAL") {
     if (buyLegend) buyLegend.style.display = "none";
     if (sellLegend) sellLegend.style.display = "none";
     if (controlsToolbar) controlsToolbar.style.display = "none";
     if (assetsGrid) assetsGrid.style.display = "none";
+    if (emptyState) emptyState.style.display = "none";
     if (journalSection) journalSection.style.display = "flex";
+    if (portfolioSection) portfolioSection.style.display = "none";
     loadAndRenderJournal();
+  } else if (mode === "PORTFOLIO") {
+    if (buyLegend) buyLegend.style.display = "none";
+    if (sellLegend) sellLegend.style.display = "none";
+    if (controlsToolbar) controlsToolbar.style.display = "none";
+    if (assetsGrid) assetsGrid.style.display = "none";
+    if (emptyState) emptyState.style.display = "none";
+    if (journalSection) journalSection.style.display = "none";
+    if (portfolioSection) portfolioSection.style.display = "flex";
+    loadAndRenderPortfolio();
   }
 }
 
@@ -2231,16 +2756,16 @@ function openPartialSellModal(item) {
   document.getElementById("sellModalTitle").textContent = `Simulador de Venta: ${item.tab} (${item.ticker})`;
   document.getElementById("sellModalSubtitle").textContent = `Estrategia de salida institucional para ${item.name}`;
 
-  document.getElementById("sellCurrPrice").textContent = `$${formatCurrency(item.current_price)}`;
+  document.getElementById("sellCurrPrice").textContent = formatPrice(item.current_price, item);
   document.getElementById("sellGainFromLow").textContent = `+${sell.gain_from_low_pct.toFixed(1)}% desde mín`;
 
-  document.getElementById("sellExt127").textContent = `$${formatCurrency(sell.ext_127)}`;
+  document.getElementById("sellExt127").textContent = formatPrice(sell.ext_127, item);
   document.getElementById("sellExt127Dist").textContent = `a ${sell.dist_to_ext127_pct >= 0 ? '+' : ''}${sell.dist_to_ext127_pct.toFixed(1)}%`;
 
-  document.getElementById("sellExt161").textContent = `$${formatCurrency(sell.ext_161)}`;
+  document.getElementById("sellExt161").textContent = formatPrice(sell.ext_161, item);
   document.getElementById("sellExt161Dist").textContent = `a ${sell.dist_to_ext161_pct >= 0 ? '+' : ''}${sell.dist_to_ext161_pct.toFixed(1)}%`;
 
-  document.getElementById("sellTrailingStop").textContent = `$${formatCurrency(sell.trailing_stop)}`;
+  document.getElementById("sellTrailingStop").textContent = formatPrice(sell.trailing_stop, item);
 
   const sharesInput = document.getElementById("sellSharesInput");
   if (sharesInput) sharesInput.value = "10";
@@ -2255,19 +2780,31 @@ function openPartialSellModal(item) {
 function recalcPartialSell() {
   if (!currentSellAsset) return;
   const item = currentSellAsset;
+  const sym = item.currency || "$";
   const sell = item.sell_mgmt || {};
 
   const sharesInput = document.getElementById("sellSharesInput");
-  const totalShares = Math.max(1, parseInt(sharesInput ? sharesInput.value : 10, 10) || 10);
+  const rawTotal = parseFloat(sharesInput ? sharesInput.value : 10);
+  const totalShares = (!isNaN(rawTotal) && rawTotal > 0) ? rawTotal : 10;
+  const isWholePosition = Number.isInteger(totalShares) && totalShares >= 2;
 
   const activePreset = document.querySelector(".btn-sell-preset.active");
   const pct = parseInt(activePreset ? activePreset.dataset.pct : 50, 10) || 50;
 
-  const sharesToSell = Math.max(1, Math.round(totalShares * (pct / 100)));
+  let sharesToSell;
+  if (pct >= 100) {
+    sharesToSell = totalShares;
+  } else if (isWholePosition) {
+    sharesToSell = Math.max(1, Math.round(totalShares * (pct / 100)));
+  } else {
+    sharesToSell = totalShares * (pct / 100);
+  }
   const remainingShares = Math.max(0, totalShares - sharesToSell);
+  const fmtUnits = (n) => Number.isInteger(n) ? `${n}` : formatFractionalUnits(n);
 
   const cashOut = sharesToSell * item.current_price;
   const remainingVal = remainingShares * item.current_price;
+  const tStop = sell.trailing_stop || (item.current_price * 0.945);
 
   const elCashOut = document.getElementById("sellCashOut");
   const elSharesSell = document.getElementById("sellSharesToSell");
@@ -2276,17 +2813,17 @@ function recalcPartialSell() {
   const elProtectStop = document.getElementById("sellProtectStop");
   const adviceEl = document.getElementById("sellAdviceText");
 
-  if (elCashOut) elCashOut.textContent = `$${formatCurrency(cashOut)}`;
-  if (elSharesSell) elSharesSell.textContent = `${sharesToSell} ${sharesToSell === 1 ? 'acción vendida' : 'acciones vendidas'} (${pct}%)`;
-  if (elRemainShares) elRemainShares.textContent = `${remainingShares}`;
-  if (elRemainVal) elRemainVal.textContent = `$${formatCurrency(remainingVal)} en posición`;
-  if (elProtectStop) elProtectStop.textContent = `$${formatCurrency(sell.trailing_stop || (item.current_price * 0.945))}`;
+  if (elCashOut) elCashOut.textContent = `${sym}${formatCurrency(cashOut, 2)}`;
+  if (elSharesSell) elSharesSell.textContent = `${fmtUnits(sharesToSell)} ${sharesToSell === 1 ? 'título vendido' : 'títulos vendidos'} (${pct}%)`;
+  if (elRemainShares) elRemainShares.textContent = fmtUnits(remainingShares);
+  if (elRemainVal) elRemainVal.textContent = `${sym}${formatCurrency(remainingVal, 2)} en posición`;
+  if (elProtectStop) elProtectStop.textContent = formatPrice(tStop, item);
 
   if (adviceEl) {
     if (remainingShares > 0) {
-      adviceEl.innerHTML = `Vendiendo <strong>${sharesToSell} acciones (${pct}%)</strong> a <strong>$${formatCurrency(item.current_price)}</strong> aseguras inmediatamente <strong>+$${formatCurrency(cashOut)} en efectivo</strong>. Dejas <strong>${remainingShares} acciones</strong> corriendo sin riesgo con un Trailing Stop protector fijado en <strong>$${formatCurrency(sell.trailing_stop || (item.current_price * 0.945))}</strong>.`;
+      adviceEl.innerHTML = `Vendiendo <strong>${fmtUnits(sharesToSell)} títulos (${pct}%)</strong> a <strong>${formatPrice(item.current_price, item)}</strong> aseguras inmediatamente <strong>+${sym}${formatCurrency(cashOut, 2)} en efectivo</strong>. Dejas <strong>${fmtUnits(remainingShares)} títulos</strong> corriendo sin riesgo con un Trailing Stop protector fijado en <strong>${formatPrice(tStop, item)}</strong>.`;
     } else {
-      adviceEl.innerHTML = `Venta total del 100% de la posición: Liquidando las <strong>${totalShares} acciones</strong> recoges un total de <strong>+$${formatCurrency(cashOut)} en efectivo</strong> y cierras la operación con éxito.`;
+      adviceEl.innerHTML = `Venta total del 100% de la posición: Liquidando los <strong>${fmtUnits(totalShares)} títulos</strong> recoges un total de <strong>+${sym}${formatCurrency(cashOut, 2)} en efectivo</strong> y cierras la operación con éxito.`;
     }
   }
 }
@@ -2338,19 +2875,31 @@ async function loadAndRenderJournal() {
       if (e.status === "TP2_ALCANZADO") {
         badgeClass = "j-badge-won";
         badgeLabel = "🟢 TP2 Alcanzado (Ganada)";
+      } else if (e.status === "BREAKEVEN_EJECUTADO") {
+        badgeClass = "j-badge-breakeven";
+        badgeLabel = "🟢 Break-Even (TP1 Asegurado)";
       } else if (e.status === "TP1_ALCANZADO") {
         badgeClass = "j-badge-tp1";
-        badgeLabel = "🟡 TP1 Alcanzado (Break-Even)";
+        badgeLabel = "🟡 TP1 Alcanzado (Stop en BE)";
       } else if (e.status === "STOP_EJECUTADO") {
         badgeClass = "j-badge-lost";
         badgeLabel = "🔴 Stop Ejecutado";
       }
 
-      const ret = e.current_return_pct || 0;
+      const ret = (e.final_return_pct !== null && e.final_return_pct !== undefined)
+        ? e.final_return_pct
+        : (e.current_return_pct || 0);
       const maxRet = e.max_return_pct || 0;
       const retSign = ret >= 0 ? "+" : "";
       const retColor = ret >= 0 ? "text-green" : "text-red";
       const tvUrl = `https://www.tradingview.com/symbols/${getTradingViewSymbol(e.ticker)}/`;
+      const matchedLive = (marketData && marketData.data)
+        ? marketData.data.find(it => it.ticker === e.ticker)
+        : null;
+      const fmtRef = {
+        currency: e.currency || (matchedLive && matchedLive.currency) || "$",
+        decimals: (typeof e.decimals === "number") ? e.decimals : ((matchedLive && matchedLive.decimals) || 2)
+      };
 
       return `
         <div class="journal-entry-card">
@@ -2370,15 +2919,15 @@ async function loadAndRenderJournal() {
           <div class="j-prices-col">
             <div class="j-prices-row">
               <span class="j-prices-label">Entrada:</span>
-              <span>$${formatCurrency(e.entry_price)}</span>
+              <span>${formatPrice(e.entry_price, fmtRef)}</span>
             </div>
             <div class="j-prices-row">
               <span class="j-prices-label">Stop / TP2:</span>
-              <span>$${formatCurrency(e.stop_loss)} / $${formatCurrency(e.tp2)}</span>
+              <span>${formatPrice(e.stop_loss, fmtRef)} / ${formatPrice(e.tp2, fmtRef)}</span>
             </div>
             <div class="j-prices-row">
               <span class="j-prices-label">Actual:</span>
-              <span style="font-weight: 700;">$${formatCurrency(e.current_price || e.entry_price)}</span>
+              <span style="font-weight: 700;">${formatPrice(e.current_price || e.entry_price, fmtRef)}</span>
             </div>
           </div>
 
@@ -2550,4 +3099,603 @@ function openSentimentModal() {
     });
   }
 }
+
+/* ==========================================================================
+   MÓDULO 4 (BLOQUE 3): CONTROLADOR DE "💼 MI CARTERA REAL"
+   ========================================================================== */
+
+function escapeHtml(val) {
+  return String(val ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function setupPortfolioModalListeners() {
+  const btnClosePf = document.getElementById("btnClosePortfolioModal");
+  const btnCancelPf = document.getElementById("btnCancelPortfolioModal");
+  const btnSubmitPf = document.getElementById("btnSubmitPortfolio");
+  const pfTickerInput = document.getElementById("pfTickerInput");
+
+  [btnClosePf, btnCancelPf].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const modal = document.getElementById("portfolioModal");
+        if (modal) modal.style.display = "none";
+      });
+    }
+  });
+
+  if (pfTickerInput) {
+    pfTickerInput.addEventListener("change", () => {
+      const t = pfTickerInput.value.trim().toUpperCase();
+      const priceInput = document.getElementById("pfAvgPriceInput");
+      if (t && priceInput && !priceInput.value && marketData && Array.isArray(marketData.data)) {
+        const found = marketData.data.find(it => (it.ticker || "").toUpperCase() === t);
+        if (found) {
+          priceInput.value = found.current_price;
+        }
+      }
+    });
+  }
+
+  if (btnSubmitPf) {
+    btnSubmitPf.addEventListener("click", async () => {
+      await submitPortfolioAction();
+    });
+  }
+
+  // Modal de Venta / Cierre de Posición
+  const btnClosePfClose = document.getElementById("btnClosePfCloseModal");
+  const btnCancelPfClose = document.getElementById("btnCancelPfCloseModal");
+  const btnConfirmPfClose = document.getElementById("btnConfirmPfClose");
+  const btnDeletePfRaw = document.getElementById("btnDeletePortfolioRaw");
+  const pfCloseSharesInput = document.getElementById("pfCloseSharesInput");
+  const pfClosePriceInput = document.getElementById("pfClosePriceInput");
+  const closePresets = document.querySelectorAll(".btn-pf-close-preset");
+
+  [btnClosePfClose, btnCancelPfClose].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const modal = document.getElementById("portfolioCloseModal");
+        if (modal) modal.style.display = "none";
+        currentPortfolioClosePos = null;
+      });
+    }
+  });
+
+  closePresets.forEach(btn => {
+    btn.addEventListener("click", () => {
+      closePresets.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (!currentPortfolioClosePos || !pfCloseSharesInput) return;
+      const pct = parseInt(btn.dataset.pct || "100", 10);
+      const total = Number(currentPortfolioClosePos.shares || 0);
+      let qty = total * (pct / 100);
+      if (pct >= 100) {
+        qty = total;
+      } else if (Number.isInteger(total) && total >= 4) {
+        qty = Math.max(1, Math.round(qty));
+      } else {
+        qty = parseFloat(qty.toFixed(6));
+      }
+      pfCloseSharesInput.value = qty;
+      updatePfClosePreview();
+    });
+  });
+
+  [pfCloseSharesInput, pfClosePriceInput].forEach(inp => {
+    if (inp) {
+      inp.addEventListener("input", () => {
+        updatePfClosePreview();
+      });
+    }
+  });
+
+  if (btnConfirmPfClose) {
+    btnConfirmPfClose.addEventListener("click", async () => {
+      await submitPortfolioCloseAction(false);
+    });
+  }
+
+  if (btnDeletePfRaw) {
+    btnDeletePfRaw.addEventListener("click", async () => {
+      if (!currentPortfolioClosePos) return;
+      if (confirm(`¿Eliminar ${currentPortfolioClosePos.tab} (${currentPortfolioClosePos.ticker}) de Mi Cartera sin registrar venta en el historial?`)) {
+        await submitPortfolioCloseAction(true);
+      }
+    });
+  }
+}
+
+function openPortfolioModalForAsset(item) {
+  const risk = item.risk_mgmt || {};
+  openPortfolioModal({
+    ticker: item.ticker,
+    shares: "",
+    avg_price: item.current_price,
+    custom_sl: risk.stop_loss || "",
+    custom_tp: risk.take_profit_2 || item.max || "",
+    notes: "",
+    merge: true
+  });
+}
+
+function openPortfolioModal(prefill = null) {
+  const modal = document.getElementById("portfolioModal");
+  if (!modal) return;
+
+  // Poblar datalist de tickers en seguimiento
+  const datalist = document.getElementById("pfTrackedTickersList");
+  if (datalist && marketData && Array.isArray(marketData.data)) {
+    datalist.innerHTML = marketData.data
+      .map(it => `<option value="${escapeHtml(it.ticker)}">${escapeHtml(it.tab)} — ${escapeHtml(it.name)}</option>`)
+      .join("");
+  }
+
+  const isEdit = Boolean(prefill && prefill.isEdit);
+  const titleEl = document.getElementById("pfModalTitle");
+  const subEl = document.getElementById("pfModalSubtitle");
+  const txtSubmit = document.getElementById("txtSubmitPortfolio");
+  const tickerInp = document.getElementById("pfTickerInput");
+  const sharesInp = document.getElementById("pfSharesInput");
+  const priceInp = document.getElementById("pfAvgPriceInput");
+  const slInp = document.getElementById("pfCustomSlInput");
+  const tpInp = document.getElementById("pfCustomTpInput");
+  const notesInp = document.getElementById("pfNotesInput");
+  const chkMerge = document.getElementById("chkPfMerge");
+  const errBox = document.getElementById("pfModalError");
+
+  if (errBox) {
+    errBox.style.display = "none";
+    errBox.textContent = "";
+  }
+
+  if (titleEl) {
+    titleEl.textContent = isEdit
+      ? `Editar Posición: ${prefill.ticker}`
+      : "Registrar Compra en Mi Cartera";
+  }
+  if (subEl) {
+    subEl.textContent = isEdit
+      ? "Ajusta títulos, precio medio, Stop Loss o Take Profit objetivo"
+      : "Calcula automáticamente tu precio medio ponderado (DCA), PnL en vivo y alertas SL/TP";
+  }
+  if (txtSubmit) {
+    txtSubmit.textContent = isEdit ? "Actualizar Posición" : "Guardar Posición";
+  }
+
+  if (tickerInp) {
+    tickerInp.value = (prefill && prefill.ticker) ? prefill.ticker : "";
+    tickerInp.readOnly = isEdit;
+  }
+  if (sharesInp) sharesInp.value = (prefill && prefill.shares !== undefined && prefill.shares !== "") ? prefill.shares : "";
+  if (priceInp) priceInp.value = (prefill && prefill.avg_price !== undefined && prefill.avg_price !== "") ? prefill.avg_price : "";
+  if (slInp) slInp.value = (prefill && prefill.custom_sl) ? prefill.custom_sl : "";
+  if (tpInp) tpInp.value = (prefill && prefill.custom_tp) ? prefill.custom_tp : "";
+  if (notesInp) notesInp.value = (prefill && prefill.notes) ? prefill.notes : "";
+  if (chkMerge) chkMerge.checked = isEdit ? false : (prefill && prefill.merge !== undefined ? prefill.merge : true);
+
+  modal.style.display = "flex";
+  setTimeout(() => {
+    if (tickerInp && !tickerInp.value) tickerInp.focus();
+    else if (sharesInp) sharesInp.focus();
+  }, 80);
+}
+
+async function submitPortfolioAction() {
+  const tickerInp = document.getElementById("pfTickerInput");
+  const sharesInp = document.getElementById("pfSharesInput");
+  const priceInp = document.getElementById("pfAvgPriceInput");
+  const slInp = document.getElementById("pfCustomSlInput");
+  const tpInp = document.getElementById("pfCustomTpInput");
+  const notesInp = document.getElementById("pfNotesInput");
+  const chkMerge = document.getElementById("chkPfMerge");
+  const errBox = document.getElementById("pfModalError");
+  const btnSubmit = document.getElementById("btnSubmitPortfolio");
+
+  const ticker = tickerInp ? tickerInp.value.trim().toUpperCase() : "";
+  const shares = parseFloat(sharesInp ? sharesInp.value : "0");
+  const avg_price = parseFloat(priceInp ? priceInp.value : "0");
+  const custom_sl = slInp && slInp.value.trim() !== "" ? parseFloat(slInp.value) : null;
+  const custom_tp = tpInp && tpInp.value.trim() !== "" ? parseFloat(tpInp.value) : null;
+  const notes = notesInp ? notesInp.value.trim() : "";
+  const merge = chkMerge ? chkMerge.checked : true;
+
+  const showErr = (m) => {
+    if (errBox) {
+      errBox.textContent = m;
+      errBox.style.display = "block";
+    }
+  };
+
+  if (!ticker) return showErr("Introduce el símbolo / ticker del activo.");
+  if (!shares || shares <= 0) return showErr("Introduce un número de títulos válido mayor que 0.");
+  if (!avg_price || avg_price <= 0) return showErr("Introduce un precio de compra válido mayor que 0.");
+
+  try {
+    if (btnSubmit) btnSubmit.disabled = true;
+    const resp = await fetch("/api/portfolio/upsert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker, shares, avg_price, custom_sl, custom_tp, notes, merge })
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      showErr(data.error || "Error guardando la posición.");
+      return;
+    }
+
+    portfolioData = data;
+    renderPortfolioView(data);
+    const modal = document.getElementById("portfolioModal");
+    if (modal) modal.style.display = "none";
+    showToast(`💼 Posición en ${ticker} guardada en Mi Cartera Real`);
+    if (currentAppMode !== "PORTFOLIO") {
+      setAppMode("PORTFOLIO");
+    }
+  } catch (err) {
+    showErr("Error de conexión: " + err.message);
+  } finally {
+    if (btnSubmit) btnSubmit.disabled = false;
+  }
+}
+
+function openPortfolioCloseModal(pos) {
+  currentPortfolioClosePos = pos;
+  const modal = document.getElementById("portfolioCloseModal");
+  if (!modal) return;
+
+  const titleEl = document.getElementById("pfCloseTitle");
+  const subEl = document.getElementById("pfCloseSubtitle");
+  const sharesInp = document.getElementById("pfCloseSharesInput");
+  const priceInp = document.getElementById("pfClosePriceInput");
+  const errBox = document.getElementById("pfCloseError");
+
+  if (errBox) {
+    errBox.style.display = "none";
+    errBox.textContent = "";
+  }
+  if (titleEl) titleEl.textContent = `Vender / Cerrar: ${pos.tab} (${pos.ticker})`;
+  if (subEl) subEl.textContent = `Posición actual: ${pos.shares} títulos @ ${formatPrice(pos.avg_price, pos)} de media`;
+  if (sharesInp) sharesInp.value = pos.shares;
+  if (priceInp) priceInp.value = pos.current_price;
+
+  document.querySelectorAll(".btn-pf-close-preset").forEach(b => {
+    b.classList.toggle("active", b.dataset.pct === "100");
+  });
+
+  updatePfClosePreview();
+  modal.style.display = "flex";
+}
+
+function updatePfClosePreview() {
+  const pos = currentPortfolioClosePos;
+  const previewEl = document.getElementById("pfClosePreviewText");
+  if (!pos || !previewEl) return;
+
+  const sharesInp = document.getElementById("pfCloseSharesInput");
+  const priceInp = document.getElementById("pfClosePriceInput");
+  const qty = Math.min(Number(pos.shares || 0), Math.max(0, parseFloat(sharesInp ? sharesInp.value : "0") || 0));
+  const exitP = Math.max(0, parseFloat(priceInp ? priceInp.value : "0") || 0);
+  const sym = pos.currency || "$";
+
+  if (qty <= 0 || exitP <= 0) {
+    previewEl.textContent = "Introduce los títulos y el precio de venta para calcular el beneficio neto.";
+    return;
+  }
+
+  const cashReceived = qty * exitP;
+  const pnlAbs = (exitP - pos.avg_price) * qty;
+  const pnlPct = pos.avg_price > 0 ? ((exitP - pos.avg_price) / pos.avg_price) * 100 : 0;
+  const sign = pnlAbs >= 0 ? "+" : "-";
+  const color = pnlAbs >= 0 ? "#34d399" : "#fb7185";
+  const remaining = Math.max(0, Number(pos.shares) - qty);
+  const remText = remaining > 1e-6
+    ? `Quedarán <strong>${Number.isInteger(remaining) ? remaining : formatFractionalUnits(remaining)} títulos</strong> abiertos en cartera.`
+    : "Se cerrará el <strong>100% de la posición</strong>.";
+
+  previewEl.innerHTML = `Recibirás <strong>${sym}${formatCurrency(cashReceived, 2)}</strong> en efectivo • Resultado realizado: <strong style="color:${color};">${sign}${sym}${formatCurrency(Math.abs(pnlAbs), 2)} (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)</strong>.<br>${remText}`;
+}
+
+async function submitPortfolioCloseAction(rawDeleteOnly = false) {
+  if (!currentPortfolioClosePos) return;
+  const pos = currentPortfolioClosePos;
+  const sharesInp = document.getElementById("pfCloseSharesInput");
+  const priceInp = document.getElementById("pfClosePriceInput");
+  const errBox = document.getElementById("pfCloseError");
+  const btnConfirm = document.getElementById("btnConfirmPfClose");
+
+  const sell_shares = rawDeleteOnly ? pos.shares : parseFloat(sharesInp ? sharesInp.value : "0");
+  const sell_price = rawDeleteOnly ? null : parseFloat(priceInp ? priceInp.value : "0");
+
+  if (!rawDeleteOnly && (!sell_shares || sell_shares <= 0 || !sell_price || sell_price <= 0)) {
+    if (errBox) {
+      errBox.textContent = "Indica una cantidad de títulos y un precio de venta mayores que 0.";
+      errBox.style.display = "block";
+    }
+    return;
+  }
+
+  try {
+    if (btnConfirm) btnConfirm.disabled = true;
+    const resp = await fetch("/api/portfolio/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker: pos.ticker, sell_shares, sell_price })
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      if (errBox) {
+        errBox.textContent = data.error || "Error al procesar el cierre.";
+        errBox.style.display = "block";
+      }
+      return;
+    }
+
+    portfolioData = data;
+    renderPortfolioView(data);
+    const modal = document.getElementById("portfolioCloseModal");
+    if (modal) modal.style.display = "none";
+    currentPortfolioClosePos = null;
+    showToast(rawDeleteOnly ? `Posición ${pos.ticker} eliminada.` : `💰 Venta de ${pos.ticker} registrada con éxito`);
+  } catch (err) {
+    if (errBox) {
+      errBox.textContent = "Error de conexión: " + err.message;
+      errBox.style.display = "block";
+    }
+  } finally {
+    if (btnConfirm) btnConfirm.disabled = false;
+  }
+}
+
+async function loadAndRenderPortfolio() {
+  try {
+    const resp = await fetch("/api/portfolio");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    portfolioData = data;
+    renderPortfolioView(data);
+  } catch (e) {
+    // En modo archivo estático sin servidor Flask/HTTP, ignorar silenciosamente
+  }
+}
+
+function renderPortfolioView(pf) {
+  if (!pf) return;
+  const summary = pf.summary || {};
+  const positions = pf.positions || [];
+  const closed = pf.closed_history || [];
+
+  const curr = summary.primary_currency || "$";
+  const count = summary.positions_count || 0;
+  const pnlAbs = summary.primary_pnl_abs || 0;
+  const pnlPct = summary.primary_pnl_pct || 0;
+  const pnlSign = pnlAbs >= 0 ? "+" : "-";
+
+  // Actualizar píldora de la pestaña de navegación superior
+  const navPill = document.getElementById("portfolioPnlPill");
+  if (navPill) {
+    if (count === 0) {
+      navPill.textContent = "0 pos.";
+      navPill.style.background = "rgba(255, 255, 255, 0.08)";
+      navPill.style.color = "#94a3b8";
+    } else {
+      const pSign = pnlPct >= 0 ? "+" : "";
+      navPill.textContent = `${count} pos. • ${pSign}${pnlPct.toFixed(1)}%`;
+      navPill.style.background = pnlAbs >= 0 ? "rgba(16, 185, 129, 0.22)" : "rgba(244, 63, 94, 0.25)";
+      navPill.style.color = pnlAbs >= 0 ? "#6ee7b7" : "#fda4af";
+    }
+  }
+
+  // Actualizar KPIs de Mi Cartera Real
+  const elMarketVal = document.getElementById("pfStatMarketVal");
+  const elInvestedSub = document.getElementById("pfStatInvestedSub");
+  const elOpenPnl = document.getElementById("pfStatOpenPnl");
+  const elOpenPnlPct = document.getElementById("pfStatOpenPnlPct");
+  const elPositions = document.getElementById("pfStatPositions");
+  const elAlertsSub = document.getElementById("pfStatAlertsSub");
+  const elRealized = document.getElementById("pfStatRealizedPnl");
+  const elRealizedSub = document.getElementById("pfStatRealizedSub");
+
+  const multiCurrencies = Object.values(summary.totals_by_currency || {});
+  const extraBucketsText = multiCurrencies.length > 1
+    ? " | " + multiCurrencies
+        .filter(b => b.currency !== curr)
+        .map(b => `${b.currency}${formatCurrency(b.market_val, 2)}`)
+        .join(" + ")
+    : "";
+
+  if (elMarketVal) elMarketVal.textContent = `${curr}${formatCurrency(summary.primary_market_val || 0, 2)}`;
+  if (elInvestedSub) elInvestedSub.textContent = `Capital invertido: ${curr}${formatCurrency(summary.primary_invested || 0, 2)}${extraBucketsText}`;
+  if (elOpenPnl) {
+    elOpenPnl.textContent = `${pnlSign}${curr}${formatCurrency(Math.abs(pnlAbs), 2)}`;
+    elOpenPnl.className = `j-kpi-val ${pnlAbs >= 0 ? "text-green" : "text-red"}`;
+  }
+  if (elOpenPnlPct) {
+    elOpenPnlPct.textContent = `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}% (${summary.winners_count || 0} en verde / ${summary.losers_count || 0} en rojo)`;
+  }
+  if (elPositions) elPositions.textContent = `${count}`;
+  if (elAlertsSub) {
+    const aCount = summary.alerts_count || 0;
+    elAlertsSub.textContent = aCount > 0 ? `🔔 ${aCount} ${aCount === 1 ? "posición requiere atención" : "posiciones requieren atención"}` : "✅ Niveles SL/TP bajo control";
+  }
+
+  const realizedVal = summary.primary_realized_pnl || 0;
+  if (elRealized) {
+    const rSign = realizedVal >= 0 ? "+" : "-";
+    elRealized.textContent = `${rSign}${curr}${formatCurrency(Math.abs(realizedVal), 2)}`;
+    elRealized.className = `j-kpi-val ${realizedVal >= 0 ? "text-green" : "text-red"}`;
+  }
+  if (elRealizedSub) elRealizedSub.textContent = `${closed.length} ${closed.length === 1 ? "operación cerrada" : "operaciones cerradas"}`;
+
+  // Renderizar tarjetas de posiciones abiertas
+  const container = document.getElementById("portfolioPositionsContainer");
+  if (!container) return;
+
+  if (positions.length === 0) {
+    container.innerHTML = `
+      <div class="journal-empty-box" style="grid-column: 1 / -1;">
+        <div style="font-size: 2.2rem; margin-bottom: 8px;">💼</div>
+        <p style="font-size: 1.1rem; font-weight: 600; color: #f8fafc; margin-bottom: 8px;">Tu Cartera Real está vacía</p>
+        <p style="font-size: 0.86rem; color: #94a3b8; max-width: 560px; margin: 0 auto 16px;">
+          Registra tus compras reales (acciones enteras o fracciones cripto) para vigilar en tiempo real tu <strong>precio medio ponderado</strong>, <strong>PnL abierto</strong>, distancia a <strong>Stop Loss / Take Profit</strong> y avisos de resultados.
+        </p>
+        <button type="button" class="btn btn-emerald btn-sm" id="btnEmptyPortfolioAdd">+ Registrar Primera Posición</button>
+      </div>
+    `;
+    const btnEmpty = document.getElementById("btnEmptyPortfolioAdd");
+    if (btnEmpty) btnEmpty.addEventListener("click", () => openPortfolioModal());
+  } else {
+    container.innerHTML = "";
+    positions.forEach(pos => {
+      const card = document.createElement("article");
+      card.className = `portfolio-pos-card ${pos.has_action_alert ? "pf-has-alert" : ""}`;
+      const sym = pos.currency || "$";
+      const isProfit = pos.pnl_abs >= 0;
+      const pSign = isProfit ? "+" : "-";
+      const sharesFmt = Number.isInteger(pos.shares) ? `${pos.shares}` : formatFractionalUnits(pos.shares);
+
+      let statusCls = "pf-badge-neutral";
+      if (pos.status_code === "STOP_ALERT") statusCls = "pf-badge-danger";
+      else if (pos.status_code === "TP_REACHED" || pos.status_code === "IN_PROFIT") statusCls = "pf-badge-profit";
+      else if (pos.status_code === "TAKE_PARTIAL" || pos.status_code === "MOVE_BE") statusCls = "pf-badge-warn";
+      else if (pos.status_code === "DCA_ZONE") statusCls = "pf-badge-gold";
+
+      const earnHtml = (pos.earnings && (pos.earnings.warning_level === "IMMINENT" || pos.earnings.warning_level === "UPCOMING") && pos.earnings.label)
+        ? `<span class="earnings-pill ${pos.earnings.warning_level === "IMMINENT" ? "earnings-imminent" : "earnings-upcoming"}">${escapeHtml(pos.earnings.label)}</span>`
+        : "";
+
+      const notesHtml = pos.notes
+        ? `<div class="pf-notes-line">📝 ${escapeHtml(pos.notes)}</div>`
+        : "";
+
+      card.innerHTML = `
+        <div class="pf-card-header">
+          <div>
+            <div class="pf-title-row">
+              <span class="pf-tab-name">${escapeHtml(pos.tab)}</span>
+              <span class="asset-ticker">${escapeHtml(pos.ticker)}</span>
+              ${pos.tx_count > 1 ? `<span class="pf-dca-tag" title="Precio medio de ${pos.tx_count} compras">${pos.tx_count} compras</span>` : ""}
+            </div>
+            <div class="pf-company-sub">${escapeHtml(pos.name)}</div>
+          </div>
+          <div class="pf-badges-col">
+            <span class="pf-status-badge ${statusCls}">${escapeHtml(pos.status_badge)}</span>
+            ${earnHtml}
+          </div>
+        </div>
+
+        <div class="pf-metrics-grid">
+          <div class="pf-metric-box">
+            <span class="pf-m-label">Posición & Entrada Media</span>
+            <span class="pf-m-val">${sharesFmt} tít. @ ${formatPrice(pos.avg_price, pos)}</span>
+            <span class="pf-m-sub">Invertido: ${sym}${formatCurrency(pos.invested_val, 2)}</span>
+          </div>
+          <div class="pf-metric-box">
+            <span class="pf-m-label">Cotización & Valor Actual</span>
+            <span class="pf-m-val">${formatPrice(pos.current_price, pos)}</span>
+            <span class="pf-m-sub">Valor: ${sym}${formatCurrency(pos.market_val, 2)}</span>
+          </div>
+          <div class="pf-metric-box ${isProfit ? "pf-box-profit" : "pf-box-loss"}">
+            <span class="pf-m-label">PnL Abierto (Latente)</span>
+            <span class="pf-m-val ${isProfit ? "text-green" : "text-red"}">${pSign}${sym}${formatCurrency(Math.abs(pos.pnl_abs), 2)}</span>
+            <span class="pf-m-sub ${isProfit ? "text-green" : "text-red"}">${pos.pnl_pct >= 0 ? "+" : ""}${pos.pnl_pct.toFixed(2)}%</span>
+          </div>
+        </div>
+
+        <div class="pf-gauge-box">
+          <div class="pf-gauge-labels">
+            <span class="val-danger" title="Fuente: ${escapeHtml(pos.sl_source)}">🛡️ SL: ${formatPrice(pos.effective_sl, pos)} (${pos.dist_to_sl_pct >= 0 ? "-" : "+"}${Math.abs(pos.dist_to_sl_pct).toFixed(1)}%)</span>
+            <span style="color:#cbd5e1;">📍 Entrada: ${formatPrice(pos.avg_price, pos)}</span>
+            <span class="val-success" title="Fuente: ${escapeHtml(pos.tp_source)}">🎯 TP: ${formatPrice(pos.effective_tp, pos)} (+${pos.dist_to_tp_pct.toFixed(1)}%)</span>
+          </div>
+          <div class="pf-progress-track">
+            <div class="pf-progress-fill ${isProfit ? "fill-profit" : "fill-drawdown"}" style="width: ${pos.progress_pct}%;"></div>
+            <div class="pf-entry-marker" style="left: ${pos.entry_marker_pct}%;" title="Precio medio de entrada: ${formatPrice(pos.avg_price, pos)}"></div>
+            <div class="pf-current-pin" style="left: ${pos.progress_pct}%;" title="Precio actual: ${formatPrice(pos.current_price, pos)}"></div>
+          </div>
+        </div>
+
+        <div class="pf-advice-box">
+          <span>💡 ${escapeHtml(pos.advice)}</span>
+          ${notesHtml}
+        </div>
+
+        <div class="pf-card-actions">
+          <button type="button" class="btn btn-secondary btn-sm btn-pf-dca" title="Añadir más títulos y recalcular precio medio (DCA)">➕ Promediar</button>
+          <button type="button" class="btn btn-secondary btn-sm btn-pf-edit" title="Editar Stop Loss, Take Profit, títulos o notas">✏️ Editar SL/TP</button>
+          <button type="button" class="btn btn-emerald btn-sm btn-pf-sell" title="Registrar venta parcial o cierre total">💰 Vender / Cerrar</button>
+          <button type="button" class="btn btn-secondary btn-sm btn-pf-chart" title="Abrir gráfico avanzado">📊</button>
+        </div>
+      `;
+
+      card.querySelector(".btn-pf-dca").addEventListener("click", () => {
+        openPortfolioModal({
+          ticker: pos.ticker,
+          shares: "",
+          avg_price: pos.current_price,
+          custom_sl: pos.custom_sl || "",
+          custom_tp: pos.custom_tp || "",
+          notes: pos.notes || "",
+          merge: true
+        });
+      });
+
+      card.querySelector(".btn-pf-edit").addEventListener("click", () => {
+        openPortfolioModal({
+          isEdit: true,
+          ticker: pos.ticker,
+          shares: pos.shares,
+          avg_price: pos.avg_price,
+          custom_sl: pos.custom_sl || "",
+          custom_tp: pos.custom_tp || "",
+          notes: pos.notes || "",
+          merge: false
+        });
+      });
+
+      card.querySelector(".btn-pf-sell").addEventListener("click", () => {
+        openPortfolioCloseModal(pos);
+      });
+
+      card.querySelector(".btn-pf-chart").addEventListener("click", () => {
+        openFullscreenChart(pos.ticker, pos.tab);
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  // Renderizar historial de ventas cerradas si existen
+  const closedWrap = document.getElementById("portfolioClosedWrapper");
+  const closedList = document.getElementById("portfolioClosedContainer");
+  if (closedWrap && closedList) {
+    if (closed.length === 0) {
+      closedWrap.style.display = "none";
+    } else {
+      closedWrap.style.display = "block";
+      closedList.innerHTML = closed.slice(0, 10).map(ch => {
+        const s = ch.currency || "$";
+        const win = (ch.realized_pnl_abs || 0) >= 0;
+        const sign = win ? "+" : "-";
+        const shFmt = Number.isInteger(ch.shares_closed) ? ch.shares_closed : formatFractionalUnits(ch.shares_closed);
+        return `
+          <div class="pf-closed-row">
+            <div>
+              <strong>${escapeHtml(ch.tab || ch.ticker)}</strong> <span class="asset-ticker">${escapeHtml(ch.ticker)}</span>
+              <span class="pf-closed-type">${escapeHtml(ch.close_type || "VENTA")}</span>
+            </div>
+            <div class="pf-closed-mid">${shFmt} tít. • Entrada ${formatPrice(ch.avg_entry, ch)} → Salida ${formatPrice(ch.exit_price, ch)}</div>
+            <div class="pf-closed-pnl ${win ? "text-green" : "text-red"}">${sign}${s}${formatCurrency(Math.abs(ch.realized_pnl_abs || 0), 2)} (${ch.realized_pnl_pct >= 0 ? "+" : ""}${(ch.realized_pnl_pct || 0).toFixed(2)}%)</div>
+            <div class="pf-closed-date">${escapeHtml(ch.closed_at || "")}</div>
+          </div>
+        `;
+      }).join("");
+    }
+  }
+}
+
 
