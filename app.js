@@ -1972,7 +1972,7 @@ function createAssetCard(item) {
         <div class="risk-col tp2-col" title="Take Profit 2 en re-test de máximos">
           <span class="risk-label">🚀 TP 2 (Máx)</span>
           <span class="risk-val val-rocket">${formatPrice(risk.take_profit_2, item)}</span>
-          <span class="risk-sub">+${(risk.reward_2_pct || 0).toFixed(1)}% | 1:${risk.rr_ratio_2 || 2}</span>
+          <span class="risk-sub">+${(risk.reward_2_pct || 0).toFixed(1)}% | 1:${risk.rr_ratio_2 || 2}${risk.ssl_rr_ratio_2 && Math.abs(risk.ssl_rr_ratio_2 - (risk.rr_ratio_2 || 0)) > 0.1 ? ` <span class="badge-ssl-rr" title="Ratio R:R 1:${risk.ssl_rr_ratio_2} con Stop ceñido bajo piscina SSL (${formatPrice(risk.ssl_stop_loss, item)})" style="color:#38bdf8; font-weight:600; cursor:help;">(1:${risk.ssl_rr_ratio_2} SSL)</span>` : ""}</span>
         </div>
       </div>
 
@@ -2531,11 +2531,6 @@ function resolveActiveCalcStop(item, risk) {
 
 function openPositionCalculator(item) {
   currentCalcAsset = item;
-  currentCalcSlMode = "FIBO";
-  const modal = document.getElementById("positionCalcModal");
-  if (!modal) return;
-
-  const minRiskUnit = ((item.decimals || 2) >= 4) ? 0.0001 : 0.01;
   const risk = item.risk_mgmt || {
     entry_price: item.current_price,
     entry_label: `Al mercado (${formatPrice(item.current_price, item)})`,
@@ -2550,6 +2545,18 @@ function openPositionCalculator(item) {
     rr_ratio_2: 2.5,
     rr_rating: "🟢 Favorable (R:R > 1:2)"
   };
+
+  // Si el activo tiene barrido de liquidez o absorción Smart Money, activar Stop SSL por defecto
+  const hasSmartMoney = Boolean(
+    risk.ssl_stop_loss && risk.ssl_stop_loss > 0 &&
+    (item.liquidity?.has_sweep || item.liquidity?.has_absorption || (risk.ssl_rr_ratio_2 && risk.ssl_rr_ratio_2 > (risk.rr_ratio_2 || 0)))
+  );
+  currentCalcSlMode = hasSmartMoney ? "SSL" : "FIBO";
+
+  const modal = document.getElementById("positionCalcModal");
+  if (!modal) return;
+
+  const minRiskUnit = ((item.decimals || 2) >= 4) ? 0.0001 : 0.01;
 
   document.getElementById("calcAssetTitle").textContent = `Calculadora de Riesgo: ${item.tab} (${item.ticker})`;
   document.getElementById("calcAssetSubtitle").textContent = `Plan de gestión de capital institucional para ${item.name}`;
@@ -2569,7 +2576,7 @@ function openPositionCalculator(item) {
     } else if (b.dataset.slMode === "SSL") {
       b.disabled = !(risk.ssl_stop_loss && risk.ssl_stop_loss > 0);
     }
-    b.classList.toggle("active", b.dataset.slMode === "FIBO");
+    b.classList.toggle("active", b.dataset.slMode === currentCalcSlMode);
   });
 
   document.getElementById("calcEntryPrice").textContent = formatPrice(risk.entry_price, item);

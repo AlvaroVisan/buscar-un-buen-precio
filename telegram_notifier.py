@@ -463,10 +463,16 @@ def format_buy_advice(item, period="3mo"):
 
     # 4. VEREDICTO FINAL Y AVISOS
     p4 = []
+    rr_std = risk.get("rr_ratio_2", 2.0)
+    if risk.get("ssl_stop_loss") and abs(rr2 - rr_std) > 0.05:
+        rr_clause = f"`1:{rr2}` con Stop ceñido SSL (o `1:{rr_std}` con Stop amplio 78.6%)"
+    else:
+        rr_clause = f"`1:{rr2}`"
+
     if score >= 80:
-        verdict = f"🟢 **Veredicto: Compra con alta probabilidad técnica (Score {score}/100)**. La ecuación riesgo/beneficio es muy favorable (`1:{rr2}`)."
+        verdict = f"🟢 **Veredicto: Compra con alta probabilidad técnica (Score {score}/100)**. La ecuación riesgo/beneficio es muy favorable ({rr_clause})."
     elif score >= 65:
-        verdict = f"🟢 **Veredicto: Buena oportunidad de entrada (Score {score}/100)**. Buen punto para compras escalonadas o iniciar posición."
+        verdict = f"🟢 **Veredicto: Buena oportunidad de entrada (Score {score}/100)**. La ecuación riesgo/beneficio es {rr_clause}. Buen punto para compras escalonadas o iniciar posición."
     elif score >= 45:
         verdict = f"🟡 **Veredicto: En observación (Score {score}/100)**. Esperar confirmación de giro antes de entrar."
     else:
