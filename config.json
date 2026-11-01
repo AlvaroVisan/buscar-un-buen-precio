@@ -55,6 +55,11 @@
       "tab": "Bitcoin",
       "ticker": "BTC-USD",
       "name": "Bitcoin (BTC)"
+    },
+    {
+      "tab": "TSMC",
+      "ticker": "TSM",
+      "name": "Taiwan Semiconductor Manufacturing Company"
     }
   ]
 }

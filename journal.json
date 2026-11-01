@@ -1,9 +1,9 @@
 {
   "version": "1.0",
-  "last_updated": "2026-11-01 15:57:22",
+  "last_updated": "2026-11-01 16:22:29",
   "stats": {
-    "total_opportunities": 5,
-    "active_count": 5,
+    "total_opportunities": 6,
+    "active_count": 6,
     "closed_count": 0,
     "win_rate_pct": 0.0,
     "total_won": 0,
@@ -12,6 +12,37 @@
     "avg_loss_pct": 0.0
   },
   "entries": [
+    {
+      "id": "opp_TSM_1793546549",
+      "ticker": "TSM",
+      "tab": "TSMC",
+      "name": "Taiwan Semiconductor Manufacturing Company",
+      "currency": "$",
+      "decimals": 2,
+      "signal_date": "2026-11-01 16:22:29",
+      "signal_type": "ZONA_AUREA",
+      "signal_label": "Zona Áurea + Score 95/100",
+      "score": 95,
+      "rsi": 38.4,
+      "entry_price": 406.13,
+      "initial_stop_loss": 366.15,
+      "stop_loss": 366.15,
+      "tp1": 443.25,
+      "tp2": 487.47,
+      "rr_ratio": 2.03,
+      "current_price": 406.13,
+      "max_price_seen": 406.13,
+      "min_price_seen": 406.13,
+      "current_return_pct": 0.0,
+      "max_return_pct": 0.0,
+      "status": "ACTIVA",
+      "result": "EN_CURSO",
+      "closed_date": null,
+      "final_return_pct": null,
+      "exit_reason": null,
+      "last_checked_candle_day": "2026-11-01",
+      "last_check": "2026-11-01 16:22:29"
+    },
     {
       "id": "opp_GC=F_1793470306",
       "ticker": "GC=F",
@@ -37,7 +68,7 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 15:57:22",
+      "last_check": "2026-11-01 16:22:29",
       "currency": "$",
       "decimals": 2
     },
@@ -66,7 +97,7 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 15:57:22",
+      "last_check": "2026-11-01 16:22:29",
       "currency": "$",
       "decimals": 2
     },
@@ -95,7 +126,7 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 15:57:22",
+      "last_check": "2026-11-01 16:22:29",
       "currency": "$",
       "decimals": 2
     },
@@ -124,7 +155,7 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 15:57:22",
+      "last_check": "2026-11-01 16:22:29",
       "currency": "$",
       "decimals": 2
     },
@@ -153,7 +184,7 @@
       "closed_date": null,
       "final_return_pct": null,
       "exit_reason": null,
-      "last_check": "2026-11-01 15:57:22",
+      "last_check": "2026-11-01 16:22:29",
       "currency": "$",
       "decimals": 2
     }
