@@ -5,49 +5,35 @@ description: >-
   web panel UI (HTML, CSS, JS, Flask) of "Buscar un buen precio".
 ---
 
-# Procedimiento para Desarrollo y Modificación del Panel Web
+# Procedimiento para Desarrollo y Modificación del Panel Web (v2)
 
-Esta skill describe la arquitectura, diseño visual y procedimientos para extender el panel de control web.
+Esta skill describe la arquitectura, endpoints Flask y componentes interactivos del panel web.
 
-## 1. Arquitectura de la Aplicación Web
+## 1. Arquitectura del Servidor Backend ([app.py](file:///e:/Proyectos/Buscar%20un%20buen%20precio/app.py))
 
-- **Servidor Backend**: [app.py](file:///e:/Proyectos/Buscar%20un%20buen%20precio/app.py) (Flask en puerto `5050`).
-  - `GET /`: Sirve `index.html`.
-  - `GET /api/data`: Devuelve el contenido de `latest_data.json`.
-  - `POST /api/update`: Ejecuta `market_updater.py` y devuelve los datos frescos.
-  - `GET /api/config`: Devuelve la configuración de `config.json`.
-- **Estructura HTML**: [index.html](file:///e:/Proyectos/Buscar%20un%20buen%20precio/index.html).
-  - Header con resumen general (total activos, oportunidades activas, hora de sync).
-  - Barra de acciones (botón "Actualizar Precios", estado de carga con spinner).
-  - Contenedor de cuadrícula (#cardsGrid).
-- **Estilos CSS**: [style.css](file:///e:/Proyectos/Buscar%20un%20buen%20precio/style.css).
-  - Paleta oscura moderna basada en tokens CSS (`--bg-primary: #0b0f19`, `--card-bg: rgba(18, 24, 38, 0.8)`).
-  - Efectos de Glassmorphism (`backdrop-filter: blur(16px)`).
-  - Indicadores semafóricos (verde esmeralda, dorado ámbar, azul eléctrico).
-  - Termómetro de posición en rango y escalera de Fibonacci.
-- **Lógica Frontend**: [app.js](file:///e:/Proyectos/Buscar%20un%20buen%20precio/app.js).
-  - Carga asíncrona mediante `fetch('/api/data')`.
-  - Construcción dinámica de cada tarjeta de activo con sus enlaces a TradingView.
-  - Animaciones de actualización y toast notifications.
+Servidor Flask en `http://localhost:5050` con bloqueo de concurrencia (`_update_lock`) para evitar solapamientos:
+- `GET /`: Sirve [index.html](file:///e:/Proyectos/Buscar%20un%20buen%20precio/index.html).
+- `GET /api/data` y `GET /api/config`: Devuelven `latest_data.json` y la configuración pública.
+- `POST /api/update`: Ejecuta `python market_updater.py --force` con `timeout=180` y `_update_lock`.
+- `POST /api/period`: Cambia el periodo activo (`1mo`, `3mo`, `6mo`, `1y`) en `0 ms` proyectando los datos ya pre-calculados en `timeframes` dentro de `latest_data.json` (solo invoca `market_updater.py` si faltan datos pre-calculados).
+- `POST /api/assets` y `DELETE /api/assets/<ticker>`: Añaden o eliminan activos validando primero el ticker en `yfinance`.
+- `GET /api/journal`: Devuelve las señales y métricas de efectividad de `journal.json`.
+- `GET /api/portfolio`, `POST /api/portfolio/buy`, `POST /api/portfolio/close`, `DELETE /api/portfolio/<pos_id>`: CRUD completo de "💼 Mi Cartera Real".
+- `POST /api/telegram/test`: Envía un mensaje de prueba al bot de Telegram.
 
-## 2. Cómo Levantar o Reiniciar el Servidor Web
+## 2. Arquitectura Frontend ([index.html](file:///e:/Proyectos/Buscar%20un%20buen%20precio/index.html), [style.css](file:///e:/Proyectos/Buscar%20un%20buen%20precio/style.css), [app.js](file:///e:/Proyectos/Buscar%20un%20buen%20precio/app.js))
 
-- **En Windows**:
-  Haz doble clic en [Abrir_Panel_Web.bat](file:///e:/Proyectos/Buscar%20un%20buen%20precio/Abrir_Panel_Web.bat) o ejecuta:
-  ```powershell
-  python app.py
-  ```
-- **URL**: `http://localhost:5050`
-
-## 3. Pautas de Diseño y Nuevas Características
-
-Al agregar nuevas funcionalidades al panel:
-1. **Mantener la coherencia estética**:
-   - Usar las variables de color de `:root` en `style.css`.
-   - Mantener las microanimaciones suaves (`transition: all 0.25s ease`).
-2. **Enlaces a TradingView**:
-   - Cada tarjeta genera el enlace a TradingView usando el ticker base:
-     `https://www.tradingview.com/chart/?symbol={ticker_limpio}`
-   - Para futuros o índices, limpiar prefijos si es necesario (ej: `GC=F` -> `COMEX:GC1!`).
-3. **Responsive**:
-   - Mantener el diseño adaptativo en móviles (`grid-template-columns: repeat(auto-fill, minmax(360px, 1fr))`).
+1. **Seguridad y Renderizado DOM**:
+   - **Prohibido usar `onclick` inline con interpolación de strings** en HTML generado dinámicamente. Usa siempre atributos `data-*` (`data-del-ticker`, `data-calc-ticker`, `data-buy-ticker`, `data-close-id`) con delegación de eventos y `escapeHtml()`.
+2. **Cambio de Periodo Instantáneo (`switchPeriod`)**:
+   - Al pulsar `1M`, `3M`, `6M` o `1A`, `app.js` proyecta inmediatamente `asset.timeframes[period]` en el cliente (`0 ms`), re-renderiza la cuadrícula y persiste la preferencia en segundo plano mediante `POST /api/period`.
+3. **Componentes en Tarjeta (`createCardHTML`)**:
+   - **Badges técnicos**: RSI(14), Tendencia (`Alcista`/`Bajista`), Confluencia Multi-Timeframe (`🔥 CONFLUENCIA`) y alerta de Resultados (`⚠️ Resultados en Xd`).
+   - **Posición en Cartera**: Si el usuario tiene acciones del activo, muestra badge `💼 En Cartera (X acc. · Peso Y%)` y banda con Precio Medio, P&L latente y Stop Loss ATR.
+   - **Sparkline SVG Interactiva**: Línea de precios con bandas horizontales discontinuas para el `50%`, `61.8%` y `78.6%` de Fibonacci.
+   - **Escalera de Fibonacci con Clic-para-Copiar**: Al hacer clic en cualquier fila `.fib-step`, copia el precio exacto al portapapeles.
+   - **Acciones Rápidas**: Botón `💼 Comprar / DCA`, `🧮 Calc. Posición` (con Stop Loss `2x ATR(14)` autocompletado) y enlace limpio a TradingView (`getTradingViewUrl`).
+4. **Modales Interactivos**:
+   - **💼 Mi Cartera Real (`#portfolioModal`)**: Resumen de Valor Total, P&L Abierto/Cerrado, tabla de posiciones abiertas con barra de peso, acciones de DCA/Cerrar/Borrar e historial de operaciones cerradas.
+   - **📈 Efectividad de Señales (`#journalModal`)**: Win-Rate y tabla comparativa de retorno al cierre (`Close`) y pico máximo (`Máx`) a `+7d`, `+15d` y `+30d`.
+   - **🧮 Calculadora de Riesgo (`#calcModal`)**: Calcula acciones a comprar e importe total según capital, `%` de riesgo y Stop Loss (`78.6% Fib` o `2x ATR(14)`).
