@@ -168,24 +168,66 @@ def build_alert_inline_keyboard(ticker):
     return {
         "inline_keyboard": [
             [
-                {"text": "🔍 Ver Niveles", "callback_data": f"ver:{t}"},
-                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"}
+                {"text": "🟢 Consejo Compra", "callback_data": f"compra:{t}"},
+                {"text": "🔴 Consejo Venta", "callback_data": f"venta:{t}"}
             ],
             [
-                {"text": "📈 Abrir en TradingView ↗", "url": get_tradingview_url(t)}
+                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"},
+                {"text": "📈 TradingView ↗", "url": get_tradingview_url(t)}
             ]
         ]
     }
 
 
-def build_ticker_inline_keyboard(ticker, active_period="3mo"):
-    """Construye botonera Inline Multi-Timeframe (0ms) y dimensionamiento rápido para una ficha técnica."""
+def build_buy_advice_inline_keyboard(ticker, active_period="3mo"):
+    """Botonera interactiva bajo el Consejo de Compra."""
+    t = str(ticker or "").strip().upper()
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🔴 Consejo Venta", "callback_data": f"venta:{t}"},
+                {"text": "📐 Ver Fibo", "callback_data": f"fib:{t}:{active_period}"}
+            ],
+            [
+                {"text": "🛡️ Lote 50", "callback_data": f"riesgo:{t}:50"},
+                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"},
+                {"text": "🛡️ Lote 250", "callback_data": f"riesgo:{t}:250"}
+            ],
+            [
+                {"text": "📈 TradingView ↗", "url": get_tradingview_url(t)}
+            ]
+        ]
+    }
+
+
+def build_sell_advice_inline_keyboard(ticker, active_period="3mo"):
+    """Botonera interactiva bajo el Consejo de Venta."""
+    t = str(ticker or "").strip().upper()
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🟢 Consejo Compra", "callback_data": f"compra:{t}"},
+                {"text": "📐 Ver Fibo", "callback_data": f"fib:{t}:{active_period}"}
+            ],
+            [
+                {"text": "💼 Mi Cartera", "callback_data": "cartera"},
+                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"}
+            ],
+            [
+                {"text": "📈 TradingView ↗", "url": get_tradingview_url(t)}
+            ]
+        ]
+    }
+
+
+def build_fib_inline_keyboard(ticker, active_period="3mo"):
+    """Botonera Multi-Timeframe para la vista detallada de Fibonacci."""
     t = str(ticker or "").strip().upper()
     tf_labels = [("1mo", "1M"), ("3mo", "3M"), ("6mo", "6M"), ("1y", "1A")]
     tf_row = [
         {
             "text": f"• {lbl} •" if p == active_period else lbl,
-            "callback_data": f"tf:{t}:{p}"
+            "callback_data": f"fib:{t}:{p}"
         }
         for p, lbl in tf_labels
     ]
@@ -193,15 +235,19 @@ def build_ticker_inline_keyboard(ticker, active_period="3mo"):
         "inline_keyboard": [
             tf_row,
             [
-                {"text": "🛡️ Lote 50", "callback_data": f"riesgo:{t}:50"},
-                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"},
-                {"text": "🛡️ Lote 250", "callback_data": f"riesgo:{t}:250"}
+                {"text": "🟢 Consejo Compra", "callback_data": f"compra:{t}"},
+                {"text": "🔴 Consejo Venta", "callback_data": f"venta:{t}"}
             ],
             [
-                {"text": "📈 Abrir en TradingView ↗", "url": get_tradingview_url(t)}
+                {"text": "📈 TradingView ↗", "url": get_tradingview_url(t)}
             ]
         ]
     }
+
+
+def build_ticker_inline_keyboard(ticker, active_period="3mo"):
+    """Construye botonera Inline Multi-Timeframe (0ms) y dimensionamiento rápido para una ficha técnica."""
+    return build_buy_advice_inline_keyboard(ticker, active_period)
 
 def send_telegram_message(bot_token, chat_id, text, parse_mode="Markdown", reply_markup=None):
     """
@@ -252,10 +298,12 @@ def setup_bot_commands(bot_token):
         cmds = [
             {"command": "resumen", "description": "📊 Precios y Scores de todos los activos"},
             {"command": "alertas", "description": "🎯 Oportunidades en Zona Áurea / Alta Confluencia"},
+            {"command": "compra", "description": "🟢 Consejo de Compra (Plan, Stop Loss y TP)"},
+            {"command": "venta", "description": "🔴 Consejo de Venta (Trailing Stop y Salidas)"},
+            {"command": "fibo", "description": "📐 Escalera de Fibonacci detallada con POC"},
             {"command": "liquidez", "description": "🏦 Radar de Liquidez (Muro POC, RVOL y Barridos)"},
             {"command": "cartera", "description": "💼 Mi Cartera Real, PnL abierto y alertas SL/TP"},
-            {"command": "riesgo", "description": "🛡️ Calculadora de riesgo, Stop Loss (Fibo/ATR/SSL) y lote"},
-            {"command": "venta", "description": "🔴 Modo Venta / Toma de beneficios y extensiones"},
+            {"command": "riesgo", "description": "🛡️ Calculadora de riesgo, Stop Loss y lote"},
             {"command": "add", "description": "➕ Añadir nuevo activo (ej: /add AAPL Apple)"},
             {"command": "del", "description": "🗑️ Eliminar activo de la lista (ej: /del AAPL)"},
             {"command": "historial", "description": "📔 Diario de trading y tasa de acierto"},
@@ -306,60 +354,247 @@ def test_telegram_connection(bot_token, chat_ids_raw):
     else:
         return False, f"Error al enviar: {'; '.join(errors)}"
 
-def format_telegram_alert(item, period="3mo"):
+def find_asset_item(query):
     """
-    Construye un mensaje enriquecido para una oportunidad detectada.
+    Busca un activo en latest_data.json por ticker, pestaña o nombre (insensible a mayúsculas).
+    Soporta alias comunes como ORO, SPX, PLATA, NASDAQ.
+    """
+    if not query or not os.path.exists(LATEST_DATA_PATH):
+        return None
+    clean_query = str(query).strip().upper().replace("$", "").replace("/", "")
+    alias_map = {
+        "ORO": "GC=F", "GOLD": "GC=F",
+        "PLATA": "SI=F", "SILVER": "SI=F",
+        "PETROLEO": "CL=F", "CRUDE": "CL=F", "OIL": "CL=F",
+        "SPX": "^GSPC", "S&P500": "^GSPC", "SP500": "^GSPC",
+        "NDX": "^NDX", "NASDAQ": "^IXIC", "IBEX": "^IBEX"
+    }
+    target = alias_map.get(clean_query, clean_query)
+    try:
+        with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        for it in payload.get("data", []):
+            t = it.get("ticker", "").upper()
+            tab = it.get("tab", "").upper()
+            name = it.get("name", "").upper()
+            if target in (t, tab, name) or clean_query in (t, tab, name):
+                return it
+    except Exception:
+        pass
+    return None
+
+
+def format_buy_advice(item, period="3mo"):
+    """
+    Construye la tarjeta ejecutiva sintetizada de 'Consejo de Compra':
+    Veredicto, Cotización con descuento, Plan Operativo (Entrada, Stop Loss, TP1, TP2, R:R)
+    y Claves Sintéticas (Smart Money, Confluencia, RSI, Resultados).
     """
     ticker = item.get("ticker", "")
     tab = escape_md(item.get("tab", ticker))
     price = item.get("current_price", 0)
     drop_pct = item.get("drop_pct", 0)
     score = item.get("score", 0)
-    confluence = escape_md(item.get("confluence_rating", "Oportunidad Técnica"))
     fibs = item.get("fib_levels", {})
     golden_price = fibs.get("61.8%", 0)
-    buy_price = fibs.get("50.0%", 0)
-    rsi = item.get("rsi")
-    rsi_str = f"{rsi:.1f}" if isinstance(rsi, (int, float)) else "--"
-    sma_sign = "+" if item.get("sma_dist_pct", 0) >= 0 else ""
-    sma_str = f"{sma_sign}{item.get('sma_dist_pct', 0):.1f}%"
-    sma_trend = "🐂 Alcista" if item.get("is_above_sma") else "🐻 Bajista"
-    swing_txt = escape_md(item.get("swing_label", "En rango"))
-    tv_url = get_tradingview_url(ticker)
-
-    extra_lines = ""
+    buy_50 = fibs.get("50.0%", 0)
+    risk = item.get("risk_mgmt") or {}
     liq = item.get("liquidity") or {}
+
+    # Veredicto sintético
+    if score >= 80 or (golden_price > 0 and price <= golden_price):
+        verdict = "COMPRA ÓPTIMA" if score >= 80 else "ZONA ÁUREA"
+        icon_v = "🟢"
+    elif score >= 65 or (buy_50 > 0 and price <= buy_50):
+        verdict = "COMPRA FAVORABLE"
+        icon_v = "🟢"
+    elif score >= 45:
+        verdict = "OBSERVACIÓN / ESPERAR"
+        icon_v = "🟡"
+    else:
+        verdict = "NEUTRAL / PRECIO ELEVADO"
+        icon_v = "⚪"
+
+    # Plan operativo
+    entry = risk.get("entry_price", price)
+    entry_lbl = escape_md(risk.get("entry_label", "Mercado"))
+    sl = risk.get("ssl_stop_loss") or risk.get("stop_loss") or (price * 0.95)
+    sl_pct = risk.get("ssl_risk_pct") if risk.get("ssl_stop_loss") else risk.get("risk_pct", 5.0)
+    sl_tag = "Piscina SSL" if risk.get("ssl_stop_loss") else "Fibo 78.6%"
+    tp1 = risk.get("take_profit_1", entry * 1.05)
+    tp1_pct = risk.get("reward_1_pct", 5.0)
+    tp2 = risk.get("take_profit_2", entry * 1.15)
+    tp2_pct = risk.get("reward_2_pct", 15.0)
+    rr2 = risk.get("ssl_rr_ratio_2") if risk.get("ssl_stop_loss") else risk.get("rr_ratio_2", 2.0)
+
+    # Claves sintéticas
+    points = []
     if liq.get("poc_price"):
-        rvol_part = f" | RVOL `{escape_md(liq.get('rvol_label', ''))}`" if liq.get("has_real_volume") else ""
-        extra_lines += f"🏦 *Muro POC Liquidez*: `{_fmt_price(liq['poc_price'], item)}`{rvol_part}\n"
+        poc_d = liq.get("poc_dist_pct", 0.0)
+        d_str = f" ({'+' if poc_d >= 0 else ''}{poc_d:.1f}%)" if abs(poc_d) > 0.1 else ""
+        points.append(f"• 🏦 *Muro POC*: `{_fmt_price(liq['poc_price'], item)}`{d_str}")
+
     if liq.get("has_sweep") and liq.get("sweep_label"):
-        extra_lines += f"🧲 *Smart Money*: `{escape_md(liq['sweep_label'])}`\n"
+        rvol_val = liq.get("rvol", 1.0)
+        points.append(f"• 🧲 *Smart Money*: `{escape_md(liq['sweep_label'])}` (Vol {rvol_val:.1f}x)")
     elif liq.get("has_absorption") and liq.get("absorption_label"):
-        extra_lines += f"🐋 *Flujo Institucional*: `{escape_md(liq['absorption_label'])}`\n"
+        points.append(f"• 🐋 *Ballenas*: `{escape_md(liq['absorption_label'])}`")
 
     best_cluster = item.get("best_cluster")
     if isinstance(best_cluster, dict) and best_cluster.get("label"):
-        extra_lines += f"🧬 *Cluster MTF*: `{escape_md(best_cluster['label'])}`\n"
+        points.append(f"• 🧬 *Cluster MTF*: `{escape_md(best_cluster['label'])}`")
+
+    rsi = item.get("rsi")
+    rsi_str = f"{rsi:.1f}" if isinstance(rsi, (int, float)) else "--"
+    sma_trend = "🐂 Alcista" if item.get("is_above_sma") else "🐻 Bajista"
+    points.append(f"• 📈 *Técnico*: RSI `{rsi_str}` | SMA 200 {sma_trend}")
 
     earnings = item.get("earnings") or {}
-    if earnings.get("warning_level") in ("IMMINENT", "UPCOMING") and earnings.get("label"):
-        extra_lines += f"📅 *Resultados*: `{escape_md(earnings['label'])}`\n"
+    if earnings.get("has_earnings") and earnings.get("label"):
+        points.append(f"• 📅 *Resultados*: `{escape_md(earnings['label'])}`")
+
+    pts_block = "\n".join(points)
+    tv_url = get_tradingview_url(ticker)
 
     msg = (
-        f"🎯 *¡ALERTA FIBONACCI: {tab} ({ticker})!*\n"
+        f"🟢 *CONSEJO DE COMPRA: {tab} ({ticker})*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔥 *Score de Confluencia*: `{score}/100` ({confluence})\n"
-        f"💰 *Precio Actual*: `{_fmt_price(price, item)}` (-{drop_pct:.1f}% desde máx)\n"
-        f"🏆 *Zona Áurea (61.8%)*: `{_fmt_price(golden_price, item)}`\n"
-        f"🟢 *Zona de Compra (50%)*: `{_fmt_price(buy_price, item)}`\n"
-        f"{extra_lines}"
-        f"🧭 *Impulso*: `{swing_txt}`\n"
-        f"📉 *RSI (14 días)*: `{rsi_str}`\n"
-        f"📈 *Estructura SMA 200*: `{sma_str}` ({sma_trend})\n"
-        f"⏳ *Ventana de Análisis*: `{period.upper()}`\n\n"
+        f"{icon_v} *Veredicto*: *{verdict}* (Score `{score}/100`)\n"
+        f"💰 *Cotización*: `{_fmt_price(price, item)}` (-{drop_pct:.1f}% descuento)\n"
+        f"🎯 *Zona Áurea*: `{_fmt_price(golden_price, item)}` (Fib 61.8%)\n\n"
+        f"📋 *PLAN OPERATIVO SUGERIDO:*\n"
+        f"• 📍 Entrada: `{_fmt_price(entry, item)}` ({entry_lbl})\n"
+        f"• 🛑 Stop Loss: `{_fmt_price(sl, item)}` (-{sl_pct:.1f}%) [{sl_tag}]\n"
+        f"• 🎯 Take Profit 1: `{_fmt_price(tp1, item)}` (+{tp1_pct:.1f}%)\n"
+        f"• 🚀 Take Profit 2 (Máx): `{_fmt_price(tp2, item)}` (+{tp2_pct:.1f}%)\n"
+        f"• ⚖️ Ratio R:R: *1:{rr2}*\n\n"
+        f"💡 *PUNTOS CLAVE:*\n"
+        f"{pts_block}\n\n"
+        f"[📊 Ver en TradingView]({tv_url})"
+    )
+    return msg
+
+
+def format_sell_advice(item, period="3mo"):
+    """
+    Construye la tarjeta ejecutiva sintetizada de 'Consejo de Venta':
+    Veredicto, Cotización vs Techo, Plan de Salida (Trailing Stop, Extensión 127.2%, Extensión 161.8%)
+    y Recomendación Táctica.
+    """
+    ticker = item.get("ticker", "")
+    tab = escape_md(item.get("tab", ticker))
+    price = item.get("current_price", 0)
+    sm = item.get("sell_mgmt") or {}
+    score = sm.get("sell_score", 0)
+    gain_low = sm.get("gain_from_low_pct", 0)
+    dist_hi = sm.get("dist_to_high_pct", 0)
+    ext127 = sm.get("ext_127", price * 1.05)
+    ext161 = sm.get("ext_161", price * 1.15)
+    dist_ext127 = sm.get("dist_to_ext127_pct", 5.0)
+    dist_ext161 = sm.get("dist_to_ext161_pct", 15.0)
+    t_stop = sm.get("trailing_stop", price * 0.945)
+    t_stop_pct = sm.get("trailing_stop_pct", 5.5)
+    action = escape_md(sm.get("sell_action", "Revisar posición"))
+    rsi = item.get("rsi")
+    rsi_str = f"{rsi:.1f}" if isinstance(rsi, (int, float)) else "--"
+    tv_url = get_tradingview_url(ticker)
+
+    if score >= 60 or sm.get("sell_status_code") == "STRONG_SELL":
+        icon = "🔴"
+        verdict = "VENTA FUERTE / SALIDA"
+    elif score >= 35 or sm.get("sell_status_code") == "PARTIAL_SELL" or dist_hi <= 3.0:
+        icon = "🟠"
+        verdict = "TOMA DE BENEFICIOS PARCIAL"
+    elif score >= 20 or (isinstance(rsi, (int, float)) and rsi >= 58):
+        icon = "🟡"
+        verdict = "MANTENER CON TRAILING STOP"
+    else:
+        icon = "🟢"
+        verdict = "SIN PRESIÓN DE VENTA (Mantener)"
+
+    if score >= 35 or dist_hi <= 4.0:
+        msg = (
+            f"{icon} *CONSEJO DE VENTA: {tab} ({ticker})*\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"{icon} *Veredicto*: *{verdict}* (Presión `{score}/100`)\n"
+            f"💰 *Cotización*: `{_fmt_price(price, item)}` (+{gain_low:.1f}% desde mín | -{dist_hi:.1f}% techo)\n\n"
+            f"📋 *PLAN DE SALIDA & PROTECCIÓN:*\n"
+            f"• 🛡️ Trailing Stop: `{_fmt_price(t_stop, item)}` (-{t_stop_pct:.1f}% protector)\n"
+            f"• 🎯 Extensión 127.2%: `{_fmt_price(ext127, item)}` (+{dist_ext127:.1f}%)\n"
+            f"• 🚀 Extensión 161.8%: `{_fmt_price(ext161, item)}` (+{dist_ext161:.1f}%)\n\n"
+            f"💡 *RECOMENDACIÓN TÁCTICA:*\n"
+            f"• {action}\n"
+            f"• 📈 RSI: `{rsi_str}` | Techo a `{dist_hi:.1f}%` de distancia\n\n"
+            f"[📊 Ver en TradingView]({tv_url})"
+        )
+    else:
+        msg = (
+            f"🟢 *CONSEJO DE VENTA: {tab} ({ticker})*\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"✅ *Veredicto*: *SIN PRESIÓN DE VENTA* (Presión `{score}/100`)\n"
+            f"💰 *Cotización*: `{_fmt_price(price, item)}` (-{dist_hi:.1f}% de máximos)\n\n"
+            f"💡 *RECOMENDACIÓN TÁCTICA:*\n"
+            f"• No vender. El activo está en fase de acumulación o retroceso sano.\n"
+            f"• 🛡️ Trailing Stop preventivo: `{_fmt_price(t_stop, item)}` (-{t_stop_pct:.1f}%)\n"
+            f"• 📈 RSI: `{rsi_str}` (Sin sobrecompra) | Deja correr la posición.\n\n"
+            f"[📊 Ver en TradingView]({tv_url})"
+        )
+    return msg
+
+
+def format_detailed_fibonacci(item, period="3mo"):
+    """
+    Construye la vista técnica de la Escalera de Fibonacci con etiquetas de liquidez
+    (Muro POC, % de volumen, LVN) de forma concisa y elegante.
+    """
+    ticker = item.get("ticker", "")
+    tab = escape_md(item.get("tab", ticker))
+    price = item.get("current_price", 0)
+    p_min = item.get("min", 0)
+    p_max = item.get("max", 0)
+    fibs = item.get("fib_levels", {})
+    liq = item.get("liquidity") or {}
+    fib_liq = liq.get("fib_liquidity") or {}
+
+    def _tag(lvl):
+        fl = fib_liq.get(lvl)
+        if not fl:
+            return ""
+        if fl.get("is_poc"):
+            return " `🏦 Muro POC`"
+        if fl.get("tier") == "HIGH":
+            return f" `🏦 Liq {fl.get('strength_pct', 0)}%`"
+        if fl.get("tier") == "LOW":
+            return " `🕳️ LVN`"
+        return ""
+
+    poc_p = liq.get("poc_price", price)
+    val_p = liq.get("val_price", p_min)
+    vah_p = liq.get("vah_price", p_max)
+    tv_url = get_tradingview_url(ticker)
+
+    msg = (
+        f"📐 *ESCALERA FIBONACCI: {tab} ({ticker})*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 *Rango ({period.upper()})*: `{_fmt_price(p_min, item)}` – `{_fmt_price(p_max, item)}`\n"
+        f"💰 *Precio actual*: `{_fmt_price(price, item)}`\n\n"
+        f"🏆 *NIVELES Y DENSIDAD DE LIQUIDEZ:*\n"
+        f"• 23.6%: `{_fmt_price(fibs.get('23.6%', 0), item)}`{_tag('23.6%')}\n"
+        f"• 38.2%: `{_fmt_price(fibs.get('38.2%', 0), item)}`{_tag('38.2%')}\n"
+        f"• 50.0% (Zona Compra): `{_fmt_price(fibs.get('50.0%', 0), item)}`{_tag('50.0%')}\n"
+        f"• 61.8% (Zona Áurea): `{_fmt_price(fibs.get('61.8%', 0), item)}`{_tag('61.8%')}\n"
+        f"• 78.6% (Soporte Extremo): `{_fmt_price(fibs.get('78.6%', 0), item)}`{_tag('78.6%')}\n\n"
+        f"🏦 *Muro POC*: `{_fmt_price(poc_p, item)}` | *Área Valor 70%*: `{_fmt_price(val_p, item)}` – `{_fmt_price(vah_p, item)}`\n\n"
         f"[📊 Abrir Gráfico en TradingView]({tv_url})"
     )
     return msg
+
+
+def format_telegram_alert(item, period="3mo"):
+    """
+    Construye la alerta sintetizada de oportunidad detectada utilizando el Consejo de Compra.
+    """
+    return format_buy_advice(item, period=period)
 
 def dispatch_telegram_alerts(market_payload, config):
     """
@@ -452,29 +687,31 @@ def handle_start_or_help(bot_token, chat_id):
     msg = (
         "🤖 *ASISTENTE VIRTUAL FIBONACCI*\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "¡Hola! Puedes consultar tus activos y forzar actualizaciones en cualquier momento usando los botones de abajo o estos comandos:\n\n"
+        "¡Hola! Puedes consultar tus activos y recibir análisis sintetizados usando los botones de abajo o estos comandos:\n\n"
+        "🟢 */compra TICKER* (ej: `/compra NVDA`)\n"
+        "Consejo de Compra ejecutivo: Veredicto, Entrada, Stop Loss (SSL/Fibo), TP1/TP2 y ratio R:R.\n\n"
+        "🔴 */venta [TICKER]* (ej: `/venta` o `/venta AMD`)\n"
+        "Consejo de Venta: Trailing Stop protector, extensiones 127.2% y 161.8% y alertas de sobrecompra.\n\n"
+        "📐 */fibo TICKER* (ej: `/fibo AMD`)\n"
+        "Escalera de Fibonacci con densidades de liquidez institucional (Muro POC, % volumen, LVN).\n\n"
         "📊 */resumen* o */precios*\n"
         "Lista general de todos tus activos con precio, caída y score de confluencia.\n\n"
         "🎯 */alertas* u */oportunidades*\n"
         "Filtra solo los activos en Zona Áurea (61.8%) o con Score ≥ 70.\n\n"
         "🏦 */liquidez* o */poc*\n"
-        "Radar de Liquidez Institucional: Muros de Volumen (POC), Volumen Relativo (RVOL / Absorción) y Barridos de Stops (SMC).\n\n"
-        "🔍 */ver TICKER* (ej: `/ver AMD` o simplemente escribe `AMD`)\n"
-        "Ficha técnica con Fibonacci + Liquidez por nivel, Muro POC, RSI, SMA 200 y enlace a TradingView.\n\n"
+        "Radar institucional: Muros de Volumen (POC), Volumen Relativo (RVOL) y Barridos de Stops (SMC).\n\n"
+        "🔍 */ver TICKER* (ej: `/ver AMD` o escribe `AMD`)\n"
+        "Tarjeta ejecutiva inteligente con botones de acción inmediata.\n\n"
         "🛡️ */riesgo TICKER [capital]* (ej: `/riesgo AMD 100`)\n"
-        "Calculadora de posición: Stop Loss (Fibonacci 78.6%, Volatilidad 2x ATR y Bajo Piscina SSL), Take Profit 1 y 2 y lote exacto.\n\n"
+        "Calculadora de posición: tamaño de lote exacto según el capital que desees arriesgar.\n\n"
         "💼 */cartera*\n"
-        "Mi Cartera Real: PnL abierto en vivo, precio medio, distancia a Stop Loss / Take Profit y diagnósticos.\n\n"
-        "➕ */add TICKER [Nombre]* y 🗑️ */del TICKER*\n"
+        "Mi Cartera Real: PnL abierto en vivo, precio medio y distancias a Stop Loss / Take Profit.\n\n"
+        "➕ */add TICKER* y 🗑️ */del TICKER*\n"
         "Añade o elimina activos de tu lista desde el móvil (ej: `/add AAPL Apple`, `/del AAPL`).\n\n"
-        "🔴 */venta* o */salidas*\n"
-        "Modo Venta: Radar de activos sobrecomprados (RSI > 65), extensiones de Fibonacci (127.2% y 161.8%) y Trailing Stop para recogida de beneficios.\n\n"
         "📔 */historial* o */diario*\n"
-        "Diario de Trading: Mide la tasa de acierto (Win Rate), operaciones ganadas/perdidas y estado de cada señal registrada.\n\n"
+        "Diario de Trading: Mide la tasa de acierto (Win Rate), operaciones ganadas/perdidas y estado de cada señal.\n\n"
         "🔄 */sync*\n"
-        "Fuerza la actualización de precios con Yahoo Finance y actualiza tu Google Sheets en remoto.\n\n"
-        "⏱ */periodo <1mo|3mo|6mo|1y>*\n"
-        "Cambia al instante (0 ms) la ventana de cálculo de Fibonacci (ej: `/periodo 1mo`)."
+        "Fuerza la actualización de precios con Yahoo Finance y actualiza Google Sheets en remoto."
     )
     send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
@@ -554,14 +791,12 @@ def handle_alertas(bot_token, chat_id):
             payload = json.load(f)
 
         items = payload.get("data", [])
-        period = payload.get("period", "3mo")
-
         opportunities = []
         for it in items:
             price = it.get("current_price", 0)
             fib_golden = it.get("fib_levels", {}).get("61.8%", 0)
             score = it.get("score", 0)
-            if price <= fib_golden or score >= 70:
+            if (fib_golden > 0 and price <= fib_golden) or score >= 70:
                 opportunities.append(it)
 
         if not opportunities:
@@ -585,200 +820,144 @@ def handle_alertas(bot_token, chat_id):
             price = it.get("current_price", 0)
             drop = it.get("drop_pct", 0)
             score = it.get("score", 0)
-            confluence = it.get("confluence_rating", "")
             fib_golden = it.get("fib_levels", {}).get("61.8%", 0)
-            fib_buy = it.get("fib_levels", {}).get("50.0%", 0)
-            rsi = it.get("rsi", "--")
-            tv_url = get_tradingview_url(ticker)
+            rsi = it.get("rsi")
+            rsi_str = f"{rsi:.1f}" if isinstance(rsi, (int, float)) else "--"
 
             lines.append(
                 f"🔥 *{tab}* (`{ticker}`) — Score: *{score}/100*\n"
-                f"• Precio: `{_fmt_price(price, it)}` (-{drop:.1f}%)\n"
-                f"• Zona Áurea (61.8%): `{_fmt_price(fib_golden, it)}`\n"
-                f"• Zona 50%: `{_fmt_price(fib_buy, it)}` | RSI: `{rsi}`\n"
-                f"• [Ver en TradingView]({tv_url})\n"
+                f"• Precio: `{_fmt_price(price, it)}` (-{drop:.1f}% desc) | RSI: `{rsi_str}`\n"
+                f"• Zona Áurea: `{_fmt_price(fib_golden, it)}` → `/compra {ticker}`\n"
             )
 
+        lines.append("💡 _Pulsa un comando `/compra TICKER` para ver el plan operativo de entrada y Stop Loss._")
         msg = "\n".join(lines)
         send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
     except Exception as e:
         send_telegram_message(bot_token, chat_id, f"❌ Error al consultar alertas: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
-def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
+
+def handle_compra(bot_token, chat_id, query=""):
     """
-    Muestra la radiografía técnica completa de un activo solicitado.
-    Soporta previsualización Multi-Timeframe instantánea (0ms) mediante forced_period.
+    Envía el Consejo de Compra sintetizado con Plan Operativo (Entrada, Stop Loss, TP1/TP2 y R:R).
     """
-    clean_query = query.strip().upper().replace("$", "").replace("/", "")
+    clean_q = (query or "").strip()
+    if not clean_q:
+        if os.path.exists(LATEST_DATA_PATH):
+            try:
+                with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
+                    payload = json.load(f)
+                items = sorted(payload.get("data", []), key=lambda x: x.get("score", 0), reverse=True)
+                top = items[:3]
+                if top:
+                    lines = [
+                        "🟢 *CONSEJO DE COMPRA / MEJORES OPORTUNIDADES*",
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                        "Indica un activo específico escribiendo `/compra TICKER` (ej: `/compra NVDA`)\n",
+                        "🏆 *Activos con mayor puntuación ahora:*"
+                    ]
+                    for it in top:
+                        t = it.get("ticker", "")
+                        tab = escape_md(it.get("tab", t))
+                        sc = it.get("score", 0)
+                        p = it.get("current_price", 0)
+                        lines.append(f"• *{tab}* (`{t}`): `{_fmt_price(p, it)}` | Score: *{sc}/100* → `/compra {t}`")
+                    send_telegram_message(bot_token, chat_id, "\n".join(lines), reply_markup=TELEGRAM_MAIN_KEYBOARD)
+                    return
+            except Exception:
+                pass
 
-    matched_item = None
-    period = "3mo"
-
-    if os.path.exists(LATEST_DATA_PATH):
-        try:
-            with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
-                payload = json.load(f)
-                period = payload.get("period", "3mo")
-                for it in payload.get("data", []):
-                    t = it.get("ticker", "").upper()
-                    tab = it.get("tab", "").upper()
-                    name = it.get("name", "").upper()
-                    if clean_query in (t, tab, name) or (clean_query == "ORO" and t == "GC=F") or (clean_query == "SPX" and t == "^GSPC"):
-                        matched_item = it
-                        break
-        except Exception:
-            pass
-
-    if not matched_item:
-        msg = (
-            f"🔍 *Activo no encontrado: '{escape_md(clean_query)}'*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "El activo no está en tu lista de seguimiento actual.\n\n"
-            f"💡 _Puedes añadirlo ahora mismo escribiendo:_ `/add {escape_md(clean_query)}`"
+        send_telegram_message(
+            bot_token, chat_id,
+            "🟢 *CONSEJO DE COMPRA*\n━━━━━━━━━━━━━━━━━━━━━━━━━━\nIndica el ticker que deseas analizar.\n• Ejemplo: `/compra NVDA` o `/compra AMD`",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
         )
-        send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
         return
 
-    view_item = dict(matched_item)
-    if forced_period and isinstance(matched_item.get("timeframes"), dict) and forced_period in matched_item["timeframes"]:
-        view_item.update(matched_item["timeframes"][forced_period])
-        period = forced_period
-
-    # Construir tarjeta técnica detallada
-    ticker = view_item.get("ticker", "")
-    tab = escape_md(view_item.get("tab", ticker))
-    name = escape_md(view_item.get("name", tab))
-    price = view_item.get("current_price", 0)
-    drop_pct = view_item.get("drop_pct", 0)
-    p_min = view_item.get("min", 0)
-    p_max = view_item.get("max", 0)
-    score = view_item.get("score", 0)
-    confluence = view_item.get("confluence_rating", "")
-    signal = view_item.get("signal", "")
-    fibs = view_item.get("fib_levels", {})
-    rsi = view_item.get("rsi", "--")
-    rsi_desc = view_item.get("rsi_desc", "")
-    sma_200 = view_item.get("sma_200", 0)
-    sma_dist = view_item.get("sma_dist_pct", 0)
-    sma_sign = "+" if sma_dist >= 0 else ""
-    sma_trend = "🐂 Alcista (Sobre SMA)" if view_item.get("is_above_sma") else "🐻 Bajista (Bajo SMA)"
-    swing_txt = escape_md(view_item.get("swing_label", "En rango"))
-    atr_14 = view_item.get("atr_14")
-    atr_pct = view_item.get("atr_pct", 0)
-    tv_url = get_tradingview_url(ticker)
-
-    extra_badges = ""
-    best_cluster = view_item.get("best_cluster")
-    if isinstance(best_cluster, dict) and best_cluster.get("label"):
-        extra_badges += f"🧬 *Cluster MTF*: `{escape_md(best_cluster['label'])}`\n"
-    earnings = view_item.get("earnings") or {}
-    if earnings.get("has_earnings") and earnings.get("label"):
-        extra_badges += f"📅 *Resultados*: `{escape_md(earnings['label'])}`\n"
-    if atr_14:
-        extra_badges += f"🌊 *Volatilidad ATR(14)*: `{_fmt_price(atr_14, view_item)}` ({atr_pct:.1f}% diario)\n"
-
-    # Bloque de gestión de riesgo
-    risk_info = ""
-    risk_data = view_item.get("risk_mgmt")
-    if risk_data:
-        entry_p = risk_data.get("entry_price", price)
-        sl = risk_data.get("stop_loss", 0)
-        sl_pct = risk_data.get("risk_pct", 0)
-        atr_sl = risk_data.get("atr_stop_loss")
-        atr_sl_pct = risk_data.get("atr_risk_pct", 0)
-        tp1 = risk_data.get("take_profit_1", 0)
-        tp1_pct = risk_data.get("reward_1_pct", 0)
-        tp2 = risk_data.get("take_profit_2", 0)
-        tp2_pct = risk_data.get("reward_2_pct", 0)
-        rr2 = risk_data.get("rr_ratio_2", 0)
-        rr_rating = risk_data.get("rr_rating", "")
-
-        atr_sl_line = ""
-        if atr_sl:
-            atr_sl_line = f"• Stop Volatilidad (2x ATR): `{_fmt_price(atr_sl, view_item)}` (-{atr_sl_pct:.1f}%)\n"
-
-        ssl_sl = risk_data.get("ssl_stop_loss")
-        ssl_sl_pct = risk_data.get("ssl_risk_pct", 0)
-        ssl_sl_line = ""
-        if ssl_sl:
-            ssl_sl_line = f"• Stop Bajo Piscina Liquidez (SSL): `{_fmt_price(ssl_sl, view_item)}` (-{ssl_sl_pct:.1f}%)\n"
-
-        risk_info = (
-            f"🛡️ *GESTIÓN DE RIESGO SUGERIDA:*\n"
-            f"• Entrada: `{_fmt_price(entry_p, view_item)}` ({escape_md(risk_data.get('entry_label', ''))})\n"
-            f"• Stop Fibonacci (78.6%): `{_fmt_price(sl, view_item)}` (-{sl_pct:.1f}%)\n"
-            f"{atr_sl_line}"
-            f"{ssl_sl_line}"
-            f"• TP 1 (38.2%): `{_fmt_price(tp1, view_item)}` (+{tp1_pct:.1f}%)\n"
-            f"• TP 2 (Máx): `{_fmt_price(tp2, view_item)}` (+{tp2_pct:.1f}%)\n"
-            f"• Ratio R:R (TP2): `1:{rr2}` ({escape_md(rr_rating)})\n\n"
+    item = find_asset_item(clean_q)
+    if not item:
+        send_telegram_message(
+            bot_token, chat_id,
+            f"🔍 *Activo no encontrado: '{escape_md(clean_q)}'*\n"
+            "El activo no está en tu lista de seguimiento.\n\n"
+            f"💡 _Añádelo con:_ `/add {escape_md(clean_q)}`",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
         )
+        return
 
-    # Bloque de Liquidez Institucional (Volume Profile POC + RVOL + Piscina Stops SSL)
-    liq = view_item.get("liquidity") or {}
-    fib_liq_map = liq.get("fib_liquidity") or {}
+    text = format_buy_advice(item)
+    kb = build_buy_advice_inline_keyboard(item.get("ticker", clean_q))
+    send_telegram_message(bot_token, chat_id, text, reply_markup=kb)
 
-    def _fib_liq_tag(lvl_k):
-        fl = fib_liq_map.get(lvl_k)
-        if not fl:
-            return ""
-        if fl.get("is_poc"):
-            return " `🏦 Muro POC`"
-        if fl.get("tier") == "HIGH":
-            return f" `🏦 Liq {fl.get('strength_pct', 0)}%`"
-        return ""
 
-    liquidity_block = ""
-    if liq:
-        poc_p = liq.get("poc_price", price)
-        poc_dist = liq.get("poc_dist_pct", 0.0)
-        poc_sign = "+" if poc_dist >= 0 else ""
-        val_p = liq.get("val_price", p_min)
-        vah_p = liq.get("vah_price", p_max)
-        rvol_lbl = escape_md(liq.get("rvol_label", "Normal"))
-        ssl_p = liq.get("ssl_pool_price", p_min)
-        ssl_type_lbl = escape_md(liq.get("ssl_type_label", "Swing Low"))
-        verdict = escape_md(liq.get("liquidity_verdict", "Flujo Normal"))
-
-        smc_events = ""
-        if liq.get("has_sweep") and liq.get("sweep_label"):
-            smc_events += f"• Evento SMC: `{escape_md(liq['sweep_label'])}`\n"
-        if liq.get("has_absorption") and liq.get("absorption_label"):
-            smc_events += f"• Flujo Ballenas: `{escape_md(liq['absorption_label'])}`\n"
-
-        liquidity_block = (
-            f"🏦 *LIQUIDEZ INSTITUCIONAL ({liq.get('liquidity_score', 0)}/100):*\n"
-            f"• Muro POC (Mayor Volumen): `{_fmt_price(poc_p, view_item)}` ({poc_sign}{poc_dist:.1f}%)\n"
-            f"• Área de Valor 70%: `{_fmt_price(val_p, view_item)}` – `{_fmt_price(vah_p, view_item)}`\n"
-            f"• Volumen Relativo (RVOL): `{rvol_lbl}`\n"
-            f"• Piscina Stops ({ssl_type_lbl}): `{_fmt_price(ssl_p, view_item)}`\n"
-            f"{smc_events}"
-            f"• Lectura: _{verdict}_\n\n"
+def handle_fibonacci_detail(bot_token, chat_id, query, forced_period=None):
+    """
+    Muestra la escalera detallada de Fibonacci con niveles de liquidez institucional (0ms Multi-Timeframe).
+    """
+    clean_q = (query or "").strip()
+    if not clean_q:
+        send_telegram_message(
+            bot_token, chat_id,
+            "📐 *ESCALERA FIBONACCI*\nIndica el ticker que deseas ver. Ej: `/fibo NVDA` o `/fibo AMD`.",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
         )
+        return
 
-    msg = (
-        f"🎯 *ANÁLISIS TÉCNICO: {name} ({ticker})*\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💰 *Precio Actual*: `{_fmt_price(price, view_item)}` (-{drop_pct:.1f}% desde máx)\n"
-        f"📊 *Rango ({period.upper()})*: `{_fmt_price(p_min, view_item)}` - `{_fmt_price(p_max, view_item)}`\n"
-        f"🧭 *Estructura*: `{swing_txt}`\n"
-        f"🚦 *Estado*: `{escape_md(signal)}`\n"
-        f"{extra_badges}\n"
-        f"🏆 *RETROCESOS DE FIBONACCI ({period.upper()}):*\n"
-        f"• 23.6%: `{_fmt_price(fibs.get('23.6%', 0), view_item)}`{_fib_liq_tag('23.6%')}\n"
-        f"• 38.2%: `{_fmt_price(fibs.get('38.2%', 0), view_item)}`{_fib_liq_tag('38.2%')}\n"
-        f"• 50.0% (Zona Compra): `{_fmt_price(fibs.get('50.0%', 0), view_item)}`{_fib_liq_tag('50.0%')}\n"
-        f"• 61.8% (Zona Áurea): `{_fmt_price(fibs.get('61.8%', 0), view_item)}`{_fib_liq_tag('61.8%')}\n"
-        f"• 78.6% (Soporte Extremo): `{_fmt_price(fibs.get('78.6%', 0), view_item)}`{_fib_liq_tag('78.6%')}\n\n"
-        f"{liquidity_block}"
-        f"📈 *CONFLUENCIA TÉCNICA:*\n"
-        f"🔥 *Score*: `{score}/100` ({escape_md(confluence)})\n"
-        f"📉 *RSI (14 sesiones)*: `{rsi}` ({escape_md(rsi_desc)})\n"
-        f"📊 *SMA 200*: `{_fmt_price(sma_200, view_item)}` ({sma_sign}{sma_dist:.1f}% - {sma_trend})\n\n"
-        f"{risk_info}"
-        f"[📊 Abrir Gráfico Interactivo en TradingView]({tv_url})"
-    )
-    send_telegram_message(bot_token, chat_id, msg, reply_markup=build_ticker_inline_keyboard(ticker, period))
+    item = find_asset_item(clean_q)
+    if not item:
+        send_telegram_message(
+            bot_token, chat_id,
+            f"🔍 *Activo no encontrado: '{escape_md(clean_q)}'*",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+        return
+
+    view_item = dict(item)
+    period = forced_period or "3mo"
+    if forced_period and isinstance(item.get("timeframes"), dict) and forced_period in item["timeframes"]:
+        view_item.update(item["timeframes"][forced_period])
+
+    text = format_detailed_fibonacci(view_item, period=period)
+    kb = build_fib_inline_keyboard(item.get("ticker", clean_q), active_period=period)
+    send_telegram_message(bot_token, chat_id, text, reply_markup=kb)
+
+
+def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
+    """
+    Muestra el análisis sintetizado del activo solicitado.
+    Si el activo tiene alta presión de venta, envía el Consejo de Venta.
+    En caso contrario, envía el Consejo de Compra (con botones para ver Fibo, Venta, etc.).
+    """
+    clean_q = (query or "").strip()
+    item = find_asset_item(clean_q)
+    if not item:
+        send_telegram_message(
+            bot_token, chat_id,
+            f"🔍 *Activo no encontrado: '{escape_md(clean_q)}'*\n"
+            "El activo no está en tu lista de seguimiento actual.\n\n"
+            f"💡 _Puedes añadirlo ahora mismo escribiendo:_ `/add {escape_md(clean_q)}`",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+        return
+
+    view_item = dict(item)
+    period = forced_period or "3mo"
+    if forced_period and isinstance(item.get("timeframes"), dict) and forced_period in item["timeframes"]:
+        view_item.update(item["timeframes"][forced_period])
+
+    sm = view_item.get("sell_mgmt") or {}
+    sell_score = sm.get("sell_score", 0)
+    dist_high = sm.get("dist_to_high_pct", 10.0)
+
+    # Si está sobrecomprado o en zona de resistencia, mostrar Consejo de Venta
+    if sell_score >= 50 or dist_high <= 2.5:
+        text = format_sell_advice(view_item, period=period)
+        kb = build_sell_advice_inline_keyboard(view_item.get("ticker", clean_q), active_period=period)
+    else:
+        text = format_buy_advice(view_item, period=period)
+        kb = build_buy_advice_inline_keyboard(view_item.get("ticker", clean_q), active_period=period)
+
+    send_telegram_message(bot_token, chat_id, text, reply_markup=kb)
 
 def handle_riesgo(bot_token, chat_id, raw_args):
     """
@@ -925,11 +1104,30 @@ def handle_riesgo(bot_token, chat_id, raw_args):
     )
     send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
-def handle_venta(bot_token, chat_id):
+def handle_venta(bot_token, chat_id, query=""):
     """
-    Radar de Modo Venta / Toma de Beneficios.
-    Detecta activos sobrecalentados, cerca de techos o en extensiones de Fibonacci (127.2%, 161.8%).
+    Radar de Modo Venta / Consejo de Venta sintetizado.
+    Si se especifica ticker, envía el Consejo de Venta individual.
+    Si no, muestra el radar de activos sobrecalentados o en resistencia.
     """
+    clean_q = (query or "").strip()
+    if clean_q:
+        item = find_asset_item(clean_q)
+        if not item:
+            send_telegram_message(
+                bot_token, chat_id,
+                f"🔍 *Activo no encontrado: '{escape_md(clean_q)}'*\n"
+                "El activo no está en tu lista de seguimiento.",
+                reply_markup=TELEGRAM_MAIN_KEYBOARD
+            )
+            return
+
+        text = format_sell_advice(item)
+        kb = build_sell_advice_inline_keyboard(item.get("ticker", clean_q))
+        send_telegram_message(bot_token, chat_id, text, reply_markup=kb)
+        return
+
+    # Modo radar general (sin ticker especificado)
     if not os.path.exists(LATEST_DATA_PATH):
         send_telegram_message(
             bot_token, chat_id,
@@ -949,7 +1147,7 @@ def handle_venta(bot_token, chat_id):
             score = sm.get("sell_score", 0)
             rsi = it.get("rsi", 50)
             dist_high = sm.get("dist_to_high_pct", 10)
-            if score >= 35 or rsi >= 62 or dist_high <= 4.0:
+            if score >= 35 or (isinstance(rsi, (int, float)) and rsi >= 62) or dist_high <= 4.0:
                 sell_candidates.append(it)
 
         sell_candidates.sort(key=lambda x: x.get("sell_mgmt", {}).get("sell_score", 0), reverse=True)
@@ -978,23 +1176,20 @@ def handle_venta(bot_token, chat_id):
             score = sm.get("sell_score", 0)
             signal = escape_md(sm.get("sell_signal", "Atención"))
             action = escape_md(sm.get("sell_action", "Revisar"))
-            rsi = it.get("rsi", "--")
-            gain_low = sm.get("gain_from_low_pct", 0)
+            rsi = it.get("rsi")
+            rsi_str = f"{rsi:.1f}" if isinstance(rsi, (int, float)) else "--"
             dist_hi = sm.get("dist_to_high_pct", 0)
-            ext127 = sm.get("ext_127", 0)
-            ext161 = sm.get("ext_161", 0)
             t_stop = sm.get("trailing_stop", price * 0.94)
 
             icon = "🔥" if score >= 70 else ("🟠" if score >= 50 else "🟡")
             lines.append(
-                f"{icon} *{tab}* (`{ticker}`) — Presión Venta: *{score}/100*\n"
-                f"• Precio: `{_fmt_price(price, it)}` (+{gain_low:.1f}% desde mín | -{dist_hi:.1f}% de máx)\n"
-                f"• RSI: `{rsi}` | Estado: *{signal}*\n"
-                f"• Extensión 127.2%: `{_fmt_price(ext127, it)}` | 161.8%: `{_fmt_price(ext161, it)}`\n"
-                f"• Trailing Stop Sugerido: `{_fmt_price(t_stop, it)}` (-5.5%)\n"
-                f"💡 _{action}_\n"
+                f"{icon} *{tab}* (`{ticker}`) — Presión: *{score}/100*\n"
+                f"• Precio: `{_fmt_price(price, it)}` (-{dist_hi:.1f}% techo) | RSI: `{rsi_str}`\n"
+                f"• Trailing Stop: `{_fmt_price(t_stop, it)}` | Estado: *{signal}*\n"
+                f"💡 _{action}_ → `/venta {ticker}`\n"
             )
 
+        lines.append("💡 _Escribe `/venta TICKER` (ej: `/venta AAPL`) para ver su plan de salida individual._")
         msg = "\n".join(lines)
         send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
     except Exception as e:
@@ -1358,24 +1553,48 @@ def handle_del_asset(bot_token, chat_id, raw_args):
 
 def process_callback_query(bot_token, chat_id, callback_id, data_str):
     """
-    Procesa pulsaciones en botones Inline (ver:TICKER, tf:TICKER:PERIOD, riesgo:TICKER:BUDGET).
+    Procesa pulsaciones en botones Inline:
+    - compra:TICKER (Consejo de Compra sintetizado)
+    - venta:TICKER (Consejo de Venta sintetizado)
+    - fib:TICKER[:PERIOD] (Escalera detallada de Fibonacci)
+    - tf:TICKER:PERIOD (Cambio instantáneo de temporalidad 0ms)
+    - ver:TICKER (Ficha técnica sintetizada)
+    - riesgo:TICKER:BUDGET (Cálculo de lote)
+    - cartera (Resumen en vivo de Mi Cartera)
     """
     raw = str(data_str or "").strip()
     parts = raw.split(":")
     action = parts[0].lower() if parts else ""
 
-    if action == "ver" and len(parts) >= 2:
+    if action == "compra" and len(parts) >= 2:
         t = parts[1]
-        answer_callback_query(bot_token, callback_id, f"Ficha técnica de {t}")
+        answer_callback_query(bot_token, callback_id, f"🟢 Consejo Compra {t}")
+        handle_compra(bot_token, chat_id, t)
+    elif action == "venta" and len(parts) >= 2:
+        t = parts[1]
+        answer_callback_query(bot_token, callback_id, f"🔴 Consejo Venta {t}")
+        handle_venta(bot_token, chat_id, t)
+    elif action == "fib" and len(parts) >= 2:
+        t = parts[1]
+        per = parts[2].lower() if len(parts) >= 3 else None
+        tf_tag = f" ({per.upper()})" if per else ""
+        answer_callback_query(bot_token, callback_id, f"📐 Fibonacci {t}{tf_tag}")
+        handle_fibonacci_detail(bot_token, chat_id, t, forced_period=per)
+    elif action == "ver" and len(parts) >= 2:
+        t = parts[1]
+        answer_callback_query(bot_token, callback_id, f"Ficha {t}")
         handle_ver_ticker(bot_token, chat_id, t)
     elif action == "tf" and len(parts) >= 3:
         t, per = parts[1], parts[2].lower()
         answer_callback_query(bot_token, callback_id, f"⚡ {t} en ventana {per.upper()}")
-        handle_ver_ticker(bot_token, chat_id, t, forced_period=per)
+        handle_fibonacci_detail(bot_token, chat_id, t, forced_period=per)
     elif action == "riesgo" and len(parts) >= 3:
         t, bud = parts[1], parts[2]
-        answer_callback_query(bot_token, callback_id, f"🛡️ Calculando lote ({bud}) para {t}...")
+        answer_callback_query(bot_token, callback_id, f"🛡️ Lote ({bud}) para {t}...")
         handle_riesgo(bot_token, chat_id, f"{t} {bud}")
+    elif action == "cartera":
+        answer_callback_query(bot_token, callback_id, "💼 Mi Cartera")
+        handle_cartera(bot_token, chat_id)
     else:
         answer_callback_query(bot_token, callback_id, "Acción recibida")
 
@@ -1468,6 +1687,26 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         handle_sync(bot_token, chat_id)
         return
 
+    if cmd.startswith(("/compra", "/comprar", "🟢 compra")):
+        parts = text.split(maxsplit=1)
+        query = parts[1] if len(parts) > 1 else ""
+        handle_compra(bot_token, chat_id, query)
+        return
+
+    if cmd.startswith(("/venta", "/salidas", "/vender", "🔴 venta", "🔴 modo venta")):
+        parts = text.split(maxsplit=1)
+        query = parts[1] if len(parts) > 1 else ""
+        handle_venta(bot_token, chat_id, query)
+        return
+
+    if cmd.startswith(("/fibo", "/fibonacci", "📐 fibo")):
+        parts = text.split(maxsplit=1)
+        if len(parts) > 1:
+            handle_fibonacci_detail(bot_token, chat_id, parts[1])
+        else:
+            send_telegram_message(bot_token, chat_id, "Indica el ticker que deseas ver. Ej: `/fibo AMD` o `/fibo NVDA`.")
+        return
+
     if cmd.startswith("/periodo"):
         parts = text.split()
         if len(parts) > 1:
@@ -1491,10 +1730,6 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         parts = text.split(maxsplit=1)
         raw_args = parts[1] if len(parts) > 1 else ""
         handle_riesgo(bot_token, chat_id, raw_args)
-        return
-
-    if cmd in ("/venta", "/salidas", "/vender", "🔴 venta", "🔴 modo venta", "modo venta", "venta"):
-        handle_venta(bot_token, chat_id)
         return
 
     if cmd in ("/cartera", "/portfolio", "💼 mi cartera", "💼 cartera", "mi cartera", "cartera"):
@@ -1535,9 +1770,11 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
     msg = (
         f"🤔 No he reconocido el comando: `{safe_cmd}`\n\n"
         "Puedes usar los botones del teclado inferior o escribir:\n"
+        "• `/compra NVDA` (Consejo de compra)\n"
+        "• `/venta AMD` (Consejo de venta)\n"
+        "• `/fibo AMD` (Escalera Fibonacci detallada)\n"
         "• `/resumen` (Ver todos los precios)\n"
         "• `/alertas` (Ver oportunidades)\n"
-        "• `/ver AMD` (Ver ficha de un activo)\n"
         "• `/riesgo AMD 100` (Calculadora de posición)\n"
         "• `/sync` (Sincronizar ahora)"
     )

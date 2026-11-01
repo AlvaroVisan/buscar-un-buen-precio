@@ -44,13 +44,18 @@ El bot soporta polling ligero (`getUpdates`) ejecutando:
 python telegram_notifier.py --listen
 ```
 Comandos disponibles (restringidos exclusivamente al `chat_id` autorizado):
-- `/precios` o `/resumen`: Lista todos los activos con su precio actual, posición en rango y estado.
-- `/compras` o `/oportunidades`: Filtra activos en zona de compra (`<= 61.8%`) o con Confluencia Multi-Timeframe (`🔥 CLUSTER`).
+- `/compra <TICKER>`: **🟢 Consejo de Compra Sintetizado**: Veredicto inmediato, Plan Operativo (Entrada, Stop Loss SSL/Fibo 78.6%, TP1, TP2 y ratio R:R) y Claves Técnicas (Muro POC, Smart Money, Confluencia, RSI y Resultados).
+- `/venta [TICKER]`: **🔴 Consejo de Venta / Modo Venta**: Radar de sobrecalentamiento o Consejo individual con Trailing Stop protector, extensiones 127.2% / 161.8% y recomendación táctica de salida.
+- `/fibo <TICKER>`: **📐 Escalera de Fibonacci Detallada**: Niveles Fibo enriquecidos con densidad de volumen (`🏦 Muro POC`, `% de volumen`, `🕳️ LVN`) y botones Multi-Timeframe instantáneos (1M, 3M, 6M, 1A).
+- `/ver <TICKER>`: Radiografía ejecutiva inteligente (enruta automáticamente a Consejo de Venta si está en resistencia/sobrecompra o Consejo de Compra si está en descuento).
+- `/riesgo <TICKER> [capital]`: Calculadora de dimensionamiento de posición y gestión de riesgo según capital a arriesgar (ej: `/riesgo NVDA 100`).
+- `/precios` o `/resumen`: Lista todos los activos con su precio actual, caída y score de confluencia.
+- `/alertas` u `/oportunidades`: Filtra activos en zona áurea (`<= 61.8%`) o con Score de confluencia `>= 70`.
 - `/liquidez`, `/poc` o `/smc`: Radar institucional con Muro POC (Volume Profile), Volumen Relativo (`RVOL`), Absorción de Ballenas, Barridos de Stops (Spring SMC) y Piscinas de Liquidez (`SSL`).
-- `/activos`: Muestra la lista de activos monitorizados y el periodo activo.
 - `/cartera`: Consulta en vivo `portfolio_manager.py` y responde con el P&L latente, valor total y desglose de posiciones abiertas.
-- `/actualizar`: Lanza `python market_updater.py --force` en segundo plano y responde al terminar con las oportunidades detectadas.
-- `/ayuda` o `/start`: Muestra el menú de comandos.
+- `/add <TICKER> [Nombre]` y `/del <TICKER>`: Gestión de activos directamente desde el chat de Telegram.
+- `/sync` o `/actualizar`: Lanza `python market_updater.py` en segundo plano y responde al terminar con las oportunidades detectadas.
+- `/ayuda` o `/start`: Muestra el menú de comandos y teclado rápido persistente.
 
 ## 4. Comandos de Prueba y Diagnóstico
 
