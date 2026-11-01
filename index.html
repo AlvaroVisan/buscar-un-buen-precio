@@ -7,21 +7,16 @@
   <meta name="description" content="Monitor inteligente de retrocesos de Fibonacci para identificar oportunidades de compra en el mercado americano.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <meta name="theme-color" content="#08090b">
+  <meta name="theme-color" content="#090909">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Ambient background glow effects -->
-  <div class="glow-orb orb-1"></div>
-  <div class="glow-orb orb-2"></div>
-  <div class="glow-orb orb-3"></div>
-
   <div class="app-container">
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
-        <div class="logo-badge">
+        <div class="logo-badge" aria-hidden="true">
           <svg class="spiral-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2a10 10 0 0 1 10 10c0 4.42-2.87 8.17-6.84 9.5a1 1 0 0 1-1.28-.62 1 1 0 0 1 .62-1.28C17.9 18.41 20 15.45 20 12a8 8 0 0 0-8-8c-3.54 0-6.52 2.3-7.58 5.51a1 1 0 0 1-1.26.65 1 1 0 0 1-.65-1.26A9.99 9.99 0 0 1 12 2z"/>
             <path d="M12 6a6 6 0 0 1 6 6c0 2.45-1.47 4.56-3.56 5.48a1 1 0 0 1-1.3-.57 1 1 0 0 1 .57-1.3A4 4 0 0 0 16 12a4 4 0 0 0-4-4c-1.5 0-2.81.82-3.51 2.05a1 1 0 0 1-1.34.42 1 1 0 0 1-.42-1.34A5.99 5.99 0 0 1 12 6z"/>
@@ -29,7 +24,7 @@
           </svg>
         </div>
         <div>
-          <h1 class="app-title">Buscar un buen precio<span class="brand-dot">.</span></h1>
+          <h1 class="app-title">Buscar un buen precio</h1>
           <p class="app-subtitle">Tu radar de mercado</p>
         </div>
       </div>
@@ -47,7 +42,7 @@
 
         <button id="btnOpenAddModal" class="btn btn-emerald" title="Añadir un nuevo activo o ticker a seguimiento">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          + Añadir Activo
+          Añadir activo <span aria-hidden="true">↗</span>
         </button>
 
         <!-- Centro de Alertas y Oportunidades -->
@@ -101,22 +96,23 @@
 
         <button id="btnSync" class="btn btn-primary" title="Sincronizar precios de mercado y actualizar Google Sheets">
           <svg class="sync-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          <span id="btnSyncText">Actualizar Precios</span>
+          <span id="btnSyncText">Actualizar precios</span>
         </button>
       </div>
     </header>
 
     <section class="dashboard-heading" aria-labelledby="dashboardTitle">
       <div>
-        <p class="section-eyebrow">PANEL DE MERCADO</p>
-        <h2 id="dashboardTitle">Una mirada al mercado.</h2>
-        <p>Encuentra tu próxima oportunidad y sigue cada posición.</p>
+        <p class="section-eyebrow"><span class="eyebrow-line" aria-hidden="true"></span> TU ESPACIO DE INVERSIÓN</p>
+        <h2 id="dashboardTitle">El mercado, en perspectiva.<br><span>Tu próxima oportunidad, más cerca.</span></h2>
+        <a class="workspace-link" href="#marketWorkspace">Explorar el mercado <span aria-hidden="true">↗</span></a>
       </div>
-      <span class="dashboard-label">Fibonacci · Riesgo · Cartera</span>
+      <div class="dashboard-label"><span>Una visión. Todos tus activos.</span><span>Fibonacci · Riesgo · Cartera</span></div>
     </section>
 
-    <!-- Top KPI Cards -->
-    <section class="kpi-grid">
+    <section class="market-overview" aria-label="Resumen del mercado">
+    <div class="overview-heading"><span>Vista general</span><span>01 / Mercado</span></div>
+    <div class="kpi-grid">
       <div class="kpi-card">
         <span class="kpi-label">Valores en Seguimiento</span>
         <div class="kpi-value-row">
@@ -197,15 +193,16 @@
         </div>
         <span class="kpi-sub" id="kpiPeriod">Ventana de cálculo: 3 meses</span>
       </div>
+    </div>
     </section>
 
     <!-- Selector de Modo de Operación: Compra / Venta / Diario de Trading -->
-    <nav class="mode-navigation-bar" aria-label="Vistas del panel">
+    <nav class="mode-navigation-bar" id="marketWorkspace" aria-label="Vistas del panel">
       <div class="mode-tabs-wrapper">
         <button class="mode-tab-btn active" id="btnModeBuy" data-mode="BUY">
           <span class="mode-icon">🟢</span>
           <span class="mode-text-col">
-            <span class="mode-tab-title">Modo Compra (Dip Hunter)</span>
+            <span class="mode-tab-title">Oportunidades</span>
             <span class="mode-tab-sub">Retrocesos Fibonacci & Entradas</span>
           </span>
         </button>
@@ -213,7 +210,7 @@
         <button class="mode-tab-btn" id="btnModeSell" data-mode="SELL">
           <span class="mode-icon">🔴</span>
           <span class="mode-text-col">
-            <span class="mode-tab-title">Modo Venta (Profit Taking)</span>
+            <span class="mode-tab-title">Radar de venta</span>
             <span class="mode-tab-sub">Extensiones 127.2%/161.8% & Techos</span>
           </span>
           <span class="mode-pill-alert" id="sellAlertPill">0 alertas</span>
@@ -222,7 +219,7 @@
         <button class="mode-tab-btn" id="btnModeJournal" data-mode="JOURNAL">
           <span class="mode-icon">📔</span>
           <span class="mode-text-col">
-            <span class="mode-tab-title">Diario de Oportunidades</span>
+            <span class="mode-tab-title">Diario</span>
             <span class="mode-tab-sub">Historial & Tasa de Acierto</span>
           </span>
           <span class="mode-pill-stat" id="journalStatsPill">Win Rate: 0%</span>
@@ -231,7 +228,7 @@
         <button class="mode-tab-btn" id="btnModePortfolio" data-mode="PORTFOLIO">
           <span class="mode-icon">💼</span>
           <span class="mode-text-col">
-            <span class="mode-tab-title">Mi Cartera Real</span>
+            <span class="mode-tab-title">Mi cartera</span>
             <span class="mode-tab-sub">Posiciones, PnL & Alertas SL/TP</span>
           </span>
           <span class="mode-pill-stat" id="portfolioPnlPill">0 pos.</span>
