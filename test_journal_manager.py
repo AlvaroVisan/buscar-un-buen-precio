@@ -79,6 +79,61 @@ class JournalUpdateTests(unittest.TestCase):
         self.assertEqual(len(again["entries"]), 1)
         self.assertEqual(again["entries"][0]["id"], result["entries"][0]["id"])
 
+    def test_tp1_open_return_includes_realized_half(self):
+        trade = open_trade("AAA", 100)
+        trade.update(tp1=110, tp2=120)
+        self.seed([trade])
+        result = journal.update_journal_with_market_data([{"ticker": "AAA", "current_price": 112}])
+        self.assertEqual(result["entries"][0]["status"], "TP1_ALCANZADO")
+        self.assertEqual(result["entries"][0]["current_return_pct"], 11)
+
+
+class JournalExitTests(unittest.TestCase):
+    def trade(self):
+        trade = open_trade("AAA", 100)
+        trade.update(tp1=110, tp2=120)
+        return trade
+
+    def test_tp2_after_tp1_uses_both_halves(self):
+        trade = self.trade()
+        journal._evaluate_price_point(trade, 112, 101, 111, "day1")
+        self.assertEqual(trade["status"], "TP1_ALCANZADO")
+        journal._evaluate_price_point(trade, 122, 105, 121, "day2")
+        self.assertEqual(trade["status"], "TP2_ALCANZADO")
+        self.assertEqual(trade["final_return_pct"], 15)
+        self.assertEqual(trade["current_return_pct"], 15)
+        self.assertEqual(trade["tp1_hit_date"], "day1")
+        self.assertEqual(journal.calculate_journal_stats([trade])["avg_win_pct"], 15)
+
+    def test_both_targets_in_same_candle_use_both_halves(self):
+        trade = self.trade()
+        journal._evaluate_price_point(trade, 125, 101, 124, "day1")
+        self.assertEqual(trade["final_return_pct"], 15)
+        self.assertEqual(trade["tp1_hit_date"], "day1")
+        snapshot = dict(trade)
+        journal._evaluate_price_point(trade, 130, 80, 85, "day2")
+        self.assertEqual(trade, snapshot)
+
+    def test_tp1_then_breakeven_keeps_half_profit(self):
+        trade = self.trade()
+        journal._evaluate_price_point(trade, 112, 101, 111, "day1")
+        journal._evaluate_price_point(trade, 108, 99, 100, "day2")
+        self.assertEqual(trade["status"], "BREAKEVEN_EJECUTADO")
+        self.assertEqual(trade["final_return_pct"], 5)
+
+    def test_ambiguous_candle_keeps_conservative_stop_priority(self):
+        for partial, expected_status, expected_return in [
+            (False, "STOP_EJECUTADO", -10),
+            (True, "BREAKEVEN_EJECUTADO", 5),
+        ]:
+            with self.subTest(partial=partial):
+                trade = self.trade()
+                if partial:
+                    journal._evaluate_price_point(trade, 112, 101, 111, "day1")
+                journal._evaluate_price_point(trade, 125, 85, 110, "day2")
+                self.assertEqual(trade["status"], expected_status)
+                self.assertEqual(trade["final_return_pct"], expected_return)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -101,7 +101,7 @@ def calculate_journal_stats(entries):
 def _evaluate_price_point(trade, high_p, low_p, close_p, event_date_str):
     """
     Evalúa la evolución de una operación abierta frente a un rango de precios (High, Low, Close).
-    Aplica gestión real de Break-Even cuando ya se ha alcanzado TP1.
+    Simula vender el 50% en TP1 y el resto en TP2 o Break-Even.
     """
     if trade.get("status") not in ("ACTIVA", "TP1_ALCANZADO"):
         return
@@ -149,13 +149,19 @@ def _evaluate_price_point(trade, high_p, low_p, close_p, event_date_str):
         return
 
     if high_p >= tp2:
-        tp2_ret = round(((tp2 - entry_p) / entry_p) * 100, 2) if entry_p > 0 else 0.0
+        # Incluso si ambos objetivos se cruzan en una sola vela, la primera
+        # mitad sale en TP1. Ponderar antes de redondear el resultado final.
+        realized_ret = round((((tp1 + tp2) / 2 - entry_p) / entry_p) * 100, 2) if entry_p > 0 else 0.0
+        trade.setdefault("tp1_hit_date", event_date_str)
         trade["status"] = "TP2_ALCANZADO"
         trade["result"] = "GANADA"
         trade["closed_date"] = event_date_str
-        trade["final_return_pct"] = tp2_ret
-        trade["current_return_pct"] = tp2_ret
-        trade["exit_reason"] = f"Objetivo principal (TP 2 en {curr_sym}{tp2:,.{dec}f}) completado"
+        trade["final_return_pct"] = realized_ret
+        trade["current_return_pct"] = realized_ret
+        trade["exit_reason"] = (
+            f"50% cerrado en TP 1 ({curr_sym}{tp1:,.{dec}f}) y 50% en TP 2 "
+            f"({curr_sym}{tp2:,.{dec}f}); retorno combinado {realized_ret:+.2f}%"
+        )
         return
 
     if high_p >= tp1 and trade.get("status") == "ACTIVA":
@@ -240,7 +246,8 @@ def update_journal_with_market_data(market_data_list, histories=None):
 
             trade["current_price"] = round(current_price, t_dec)
             if trade.get("status") in ("ACTIVA", "TP1_ALCANZADO"):
-                curr_ret = round(((current_price - entry_p) / entry_p) * 100, 2) if entry_p > 0 else 0.0
+                valued_price = (float(trade["tp1"]) + current_price) / 2 if trade["status"] == "TP1_ALCANZADO" else current_price
+                curr_ret = round(((valued_price - entry_p) / entry_p) * 100, 2) if entry_p > 0 else 0.0
                 trade["current_return_pct"] = curr_ret
             trade["last_check"] = now_str
 
