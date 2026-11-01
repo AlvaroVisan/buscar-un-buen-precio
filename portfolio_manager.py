@@ -214,8 +214,8 @@ def remove_or_reduce_position(ticker, sell_shares=None, sell_price=None):
                     "close_type": "TOTAL" if is_full_close else "PARCIAL",
                     "closed_at": now_str
                 })
-                # Conservar últimas 50 ventas históricas
-                pf["closed_history"] = pf["closed_history"][:50]
+                # Conservar todas las ventas: el PnL realizado se calcula
+                # sobre este historial, también para cierres parciales.
 
         if is_full_close:
             positions.pop(idx)
