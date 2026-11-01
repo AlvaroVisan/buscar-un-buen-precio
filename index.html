@@ -7,7 +7,8 @@
   <meta name="description" content="Monitor inteligente de retrocesos de Fibonacci para identificar oportunidades de compra en el mercado americano.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#08090b">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -28,8 +29,8 @@
           </svg>
         </div>
         <div>
-          <h1 class="app-title">BUSCAR UN BUEN PRECIO</h1>
-          <p class="app-subtitle">Monitor de Retrocesos de Fibonacci & Oportunidades de Entrada</p>
+          <h1 class="app-title">Buscar un buen precio<span class="brand-dot">.</span></h1>
+          <p class="app-subtitle">Tu radar de mercado</p>
         </div>
       </div>
 
@@ -104,6 +105,15 @@
         </button>
       </div>
     </header>
+
+    <section class="dashboard-heading" aria-labelledby="dashboardTitle">
+      <div>
+        <p class="section-eyebrow">PANEL DE MERCADO</p>
+        <h2 id="dashboardTitle">Una mirada al mercado.</h2>
+        <p>Encuentra tu próxima oportunidad y sigue cada posición.</p>
+      </div>
+      <span class="dashboard-label">Fibonacci · Riesgo · Cartera</span>
+    </section>
 
     <!-- Top KPI Cards -->
     <section class="kpi-grid">
@@ -190,7 +200,7 @@
     </section>
 
     <!-- Selector de Modo de Operación: Compra / Venta / Diario de Trading -->
-    <nav class="mode-navigation-bar">
+    <nav class="mode-navigation-bar" aria-label="Vistas del panel">
       <div class="mode-tabs-wrapper">
         <button class="mode-tab-btn active" id="btnModeBuy" data-mode="BUY">
           <span class="mode-icon">🟢</span>
