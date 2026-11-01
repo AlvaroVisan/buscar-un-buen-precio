@@ -658,7 +658,7 @@
 
   <!-- Modal: Calculadora de Gestión de Riesgo y Posición (Módulo 1) -->
   <div id="positionCalcModal" class="modal-backdrop" style="display: none;">
-    <div class="modal-card modal-lg">
+    <div class="modal-card modal-lg" role="dialog" aria-modal="true" aria-labelledby="calcAssetTitle" aria-describedby="calcAssetSubtitle">
       <div class="modal-header">
         <div class="modal-title-row">
           <div class="modal-icon-badge icon-calc">
@@ -669,7 +669,7 @@
             <p class="modal-subtitle" id="calcAssetSubtitle">Define cuánto arriesgas y calcula exactamente cuántas acciones comprar</p>
           </div>
         </div>
-        <button id="btnCloseCalcModal" class="modal-close-btn">&times;</button>
+        <button id="btnCloseCalcModal" class="modal-close-btn" type="button" aria-label="Cerrar calculadora">&times;</button>
       </div>
 
       <div class="modal-body">

@@ -4532,4 +4532,62 @@ input, select, textarea { accent-color: #ddd; }
   .alerts-dropdown { position: fixed; top: 150px; right: 20px; width: min(380px, calc(100vw - 40px)); max-height: calc(100dvh - 170px); overflow-y: auto; }
 }
 @media (max-width: 420px) { .header-right { gap: 5px; } .header-right .btn { padding: 9px 11px; font-size: .65rem; } .status-pill { width: 100%; padding: 0 0 8px; } .app-title { font-size: .9rem; } .mode-tabs-wrapper { justify-content: space-between; gap: 10px; } .mode-tab-title { font-size: .68rem; } .kpi-badge { font-size: .55rem; } .sort-selector-wrapper { flex-wrap: wrap; } }
+/* Keep the risk calculator inside the viewport; only its content scrolls. */
+#positionCalcModal { padding: 24px; }
+#positionCalcModal .modal-card {
+  display: flex;
+  flex-direction: column;
+  max-width: 920px;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
+}
+#positionCalcModal .modal-header,
+#positionCalcModal .modal-footer { flex-shrink: 0; }
+#positionCalcModal .modal-header { gap: 16px; }
+#positionCalcModal .modal-title-row,
+#positionCalcModal .modal-title-row > div:last-child { min-width: 0; }
+#positionCalcModal .modal-title,
+#positionCalcModal .modal-subtitle { overflow-wrap: anywhere; }
+#positionCalcModal .modal-close-btn { flex-shrink: 0; }
+#positionCalcModal .modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  gap: 18px;
+}
+#positionCalcModal .modal-body > * { flex-shrink: 0; min-width: 0; }
+#positionCalcModal .calc-levels-grid,
+#positionCalcModal .calc-results-container,
+#positionCalcModal .calc-form-box { margin-bottom: 0; }
+#positionCalcModal .calc-levels-grid,
+#positionCalcModal .calc-results-container { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+#positionCalcModal .calc-level-card,
+#positionCalcModal .calc-result-kpi { min-width: 0; overflow-wrap: anywhere; }
+#positionCalcModal .calc-form-box { background: #181818; }
+#positionCalcModal .sl-mode-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+#positionCalcModal .btn-sl-mode { white-space: normal; min-width: 0; }
+#positionCalcModal .btn-risk-preset.active { background: #dedede; color: #111; box-shadow: none; }
+#positionCalcModal .modal-footer { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 700px) {
+  #positionCalcModal { padding: 12px; }
+  #positionCalcModal .modal-card { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+  #positionCalcModal .modal-header,
+  #positionCalcModal .modal-body,
+  #positionCalcModal .modal-footer { padding: 16px; }
+  #positionCalcModal .modal-title { font-size: 1rem; }
+  #positionCalcModal .modal-subtitle { font-size: .72rem; }
+  #positionCalcModal .calc-levels-grid,
+  #positionCalcModal .calc-results-container { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #positionCalcModal .sl-mode-buttons { grid-template-columns: 1fr; }
+  #positionCalcModal .risk-presets-row { flex-wrap: wrap; gap: 6px; }
+  #positionCalcModal .btn-risk-preset { padding: 8px; }
+  #positionCalcModal .modal-footer .btn { flex: 1 1 auto; justify-content: center; white-space: normal; }
+}
+@media (max-width: 360px) {
+  #positionCalcModal .modal-icon-badge { display: none; }
+  #positionCalcModal .calc-results-container { grid-template-columns: 1fr; }
+  #positionCalcModal .calc-kpi-val { font-size: 1.1rem; }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
