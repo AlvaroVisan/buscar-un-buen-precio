@@ -84,9 +84,9 @@ def _fmt_price(val, item=None):
 # Teclado persistente con botones rápidos de acceso en la app de Telegram
 TELEGRAM_MAIN_KEYBOARD = {
     "keyboard": [
-        [{"text": "📊 Resumen"}, {"text": "🎯 Alertas"}, {"text": "🏦 Liquidez"}],
-        [{"text": "💼 Mi Cartera"}, {"text": "🔴 Modo Venta"}],
-        [{"text": "📔 Historial"}, {"text": "🔄 Sincronizar"}, {"text": "ℹ️ Ayuda"}]
+        [{"text": "📊 Resumen"}, {"text": "🎯 Alertas"}],
+        [{"text": "💼 Mi Cartera"}, {"text": "📔 Historial"}],
+        [{"text": "🔄 Sincronizar"}, {"text": "🧰 Herramientas"}, {"text": "ℹ️ Ayuda"}]
     ],
     "resize_keyboard": True,
     "is_persistent": True
@@ -298,16 +298,11 @@ def setup_bot_commands(bot_token):
         cmds = [
             {"command": "resumen", "description": "📊 Precios y Scores de todos los activos"},
             {"command": "alertas", "description": "🎯 Oportunidades en Zona Áurea / Alta Confluencia"},
-            {"command": "compra", "description": "🟢 Consejo de Compra (Plan, Stop Loss y TP)"},
-            {"command": "venta", "description": "🔴 Consejo de Venta (Trailing Stop y Salidas)"},
-            {"command": "fibo", "description": "📐 Escalera de Fibonacci detallada con POC"},
-            {"command": "liquidez", "description": "🏦 Radar de Liquidez (Muro POC, RVOL y Barridos)"},
+            {"command": "ver", "description": "🔍 Analizar un activo (ej: /ver AMD)"},
             {"command": "cartera", "description": "💼 Mi Cartera Real, PnL abierto y alertas SL/TP"},
-            {"command": "riesgo", "description": "🛡️ Calculadora de riesgo, Stop Loss y lote"},
-            {"command": "add", "description": "➕ Añadir nuevo activo (ej: /add AAPL Apple)"},
-            {"command": "del", "description": "🗑️ Eliminar activo de la lista (ej: /del AAPL)"},
             {"command": "historial", "description": "📔 Diario de trading y tasa de acierto"},
-            {"command": "sync", "description": "🔄 Sincronizar mercado y Google Sheets ahora"},
+            {"command": "actualizar", "description": "🔄 Actualizar mercado y Google Sheets"},
+            {"command": "herramientas", "description": "🧰 Análisis técnico y gestión de activos"},
             {"command": "ayuda", "description": "ℹ️ Ayuda y lista de comandos"}
         ]
         requests.post(url, json={"commands": cmds}, timeout=10)
@@ -720,37 +715,40 @@ def dispatch_telegram_alerts(market_payload, config):
 # ==========================================
 
 def handle_start_or_help(bot_token, chat_id):
-    """
-    Envía la guía completa de uso con el teclado de botones rápidos.
-    """
+    """Guía breve de las consultas habituales."""
     msg = (
-        "🤖 *ASISTENTE VIRTUAL FIBONACCI*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "¡Hola! Puedes consultar tus activos y recibir análisis sintetizados usando los botones de abajo o estos comandos:\n\n"
-        "🟢 */compra TICKER* (ej: `/compra NVDA`)\n"
-        "Consejo de Compra ejecutivo: Veredicto, Entrada, Stop Loss (SSL/Fibo), TP1/TP2 y ratio R:R.\n\n"
-        "🔴 */venta [TICKER]* (ej: `/venta` o `/venta AMD`)\n"
-        "Consejo de Venta: Trailing Stop protector, extensiones 127.2% y 161.8% y alertas de sobrecompra.\n\n"
-        "📐 */fibo TICKER* (ej: `/fibo AMD`)\n"
-        "Escalera de Fibonacci con densidades de liquidez institucional (Muro POC, % volumen, LVN).\n\n"
-        "📊 */resumen* o */precios*\n"
-        "Lista general de todos tus activos con precio, caída y score de confluencia.\n\n"
-        "🎯 */alertas* u */oportunidades*\n"
-        "Filtra solo los activos en Zona Áurea (61.8%) o con Score ≥ 70.\n\n"
-        "🏦 */liquidez* o */poc*\n"
-        "Radar institucional: Muros de Volumen (POC), Volumen Relativo (RVOL) y Barridos de Stops (SMC).\n\n"
-        "🔍 */ver TICKER* (ej: `/ver AMD` o escribe `AMD`)\n"
-        "Tarjeta ejecutiva inteligente con botones de acción inmediata.\n\n"
-        "🛡️ */riesgo TICKER [capital]* (ej: `/riesgo AMD 100`)\n"
-        "Calculadora de posición: tamaño de lote exacto según el capital que desees arriesgar.\n\n"
-        "💼 */cartera*\n"
-        "Mi Cartera Real: PnL abierto en vivo, precio medio y distancias a Stop Loss / Take Profit.\n\n"
-        "➕ */add TICKER* y 🗑️ */del TICKER*\n"
-        "Añade o elimina activos de tu lista desde el móvil (ej: `/add AAPL Apple`, `/del AAPL`).\n\n"
-        "📔 */historial* o */diario*\n"
-        "Diario de Trading: Mide la tasa de acierto (Win Rate), operaciones ganadas/perdidas y estado de cada señal.\n\n"
-        "🔄 */sync*\n"
-        "Fuerza la actualización de precios con Yahoo Finance y actualiza Google Sheets en remoto."
+        "🤖 *ASISTENTE FIBONACCI*\n\n"
+        "📊 /resumen — Todos los activos: precios y puntuación.\n"
+        "🎯 /alertas — Solo los que cumplen los filtros de oportunidad.\n"
+        "🔍 /ver TICKER — Análisis según la situación del activo.\n"
+        "También puedes escribir directamente el ticker, por ejemplo `AMD`.\n"
+        "Desde su ficha puedes abrir Compra, Venta, Fibonacci y Riesgo.\n\n"
+        "💼 /cartera — Tus posiciones y PnL abierto.\n"
+        "📔 /historial — Resultados de las señales del diario.\n"
+        "🔄 /actualizar — Actualizar mercado y Google Sheets.\n\n"
+        "🧰 /herramientas — Análisis especializado y gestión de activos.\n"
+        "Los comandos anteriores siguen disponibles."
+    )
+    send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
+
+def handle_herramientas(bot_token, chat_id):
+    """Agrupa las opciones especializadas fuera del menú principal."""
+    msg = (
+        "🧰 *HERRAMIENTAS*\n\n"
+        "*Análisis de un activo*\n"
+        "• `/compra AMD` — Entrada, stop y objetivos.\n"
+        "• `/venta AMD` — Plan de salida y trailing stop.\n"
+        "• `/fibo AMD` — Niveles y botones de periodo.\n"
+        "• `/riesgo AMD 100` — Tamaño de posición para arriesgar 100.\n\n"
+        "*Radares*\n"
+        "• /venta — Activos en resistencia o sobrecompra.\n"
+        "• /liquidez — POC, volumen relativo y barridos de stops.\n\n"
+        "*Gestión*\n"
+        "• `/add AAPL Apple` — Añadir a seguimiento.\n"
+        "• `/del AAPL` — Eliminar de seguimiento.\n"
+        "• `/periodo 3mo` — Periodo global: 1mo, 3mo, 6mo, 1y.\n\n"
+        "Para empezar por un activo, usa `/ver AMD`."
     )
     send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
@@ -1699,10 +1697,19 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
     Enrutador principal de comandos y mensajes recibidos del usuario.
     """
     text = raw_text.strip()
+    # Acepta /comando@NombreDelBot y compara nombres completos.
+    parts = text.split(maxsplit=1)
+    if parts and parts[0].startswith("/"):
+        text = parts[0].split("@", 1)[0] + (" " + parts[1] if len(parts) > 1 else "")
     cmd = text.lower()
+    command = cmd.split(maxsplit=1)[0] if cmd else ""
 
     if cmd in ("/start", "/help", "/ayuda", "ℹ️ ayuda", "ayuda"):
         handle_start_or_help(bot_token, chat_id)
+        return
+
+    if cmd in ("/herramientas", "🧰 herramientas", "herramientas"):
+        handle_herramientas(bot_token, chat_id)
         return
 
     if cmd in ("/resumen", "/precios", "📊 resumen", "resumen", "precios"):
@@ -1721,19 +1728,19 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         handle_sync(bot_token, chat_id)
         return
 
-    if cmd.startswith(("/compra", "/comprar", "🟢 compra")):
+    if command in ("/compra", "/comprar") or cmd == "🟢 compra":
         parts = text.split(maxsplit=1)
-        query = parts[1] if len(parts) > 1 else ""
+        query = parts[1] if command.startswith("/") and len(parts) > 1 else ""
         handle_compra(bot_token, chat_id, query)
         return
 
-    if cmd.startswith(("/venta", "/salidas", "/vender", "🔴 venta", "🔴 modo venta")):
+    if command in ("/venta", "/salidas", "/vender") or cmd in ("🔴 venta", "🔴 modo venta"):
         parts = text.split(maxsplit=1)
-        query = parts[1] if len(parts) > 1 else ""
+        query = parts[1] if command.startswith("/") and len(parts) > 1 else ""
         handle_venta(bot_token, chat_id, query)
         return
 
-    if cmd.startswith(("/fibo", "/fibonacci", "📐 fibo")):
+    if command in ("/fibo", "/fibonacci") or cmd == "📐 fibo":
         parts = text.split(maxsplit=1)
         if len(parts) > 1:
             handle_fibonacci_detail(bot_token, chat_id, parts[1])
@@ -1741,7 +1748,7 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
             send_telegram_message(bot_token, chat_id, "Indica el ticker que deseas ver. Ej: `/fibo AMD` o `/fibo NVDA`.")
         return
 
-    if cmd.startswith("/periodo"):
+    if command == "/periodo":
         parts = text.split()
         if len(parts) > 1:
             handle_periodo(bot_token, chat_id, parts[1])
@@ -1752,15 +1759,15 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
             )
         return
 
-    if cmd.startswith(("/ver", "/analizar")):
+    if command in ("/ver", "/analizar"):
         parts = text.split(maxsplit=1)
         if len(parts) > 1:
             handle_ver_ticker(bot_token, chat_id, parts[1])
         else:
-            handle_compra(bot_token, chat_id, "")
+            send_telegram_message(bot_token, chat_id, "Escribe `/ver AMD` o directamente el ticker para analizar un activo.")
         return
 
-    if cmd.startswith(("/riesgo", "/risk", "🛡️ riesgo")):
+    if command in ("/riesgo", "/risk") or cmd == "🛡️ riesgo":
         parts = text.split(maxsplit=1)
         raw_args = parts[1] if len(parts) > 1 else ""
         handle_riesgo(bot_token, chat_id, raw_args)
@@ -1770,12 +1777,12 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         handle_cartera(bot_token, chat_id)
         return
 
-    if cmd.startswith(("/add", "/añadir")):
+    if command in ("/add", "/añadir"):
         parts = text.split(maxsplit=1)
         handle_add_asset(bot_token, chat_id, parts[1] if len(parts) > 1 else "")
         return
 
-    if cmd.startswith(("/del", "/borrar", "/eliminar", "/rm")):
+    if command in ("/del", "/borrar", "/eliminar", "/rm"):
         parts = text.split(maxsplit=1)
         handle_del_asset(bot_token, chat_id, parts[1] if len(parts) > 1 else "")
         return
@@ -1803,14 +1810,11 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
     safe_cmd = text.replace("`", "'")
     msg = (
         f"🤔 No he reconocido el comando: `{safe_cmd}`\n\n"
-        "Puedes usar los botones del teclado inferior o escribir:\n"
-        "• `/compra NVDA` (Consejo de compra)\n"
-        "• `/venta AMD` (Consejo de venta)\n"
-        "• `/fibo AMD` (Escalera Fibonacci detallada)\n"
-        "• `/resumen` (Ver todos los precios)\n"
-        "• `/alertas` (Ver oportunidades)\n"
-        "• `/riesgo AMD 100` (Calculadora de posición)\n"
-        "• `/sync` (Sincronizar ahora)"
+        "• `/ver AMD` — Analizar un activo.\n"
+        "• /resumen — Todos los precios.\n"
+        "• /alertas — Oportunidades filtradas.\n"
+        "• /herramientas — Opciones especializadas.\n"
+        "• /ayuda — Guía rápida."
     )
     send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
