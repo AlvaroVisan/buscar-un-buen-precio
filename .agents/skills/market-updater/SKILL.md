@@ -45,3 +45,7 @@ Esta skill detalla cómo funciona el motor paralelo de cálculo de Fibonacci mul
    - `get_earnings_info(ticker_symbol, ticker_obj)` consulta y cachea por 12h en `.earnings_cache.json` la próxima fecha de presentación de resultados (`earnings_warning: true` si faltan `0–14` días).
 4. **Horario Inteligente de Mercado (`is_any_market_open`)**:
    - Si `smart_market_hours: true` y es fin de semana (y no hay criptomonedas `24/7` en cartera), omite la descarga salvo que se pase `--force`.
+5. **Motor de Liquidez Institucional (`compute_liquidity_metrics`)**:
+   - **Volume Profile & Muro POC (24 bins + fallback TPO)**: Calcula `poc_price`, Área de Valor del 70% (`val_price`–`vah_price`) y la densidad de liquidez (`0–100%`, `🏦 Muro POC`, `🏦 Alta Liq.`, `💧 Media`, `🕳️ Vacío LVN`) sobre cada nivel de Fibonacci (`fib_liquidity`) y confluencias en zona de compra (`fib_poc_confluence`).
+   - **Volumen Relativo (`RVOL`) y Absorción Institucional**: Compara el volumen con la media de 20 sesiones (`rvol`, `peak_rvol_3d`) y detecta velas de rechazo con mecha inferior larga en retroceso (`has_absorption`).
+   - **Piscinas de Stops (`SSL Pool`) y Barridos SMC (`has_sweep`)**: Detecta Swing Lows / Dobles Suelos (`is_equal_lows`), barridos alcistas recuperados al cierre (Spring SMC) y calcula un Stop Loss protegido bajo la piscina de liquidez (`ssl_stop_loss` a `0.55x ATR` bajo el pool) para los 4 periodos (`1mo`, `3mo`, `6mo`, `1y`).

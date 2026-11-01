@@ -469,6 +469,467 @@ def detect_asset_format(ticker, sample_price=100.0):
     return currency, decimals
 
 
+def compute_liquidity_metrics(fibo_hist, full_hist, fib_levels, current_price, currency, decimals):
+    """
+    Motor de Liquidez Institucional (3 Pilares):
+    1. Volume Profile & POC (Point of Control), Área de Valor (70% VAL-VAH) y densidad de liquidez por nivel Fibonacci.
+    2. RVOL (Volumen Relativo vs media 20 sesiones) y detector de Absorción Institucional (mecha inferior + volumen).
+    3. Piscinas de Liquidez (Sell-Side Liquidity / Swing Lows / Equal Lows) y Barrido de Stops (Liquidity Sweep SMC).
+    """
+    num_bins = 24
+    hi = float(fibo_hist["High"].max()) if not fibo_hist.empty else current_price
+    lo = float(fibo_hist["Low"].min()) if not fibo_hist.empty else current_price
+    price_range = hi - lo
+
+    if fibo_hist.empty or len(fibo_hist) < 2 or price_range <= 1e-9:
+        empty_fib_liq = {
+            k: {"strength_pct": 50, "tier": "MEDIUM", "badge": "💧 Media", "is_poc": False}
+            for k in fib_levels
+        }
+        return {
+            "profile_type": "TPO",
+            "has_real_volume": False,
+            "poc_price": round(current_price, decimals),
+            "poc_pct_pos": 50.0,
+            "poc_dist_pct": 0.0,
+            "val_price": round(lo, decimals),
+            "vah_price": round(hi, decimals),
+            "fib_liquidity": empty_fib_liq,
+            "fib_poc_confluence": {
+                "has_confluence": False,
+                "level": None,
+                "price": None,
+                "strength_pct": 0,
+                "is_poc": False,
+                "label": ""
+            },
+            "rvol": 0.0,
+            "peak_rvol_3d": 0.0,
+            "rvol_status": "NO_VOL",
+            "rvol_label": "N/D",
+            "has_absorption": False,
+            "absorption_label": "",
+            "ssl_pool_price": round(lo, decimals),
+            "ssl_dist_pct": 0.0,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Suelo Periodo",
+            "is_equal_lows": False,
+            "all_swing_lows": [round(lo, decimals)],
+            "has_sweep": False,
+            "sweep_price": None,
+            "sweep_date": None,
+            "sweep_bars_ago": None,
+            "sweep_label": "",
+            "liquidity_score": 35,
+            "liquidity_bonus_pts": 0,
+            "liquidity_code": "NORMAL",
+            "liquidity_verdict": "💧 Flujo de Liquidez Normal"
+        }
+
+    lows = fibo_hist["Low"].astype(float).to_numpy()
+    highs = fibo_hist["High"].astype(float).to_numpy()
+    opens = fibo_hist["Open"].astype(float).to_numpy()
+    closes = fibo_hist["Close"].astype(float).to_numpy()
+    if "Volume" in fibo_hist.columns:
+        vols = fibo_hist["Volume"].fillna(0.0).astype(float).to_numpy()
+    else:
+        vols = pd.Series(0.0, index=fibo_hist.index).to_numpy()
+    dates = fibo_hist.index
+    n_bars = len(fibo_hist)
+
+    # =========================================================================
+    # PILAR 1: PERFIL DE VOLUMEN (VOLUME PROFILE), POC Y LIQUIDEZ POR FIBONACCI
+    # =========================================================================
+    has_real_volume = float(vols.sum()) > 0
+    profile_type = "VOLUME" if has_real_volume else "TPO"
+    bin_width = price_range / num_bins
+    bins = [0.0] * num_bins
+
+    for idx in range(n_bars):
+        b_l = lows[idx]
+        b_h = highs[idx]
+        b_c = closes[idx]
+        b_v = vols[idx] if has_real_volume else 1.0
+        if b_v <= 0:
+            continue
+
+        tp = (b_h + b_l + 2.0 * b_c) / 4.0
+        tp_bin = min(num_bins - 1, max(0, int((tp - lo) / bin_width)))
+        i_start = min(num_bins - 1, max(0, int((b_l - lo) / bin_width)))
+        i_end = min(num_bins - 1, max(0, int((b_h - lo) / bin_width)))
+        span = max(1, (i_end - i_start) + 1)
+
+        # 40% ponderado en precio típico de aceptación + 60% repartido en el rango de la vela
+        bins[tp_bin] += b_v * 0.40
+        share = (b_v * 0.60) / span
+        for b_i in range(i_start, i_end + 1):
+            bins[b_i] += share
+
+    poc_idx = max(range(num_bins), key=lambda i: bins[i])
+    max_bin_vol = bins[poc_idx] if bins[poc_idx] > 0 else 1.0
+    poc_price = round(lo + (poc_idx + 0.5) * bin_width, decimals)
+    poc_pct_pos = round(max(0.0, min(100.0, ((poc_price - lo) / price_range) * 100.0)), 1)
+    poc_dist_pct = round(((current_price - poc_price) / poc_price) * 100.0, 2) if poc_price > 0 else 0.0
+
+    # Área de Valor Institucional (70% del volumen negociado en torno al POC)
+    total_bin_vol = sum(bins)
+    va_low_idx = poc_idx
+    va_high_idx = poc_idx
+    acc_vol = bins[poc_idx]
+    target_va_vol = total_bin_vol * 0.70
+
+    while acc_vol < target_va_vol and (va_low_idx > 0 or va_high_idx < num_bins - 1):
+        cand_down = bins[va_low_idx - 1] if va_low_idx > 0 else -1.0
+        cand_up = bins[va_high_idx + 1] if va_high_idx < num_bins - 1 else -1.0
+        if cand_down >= cand_up and va_low_idx > 0:
+            va_low_idx -= 1
+            acc_vol += bins[va_low_idx]
+        elif va_high_idx < num_bins - 1:
+            va_high_idx += 1
+            acc_vol += bins[va_high_idx]
+        else:
+            break
+
+    val_price = round(lo + va_low_idx * bin_width, decimals)
+    vah_price = round(lo + (va_high_idx + 1) * bin_width, decimals)
+
+    # Densidad de liquidez sobre cada nivel de Fibonacci
+    fib_liquidity = {}
+    for lvl_key, f_price in fib_levels.items():
+        f_bin = min(num_bins - 1, max(0, int((f_price - lo) / bin_width)))
+        local_vol = bins[f_bin]
+        if f_bin > 0:
+            prev_center = lo + (f_bin - 0.5) * bin_width
+            if abs(f_price - prev_center) <= bin_width * 0.9:
+                local_vol = max(local_vol, bins[f_bin - 1] * 0.90)
+        if f_bin < num_bins - 1:
+            next_center = lo + (f_bin + 1.5) * bin_width
+            if abs(f_price - next_center) <= bin_width * 0.9:
+                local_vol = max(local_vol, bins[f_bin + 1] * 0.90)
+
+        strength_pct = int(round((local_vol / max_bin_vol) * 100.0))
+        strength_pct = max(6, min(100, strength_pct))
+        is_at_poc = (f_bin == poc_idx) or (abs(f_price - poc_price) / max(poc_price, 1e-9) * 100.0 <= 1.5)
+
+        if is_at_poc:
+            strength_pct = max(strength_pct, 94)
+            tier = "POC_WALL"
+            badge = "🏦 Muro POC"
+        elif strength_pct >= 65:
+            tier = "HIGH"
+            badge = "🏦 Alta Liq."
+        elif strength_pct >= 36:
+            tier = "MEDIUM"
+            badge = "💧 Media"
+        else:
+            tier = "LOW"
+            badge = "🕳️ Vacío LVN"
+
+        fib_liquidity[lvl_key] = {
+            "strength_pct": strength_pct,
+            "tier": tier,
+            "badge": badge,
+            "is_poc": is_at_poc
+        }
+
+    # Evaluar confluencia entre niveles de compra Fibonacci (50%, 61.8%, 78.6%) y Muro POC / HVN
+    buy_fib_candidates = []
+    for buy_lvl in ("61.8%", "50.0%", "78.6%"):
+        fl = fib_liquidity.get(buy_lvl)
+        if fl and (fl["is_poc"] or fl["strength_pct"] >= 72):
+            priority = (1 if fl["is_poc"] else 0, 1 if buy_lvl == "61.8%" else 0, fl["strength_pct"])
+            buy_fib_candidates.append((priority, buy_lvl, fl))
+
+    if buy_fib_candidates:
+        buy_fib_candidates.sort(key=lambda x: x[0], reverse=True)
+        _, best_lvl, best_fl = buy_fib_candidates[0]
+        wall_tag = "Muro POC" if best_fl["is_poc"] else "Liquidez HVN"
+        fib_poc_confluence = {
+            "has_confluence": True,
+            "level": best_lvl,
+            "price": fib_levels[best_lvl],
+            "strength_pct": best_fl["strength_pct"],
+            "is_poc": best_fl["is_poc"],
+            "label": f"🏦 {wall_tag} en {best_lvl} ({currency}{fib_levels[best_lvl]:,.{decimals}f})"
+        }
+    else:
+        fib_poc_confluence = {
+            "has_confluence": False,
+            "level": None,
+            "price": None,
+            "strength_pct": 0,
+            "is_poc": False,
+            "label": ""
+        }
+
+    # =========================================================================
+    # PILAR 2: VOLUMEN RELATIVO (RVOL) Y ABSORCIÓN INSTITUCIONAL (BALLENAS)
+    # =========================================================================
+    avg_vol_20 = 0.0
+    if full_hist is not None and not full_hist.empty and "Volume" in full_hist.columns:
+        v_all = full_hist["Volume"].fillna(0.0).astype(float)
+        base_slice = v_all.iloc[-21:-1] if len(v_all) > 3 else v_all
+        pos_base = base_slice[base_slice > 0]
+        if len(pos_base) >= 3:
+            avg_vol_20 = float(pos_base.mean())
+
+    if avg_vol_20 > 0:
+        v_all = full_hist["Volume"].fillna(0.0).astype(float)
+        last_vol = float(v_all.iloc[-1])
+        if last_vol <= 0 and len(v_all) >= 2 and float(v_all.iloc[-2]) > 0:
+            eff_vol = float(v_all.iloc[-2])
+        else:
+            eff_vol = last_vol
+
+        rvol = round(eff_vol / avg_vol_20, 2)
+        peak_rvol_3d = round(float(v_all.iloc[-min(3, len(v_all)):].max()) / avg_vol_20, 2)
+
+        if rvol >= 1.85:
+            rvol_status = "CLIMAX"
+            rvol_label = f"{rvol:.2f}x 🔥 Clímax"
+        elif rvol >= 1.30:
+            rvol_status = "HIGH"
+            rvol_label = f"{rvol:.2f}x 🐋 Alto"
+        elif rvol >= 0.70:
+            rvol_status = "NORMAL"
+            rvol_label = f"{rvol:.2f}x Normal"
+        else:
+            rvol_status = "LOW"
+            rvol_label = f"{rvol:.2f}x Seco"
+    else:
+        rvol = 0.0
+        peak_rvol_3d = 0.0
+        rvol_status = "NO_VOL"
+        rvol_label = "TPO (Sin vol.)"
+
+    has_absorption = False
+    absorption_label = ""
+    lookback_abs = min(3, n_bars)
+    for offset in range(lookback_abs):
+        idx = (n_bars - 1) - offset
+        b_h, b_l, b_o, b_c = highs[idx], lows[idx], opens[idx], closes[idx]
+        b_rng = b_h - b_l
+        if b_rng <= 1e-9 or current_price < b_l:
+            continue
+        lower_wick = min(b_o, b_c) - b_l
+        wick_ratio = lower_wick / b_rng
+        close_pos = (b_c - b_l) / b_rng
+        b_rvol = (vols[idx] / avg_vol_20) if avg_vol_20 > 0 else 1.0
+        in_discount_zone = b_l <= (fib_levels["38.2%"] * 1.01)
+
+        if avg_vol_20 > 0 and in_discount_zone:
+            if (b_rvol >= 1.30 and wick_ratio >= 0.32 and close_pos >= 0.45) or (
+                b_rvol >= 1.65 and b_c >= b_o and close_pos >= 0.55
+            ):
+                has_absorption = True
+                absorption_label = f"🐋 Absorción Inst. ({b_rvol:.1f}x Vol)"
+                break
+        elif avg_vol_20 == 0 and in_discount_zone and wick_ratio >= 0.48 and close_pos >= 0.60:
+            has_absorption = True
+            absorption_label = "🐋 Mecha de Absorción"
+            break
+
+    # =========================================================================
+    # PILAR 3: PISCINAS DE LIQUIDEZ (SSL POOL) Y BARRIDO DE STOPS (SWEEP SMC)
+    # =========================================================================
+    swing_lows = []  # lista de tuplas (bar_index, low_price)
+    for i in range(2, n_bars - 2):
+        if lows[i] <= lows[i - 1] and lows[i] <= lows[i - 2] and lows[i] <= lows[i + 1] and lows[i] <= lows[i + 2]:
+            swing_lows.append((i, float(lows[i])))
+
+    if n_bars >= 5:
+        prior_min_idx = int(lows[:-2].argmin())
+        prior_min_val = float(lows[prior_min_idx])
+        if not any(abs(p - prior_min_val) / max(prior_min_val, 1e-9) < 0.002 for _, p in swing_lows):
+            swing_lows.append((prior_min_idx, prior_min_val))
+            swing_lows.sort(key=lambda x: x[0])
+
+    # Detectar Equal Lows (Doble/Triple Suelo donde se acumulan miles de Stop Loss)
+    eql_pools = []
+    for i in range(len(swing_lows)):
+        idx_a, price_a = swing_lows[i]
+        for j in range(i + 1, len(swing_lows)):
+            idx_b, price_b = swing_lows[j]
+            if (idx_b - idx_a) < 3:
+                continue
+            diff_pct = abs(price_a - price_b) / max(price_a, 1e-9) * 100.0
+            if diff_pct <= 0.95:
+                pool_lvl = min(price_a, price_b)
+                # Comprobar que no haya sido roto con cierre contundente (> 1.5%) después de idx_b
+                post_closes = closes[idx_b + 1:]
+                if len(post_closes) == 0 or float(post_closes.min()) >= pool_lvl * 0.985:
+                    eql_pools.append(pool_lvl)
+
+    # Seleccionar la piscina de liquidez vendedora (SSL) activa más relevante bajo/cerca del precio actual
+    is_equal_lows = False
+    below_eql = [p for p in eql_pools if p <= current_price * 1.01]
+    if below_eql:
+        ssl_raw = max(below_eql)  # El doble suelo más cercano por debajo del precio actual
+        if ((current_price - ssl_raw) / max(current_price, 1e-9) * 100.0) <= 10.0:
+            is_equal_lows = True
+        else:
+            below_eql = []
+
+    if not below_eql:
+        below_swings = [p for _, p in swing_lows if p <= current_price * 1.005]
+        ssl_raw = max(below_swings) if below_swings else lo
+
+    ssl_pool_price = round(float(ssl_raw), decimals)
+    ssl_dist_pct = round(((current_price - ssl_pool_price) / current_price) * 100.0, 2) if current_price > 0 else 0.0
+    ssl_type = "EQL" if is_equal_lows else "SWING_LOW"
+    ssl_type_label = "Doble Suelo EQL" if is_equal_lows else "Swing Low (Stops)"
+
+    # Detector de Barrido de Liquidez Alcista (Bullish Liquidity Sweep / Spring en últimas 3 velas)
+    has_sweep = False
+    sweep_price = None
+    sweep_date = None
+    sweep_bars_ago = None
+    sweep_label = ""
+
+    start_check = max(3, n_bars - 3)
+    for idx in range(n_bars - 1, start_check - 1, -1):
+        b_l, b_h, b_c = lows[idx], highs[idx], closes[idx]
+        b_rng = b_h - b_l
+        if b_rng <= 1e-9:
+            continue
+        close_recovery = (b_c - b_l) / b_rng
+        if close_recovery < 0.38:
+            continue
+
+        # Pivotes formados al menos 3 sesiones antes cuya liquidez seguía intacta hasta esta vela
+        prior_candidates = [p for p_i, p in swing_lows if p_i <= idx - 3]
+        prior_candidates.sort(reverse=True)
+        for p_low in prior_candidates:
+            # Verificar que entre la formación y el barrido no se hubiese roto ya al cierre
+            # Buscamos el primer índice del pivote
+            p_indices = [p_i for p_i, p in swing_lows if abs(p - p_low) < 1e-9 and p_i <= idx - 3]
+            if not p_indices:
+                continue
+            p_idx = p_indices[-1]
+            inter_closes = closes[p_idx + 1:idx]
+            if len(inter_closes) > 0 and float(inter_closes.min()) < p_low * 0.994:
+                continue
+
+            # Condición SMC Sweep: mecha perfora el Swing Low (hasta -3.8%), barre stops y cierra por encima
+            if (p_low * 0.962) <= b_l < (p_low * 0.999) and b_c > p_low and current_price >= p_low:
+                has_sweep = True
+                sweep_price = round(float(p_low), decimals)
+                ts_bar = dates[idx]
+                sweep_date = ts_bar.strftime("%Y-%m-%d") if hasattr(ts_bar, "strftime") else str(ts_bar)[:10]
+                sweep_bars_ago = int((n_bars - 1) - idx)
+                sweep_label = f"🧲 Barrido de Stops ({currency}{sweep_price:,.{decimals}f})"
+                break
+        if has_sweep:
+            break
+
+    # =========================================================================
+    # SCORE DE LIQUIDEZ (0-100), BONUS DE CONFLUENCIA Y VEREDICTO INSTITUCIONAL
+    # =========================================================================
+    in_buy_half = current_price <= fib_levels["50.0%"]
+    near_poc = abs(poc_dist_pct) <= 2.2
+
+    if in_buy_half and near_poc:
+        poc_pts = 38
+    elif near_poc:
+        poc_pts = 34
+    elif fib_poc_confluence["has_confluence"] and current_price <= fib_levels["38.2%"]:
+        poc_pts = 28
+    elif current_price <= poc_price:
+        poc_pts = 22
+    else:
+        poc_pts = 12
+
+    if has_absorption:
+        vol_pts = 32
+    elif rvol_status in ("CLIMAX", "HIGH") and in_buy_half:
+        vol_pts = 24
+    elif rvol_status == "LOW" and current_price <= fib_levels["61.8%"]:
+        vol_pts = 18  # Secado de oferta en nivel áureo
+    else:
+        vol_pts = 10
+
+    if has_sweep:
+        sweep_pts = 30
+    elif is_equal_lows and 0 <= ssl_dist_pct <= 4.0:
+        sweep_pts = 18
+    elif 0 <= ssl_dist_pct <= 3.0:
+        sweep_pts = 14
+    else:
+        sweep_pts = 8
+
+    liquidity_score = max(0, min(100, poc_pts + vol_pts + sweep_pts))
+
+    bonus_pts = 0
+    if has_sweep:
+        bonus_pts += 4
+    if has_absorption:
+        bonus_pts += 3
+    if (near_poc and current_price <= fib_levels["38.2%"]) or (in_buy_half and fib_poc_confluence["has_confluence"]):
+        bonus_pts += 3
+    liquidity_bonus_pts = min(9, bonus_pts)
+
+    if has_sweep and has_absorption:
+        liquidity_code = "SWEEP_ABSORPTION"
+        liquidity_verdict = "🔥 Barrido de Stops + Absorción Institucional"
+    elif has_sweep:
+        liquidity_code = "SWEEP"
+        liquidity_verdict = "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+    elif has_absorption:
+        liquidity_code = "ABSORPTION"
+        liquidity_verdict = "🐋 Absorción Institucional en Retroceso"
+    elif near_poc:
+        liquidity_code = "AT_POC"
+        liquidity_verdict = "🏦 Cotizando sobre Muro POC de Liquidez"
+    elif fib_poc_confluence["has_confluence"]:
+        liquidity_code = "FIB_POC"
+        wall_name = "Muro POC" if fib_poc_confluence.get("is_poc") else "Liquidez HVN"
+        liquidity_verdict = f"🏦 Soporte {fib_poc_confluence['level']} respaldado por {wall_name}"
+    elif is_equal_lows and 0 < ssl_dist_pct <= 3.8:
+        liquidity_code = "EQL_MAGNET"
+        liquidity_verdict = "⚠️ Doble Suelo cercano (Imán de Stops debajo)"
+    elif current_price < val_price:
+        liquidity_code = "BELOW_VAL"
+        liquidity_verdict = "💎 Descuento bajo Área de Valor (VAL)"
+    else:
+        liquidity_code = "NORMAL"
+        liquidity_verdict = "💧 Flujo de Liquidez Normal"
+
+    all_distinct_lows = sorted({round(float(p), decimals) for _, p in swing_lows} | {round(lo, decimals)})
+
+    return {
+        "profile_type": profile_type,
+        "has_real_volume": has_real_volume,
+        "poc_price": poc_price,
+        "poc_pct_pos": poc_pct_pos,
+        "poc_dist_pct": poc_dist_pct,
+        "val_price": val_price,
+        "vah_price": vah_price,
+        "fib_liquidity": fib_liquidity,
+        "fib_poc_confluence": fib_poc_confluence,
+        "rvol": rvol,
+        "peak_rvol_3d": peak_rvol_3d,
+        "rvol_status": rvol_status,
+        "rvol_label": rvol_label,
+        "has_absorption": has_absorption,
+        "absorption_label": absorption_label,
+        "ssl_pool_price": ssl_pool_price,
+        "ssl_dist_pct": ssl_dist_pct,
+        "ssl_type": ssl_type,
+        "ssl_type_label": ssl_type_label,
+        "is_equal_lows": is_equal_lows,
+        "all_swing_lows": all_distinct_lows,
+        "has_sweep": has_sweep,
+        "sweep_price": sweep_price,
+        "sweep_date": sweep_date,
+        "sweep_bars_ago": sweep_bars_ago,
+        "sweep_label": sweep_label,
+        "liquidity_score": liquidity_score,
+        "liquidity_bonus_pts": liquidity_bonus_pts,
+        "liquidity_code": liquidity_code,
+        "liquidity_verdict": liquidity_verdict
+    }
+
+
 def _compute_timeframe_snapshot(
     hist,
     period,
@@ -586,7 +1047,19 @@ def _compute_timeframe_snapshot(
     if earnings_info and earnings_info.get("warning_level") == "IMMINENT" and earnings_info.get("days_until", 99) <= 3:
         earnings_pts = -5
 
-    total_score = max(0, min(100, fibo_pts + rsi_pts + sma_pts + drop_pts + swing_pts + earnings_pts))
+    # MOTOR DE LIQUIDEZ INSTITUCIONAL (Volume Profile POC + RVOL/Absorción + Piscinas SSL & Sweep)
+    liquidity_data = compute_liquidity_metrics(
+        fibo_hist=fibo_hist,
+        full_hist=hist,
+        fib_levels=fib_levels,
+        current_price=current_price,
+        currency=currency,
+        decimals=decimals
+    )
+    liquidity_pts = int(liquidity_data.get("liquidity_bonus_pts", 0))
+    all_swing_lows = liquidity_data.pop("all_swing_lows", [round(lo, decimals)])
+
+    total_score = max(0, min(100, fibo_pts + rsi_pts + sma_pts + drop_pts + swing_pts + earnings_pts + liquidity_pts))
 
     if total_score >= 80:
         confluence_rating = "🔥 CONFLUENCIA MÁXIMA"
@@ -601,7 +1074,7 @@ def _compute_timeframe_snapshot(
         confluence_rating = "⚪ NEUTRAL / CARO"
         confluence_code = "LOW"
 
-    # MÓDULO DE GESTIÓN DE RIESGO PROFESIONAL (Estructural Fibonacci + Volatilidad ATR 14)
+    # MÓDULO DE GESTIÓN DE RIESGO PROFESIONAL (Estructural Fibonacci + Volatilidad ATR 14 + Piscina Liquidez SSL)
     fib_61 = fib_levels["61.8%"]
     fib_78 = fib_levels["78.6%"]
     fib_38 = fib_levels["38.2%"]
@@ -636,17 +1109,32 @@ def _compute_timeframe_snapshot(
     atr_risk_per_share = round(max(min_unit_risk, entry_price - atr_stop_loss), decimals)
     atr_risk_pct = round(((entry_price - atr_stop_loss) / entry_price) * 100, 2) if entry_price > 0 else risk_pct
 
+    # 3) Stop Loss Protegido Bajo Piscina de Liquidez (SSL Pool - 0.5x ATR)
+    lows_below_entry = [p for p in all_swing_lows if p < entry_price * 0.996]
+    entry_ssl_pool = max(lows_below_entry) if lows_below_entry else min(lo, entry_price * 0.97)
+    ssl_buffer = (0.55 * atr_14) if atr_14 > 0 else (entry_ssl_pool * 0.012)
+    ssl_sl_raw = entry_ssl_pool - ssl_buffer
+    if ssl_sl_raw <= 0 or ssl_sl_raw >= entry_price:
+        ssl_sl_raw = entry_price * 0.955
+    if (entry_price - ssl_sl_raw) > (entry_price * 0.24):
+        ssl_sl_raw = entry_price * 0.84
+    ssl_stop_loss = round(ssl_sl_raw, decimals)
+    ssl_risk_per_share = round(max(min_unit_risk, entry_price - ssl_stop_loss), decimals)
+    ssl_risk_pct = round(((entry_price - ssl_stop_loss) / entry_price) * 100, 2) if entry_price > 0 else risk_pct
+
     tp1 = round(max(fib_38, entry_price * 1.05), decimals)
     reward_1 = round(tp1 - entry_price, decimals)
     reward_1_pct = round(((tp1 - entry_price) / entry_price) * 100, 2)
     rr_ratio_1 = round(reward_1 / risk_per_share, 2) if risk_per_share > 0 else 1.0
     atr_rr_ratio_1 = round(reward_1 / atr_risk_per_share, 2) if atr_risk_per_share > 0 else rr_ratio_1
+    ssl_rr_ratio_1 = round(reward_1 / ssl_risk_per_share, 2) if ssl_risk_per_share > 0 else rr_ratio_1
 
     tp2 = round(max(hi, tp1 * 1.04), decimals)
     reward_2 = round(tp2 - entry_price, decimals)
     reward_2_pct = round(((tp2 - entry_price) / entry_price) * 100, 2)
     rr_ratio_2 = round(reward_2 / risk_per_share, 2) if risk_per_share > 0 else 2.5
     atr_rr_ratio_2 = round(reward_2 / atr_risk_per_share, 2) if atr_risk_per_share > 0 else rr_ratio_2
+    ssl_rr_ratio_2 = round(reward_2 / ssl_risk_per_share, 2) if ssl_risk_per_share > 0 else rr_ratio_2
 
     if rr_ratio_2 >= 3.0:
         rr_rating = "⭐ Excelente (R:R > 1:3)"
@@ -675,6 +1163,12 @@ def _compute_timeframe_snapshot(
         "atr_risk_pct": atr_risk_pct,
         "atr_rr_ratio_1": atr_rr_ratio_1,
         "atr_rr_ratio_2": atr_rr_ratio_2,
+        "ssl_pool_ref": round(float(entry_ssl_pool), decimals),
+        "ssl_stop_loss": ssl_stop_loss,
+        "ssl_risk_per_share": ssl_risk_per_share,
+        "ssl_risk_pct": ssl_risk_pct,
+        "ssl_rr_ratio_1": ssl_rr_ratio_1,
+        "ssl_rr_ratio_2": ssl_rr_ratio_2,
         "take_profit_1": tp1,
         "reward_1_pct": reward_1_pct,
         "rr_ratio_1": rr_ratio_1,
@@ -790,6 +1284,7 @@ def _compute_timeframe_snapshot(
         "score": total_score,
         "confluence_rating": confluence_rating,
         "confluence_code": confluence_code,
+        "liquidity": liquidity_data,
         "risk_mgmt": risk_mgmt,
         "sell_mgmt": sell_mgmt
     }
@@ -1073,32 +1568,45 @@ def switch_cached_period(new_period):
         return payload
 
 def print_summary_table(results, period, timestamp, sentiment=None):
-    print("\n" + "=" * 118)
-    print(f"📊 REPORTE DE MERCADO, FIBONACCI & CONFLUENCIA TÉCNICA - {timestamp}")
-    print(f"Ventana Fibonacci: {period} | Indicadores: Wilder's RSI(14) + SMA 200 + Estructura de Impulso")
+    print("\n" + "=" * 134)
+    print(f"📊 REPORTE DE MERCADO, FIBONACCI & LIQUIDEZ INSTITUCIONAL - {timestamp}")
+    print(f"Ventana Fibonacci: {period} | Indicadores: Wilder's RSI(14) + SMA 200 + Volume Profile POC + RVOL + Sweep SMC")
     if sentiment:
         s_score = sentiment.get("score", 50)
         s_rating = sentiment.get("rating_es", "Neutral")
         s_icon = sentiment.get("icon", "🌡️")
         s_adv = sentiment.get("advice", "")
         print(f"🌡️ Sentimiento CNN Fear & Greed: {s_score}/100 {s_icon} [{s_rating}] -> {s_adv}")
-    print("=" * 118)
-    print(f"{'Activo':<10} {'Ticker':<9} {'Precio':>11} {'Caída %':>9} {'RSI':>6} {'SMA 200':>11} {'Dist SMA':>9} {'Score':>7} {'Impulso':<18} {'Confluencia':<20}")
-    print("-" * 118)
+    print("=" * 134)
+    print(f"{'Activo':<10} {'Ticker':<9} {'Precio':>11} {'Caída %':>8} {'RSI':>5} {'Muro POC':>11} {'RVOL':>7} {'Score':>7} {'Liquidez SMC':<20} {'Confluencia':<20}")
+    print("-" * 134)
 
     for r in results:
         curr = r.get("currency", "$")
         dec = r.get("decimals", 2)
+        liq = r.get("liquidity") or {}
         curr_str = f"{curr}{r['current_price']:,.{dec}f}"
         drop_str = f"-{r['drop_pct']:.1f}%"
         rsi_str = f"{r.get('rsi', 0):.1f}"
-        sma_str = f"{curr}{r.get('sma_200', 0):,.{dec}f}"
-        dist_str = f"{r.get('sma_dist_pct', 0):+.1f}%"
+        poc_val = liq.get("poc_price", r["current_price"])
+        poc_str = f"{curr}{poc_val:,.{dec}f}"
+        rvol_str = f"{liq.get('rvol', 0):.2f}x" if liq.get("has_real_volume") else "TPO"
         score_str = f"{r.get('score', 0)}/100"
-        swing_short = "🐂 Alcista" if r.get("swing_type") == "BULLISH_PULLBACK" else ("⚠️ Caída Act." if r.get("swing_type") == "FALLING_KNIFE" else "🔄 Rebote")
-        print(f"{r['tab']:<10} {r['ticker']:<9} {curr_str:>11} {drop_str:>9} {rsi_str:>6} {sma_str:>11} {dist_str:>9} {score_str:>7} {swing_short:<18} {r.get('confluence_rating', ''):<20}")
+        if liq.get("has_sweep"):
+            liq_short = "🧲 Barrido Stops"
+        elif liq.get("has_absorption"):
+            liq_short = "🐋 Absorción Inst."
+        elif abs(liq.get("poc_dist_pct", 99)) <= 2.2:
+            liq_short = "🏦 En Muro POC"
+        elif liq.get("fib_poc_confluence", {}).get("has_confluence"):
+            fpc = liq["fib_poc_confluence"]
+            tag_name = "POC" if fpc.get("is_poc") else "HVN"
+            liq_short = f"🏦 {tag_name} en {fpc['level']}"
+        else:
+            liq_short = f"💧 Liq {liq.get('liquidity_score', 0)}/100"
+        print(f"{r['tab']:<10} {r['ticker']:<9} {curr_str:>11} {drop_str:>8} {rsi_str:>5} {poc_str:>11} {rvol_str:>7} {score_str:>7} {liq_short:<20} {r.get('confluence_rating', ''):<20}")
 
-    print("=" * 118)
+    print("=" * 134)
 
 def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
     with SYNC_LOCK:

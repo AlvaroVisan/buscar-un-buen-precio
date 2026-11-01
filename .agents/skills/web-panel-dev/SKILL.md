@@ -31,8 +31,9 @@ Servidor Flask en `http://localhost:5050` con bloqueo de concurrencia (`_update_
    - **Badges técnicos**: RSI(14), Tendencia (`Alcista`/`Bajista`), Confluencia Multi-Timeframe (`🔥 CONFLUENCIA`) y alerta de Resultados (`⚠️ Resultados en Xd`).
    - **Posición en Cartera**: Si el usuario tiene acciones del activo, muestra badge `💼 En Cartera (X acc. · Peso Y%)` y banda con Precio Medio, P&L latente y Stop Loss ATR.
    - **Sparkline SVG Interactiva**: Línea de precios con bandas horizontales discontinuas para el `50%`, `61.8%` y `78.6%` de Fibonacci.
-   - **Escalera de Fibonacci con Clic-para-Copiar**: Al hacer clic en cualquier fila `.fib-step`, copia el precio exacto al portapapeles.
-   - **Acciones Rápidas**: Botón `💼 Comprar / DCA`, `🧮 Calc. Posición` (con Stop Loss `2x ATR(14)` autocompletado) y enlace limpio a TradingView (`getTradingViewUrl`).
+   - **Escalera de Fibonacci con Volume Profile y Clic-para-Copiar**: Cada fila `.fib-row` muestra su barra horizontal de densidad de liquidez (`.fib-vol-bar` y badge `🏦 POC` / `🏦 %` / `🕳️ LVN`) y copia el precio exacto al portapapeles al hacer clic (`data-copy-price`).
+   - **Panel de Liquidez Institucional (`.liquidity-engine-card`)**: Muestra Muro POC (con pin `.range-poc-pin` sobre la barra de rango), `RVOL (20d)`, Piscina de Stops (`SSL`) y veredicto institucional, además de chip de filtro `🏦 Liquidez / Barrido` y ordenación por Liquidez o RVOL.
+   - **Acciones Rápidas**: Botón `💼 Cartera`, `🧮 Calcular Posición` (con 3 métodos de Stop Loss: `78.6% Fib`, `2x ATR(14)` y `🧲 Bajo Piscina Liquidez SSL`) y enlace limpio a TradingView (`getTradingViewSymbol`).
 4. **Modales Interactivos**:
    - **💼 Mi Cartera Real (`#portfolioModal`)**: Resumen de Valor Total, P&L Abierto/Cerrado, tabla de posiciones abiertas con barra de peso, acciones de DCA/Cerrar/Borrar e historial de operaciones cerradas.
    - **📈 Efectividad de Señales (`#journalModal`)**: Win-Rate y tabla comparativa de retorno al cierre (`Close`) y pico máximo (`Máx`) a `+7d`, `+15d` y `+30d`.

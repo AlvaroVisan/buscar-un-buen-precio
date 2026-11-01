@@ -46,6 +46,7 @@ python telegram_notifier.py --listen
 Comandos disponibles (restringidos exclusivamente al `chat_id` autorizado):
 - `/precios` o `/resumen`: Lista todos los activos con su precio actual, posición en rango y estado.
 - `/compras` o `/oportunidades`: Filtra activos en zona de compra (`<= 61.8%`) o con Confluencia Multi-Timeframe (`🔥 CLUSTER`).
+- `/liquidez`, `/poc` o `/smc`: Radar institucional con Muro POC (Volume Profile), Volumen Relativo (`RVOL`), Absorción de Ballenas, Barridos de Stops (Spring SMC) y Piscinas de Liquidez (`SSL`).
 - `/activos`: Muestra la lista de activos monitorizados y el periodo activo.
 - `/cartera`: Consulta en vivo `portfolio_manager.py` y responde con el P&L latente, valor total y desglose de posiciones abiertas.
 - `/actualizar`: Lanza `python market_updater.py --force` en segundo plano y responde al terminar con las oportunidades detectadas.
@@ -58,3 +59,4 @@ Comandos disponibles (restringidos exclusivamente al `chat_id` autorizado):
   python telegram_notifier.py --test
   ```
 - **Desde el Panel Web**: Botón de campana `🔔` en la cabecera (`POST /api/telegram/test`).
+

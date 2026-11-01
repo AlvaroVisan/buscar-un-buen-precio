@@ -131,7 +131,7 @@
           <span class="kpi-value text-fire" id="kpiTopScore">0/100</span>
           <span class="kpi-badge badge-fire" id="kpiTopScoreName">--</span>
         </div>
-        <span class="kpi-sub" id="kpiTopScoreDesc">Fibonacci + RSI(14) + SMA 200</span>
+        <span class="kpi-sub" id="kpiTopScoreDesc">Fibonacci + RSI(14) + SMA 200 + Liquidez</span>
       </div>
 
       <!-- KPI Sentimiento de Mercado (CNN Fear & Greed) -->
@@ -238,6 +238,7 @@
         <span class="legend-tag tag-teal">🟢 50.0% Buen Descuento</span>
         <span class="legend-tag tag-gold">🏆 61.8% Proporción Áurea (Entrada Óptima)</span>
         <span class="legend-tag tag-cyan">💎 78.6% Soporte Extremo</span>
+        <span class="legend-tag tag-liquidity">🏦 Liquidez Institucional (POC / RVOL / Sweep)</span>
       </div>
     </section>
 
@@ -294,6 +295,10 @@
             <span class="chip-dot dot-gold"></span>
             Zona Áurea (61.8%) <span class="chip-count" id="countGolden">0</span>
           </button>
+          <button class="chip-btn chip-liquidity" data-filter="LIQUIDITY">
+            <span class="chip-dot dot-liquidity"></span>
+            🏦 Liquidez / Barrido <span class="chip-count" id="countLiquidity">0</span>
+          </button>
           <button class="chip-btn chip-yellow" data-filter="WATCH">
             <span class="chip-dot dot-yellow"></span>
             En Observación <span class="chip-count" id="countWatch">0</span>
@@ -307,6 +312,8 @@
           </span>
           <select id="sortSelect" class="sort-select">
             <option value="score_desc">🔥 Mayor Score Técnico (0-100)</option>
+            <option value="liquidity_desc">🏦 Mayor Liquidez Institucional (0-100)</option>
+            <option value="rvol_desc">🐋 Mayor Volumen Relativo (RVOL)</option>
             <option value="drop_desc">Mayor Caída %</option>
             <option value="rsi_asc">RSI Más Bajo (Sobreventa)</option>
             <option value="drop_asc">Menor Caída %</option>
@@ -668,6 +675,7 @@
           <div class="sl-mode-buttons">
             <button type="button" class="btn-sl-mode active" data-sl-mode="FIBO">📐 Estructural Fibonacci (78.6%)</button>
             <button type="button" class="btn-sl-mode" data-sl-mode="ATR">🌊 Volatilidad Dinámica (2x ATR)</button>
+            <button type="button" class="btn-sl-mode" data-sl-mode="SSL">🧲 Bajo Piscina Liquidez (SSL)</button>
           </div>
         </div>
 

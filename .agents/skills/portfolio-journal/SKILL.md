@@ -39,3 +39,4 @@ Esta skill documenta el funcionamiento de la cartera real (`portfolio_manager.py
    - Excluye el mismo día de entrada (`hist.index.date > signal_dt.date()`) para evitar contaminar el retorno con el máximo intradía previo a la señal.
    - Guarda tanto el retorno al cierre (`return_7d_close`) como la excursión máxima favorable (`max_return_7d` usando `High`).
 3. **Win-Rate honesto**: Una señal se considera ganadora (`is_winner = True`) si el retorno al cierre más reciente disponible es `>= +1.5%` o si el pico máximo intradía en ventana fue `>= +3.5%`.
+

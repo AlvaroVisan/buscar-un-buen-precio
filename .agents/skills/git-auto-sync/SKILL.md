@@ -35,3 +35,4 @@ Además, verifica que [config.json](file:///e:/Proyectos/Buscar%20un%20buen%20pr
    git push
    ```
    *(Nota: En el entorno Windows de este proyecto, `.git/index.lock` y la salida de red de `git push` pueden requerir ejecutar el comando fuera del sandbox si el modo estándar devuelve `Permission denied` o `Failed to connect`).*
+

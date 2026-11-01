@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-01 01:54:12",
+  "timestamp": "2026-11-01 02:33:18",
   "period": "3mo",
   "market_sentiment": {
     "score": 26.2,
@@ -101,9 +101,78 @@
         "61.8%": 513.61,
         "78.6%": 474.21
       },
-      "score": 86,
+      "score": 93,
       "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
       "confluence_code": "MAX_CONFLUENCE",
+      "liquidity": {
+        "profile_type": "VOLUME",
+        "has_real_volume": true,
+        "poc_price": 487.54,
+        "poc_pct_pos": 27.1,
+        "poc_dist_pct": 3.54,
+        "val_price": 443.57,
+        "vah_price": 560.82,
+        "fib_liquidity": {
+          "23.6%": {
+            "strength_pct": 36,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "38.2%": {
+            "strength_pct": 16,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          },
+          "50.0%": {
+            "strength_pct": 37,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "61.8%": {
+            "strength_pct": 78,
+            "tier": "HIGH",
+            "badge": "🏦 Alta Liq.",
+            "is_poc": false
+          },
+          "78.6%": {
+            "strength_pct": 94,
+            "tier": "HIGH",
+            "badge": "🏦 Alta Liq.",
+            "is_poc": false
+          }
+        },
+        "fib_poc_confluence": {
+          "has_confluence": true,
+          "level": "61.8%",
+          "price": 513.61,
+          "strength_pct": 78,
+          "is_poc": false,
+          "label": "🏦 Liquidez HVN en 61.8% ($513.61)"
+        },
+        "rvol": 2.03,
+        "peak_rvol_3d": 2.03,
+        "rvol_status": "CLIMAX",
+        "rvol_label": "2.03x 🔥 Clímax",
+        "has_absorption": false,
+        "absorption_label": "",
+        "ssl_pool_price": 502.6,
+        "ssl_dist_pct": 0.44,
+        "ssl_type": "SWING_LOW",
+        "ssl_type_label": "Swing Low (Stops)",
+        "is_equal_lows": false,
+        "has_sweep": true,
+        "sweep_price": 502.6,
+        "sweep_date": "2026-10-30",
+        "sweep_bars_ago": 0,
+        "sweep_label": "🧲 Barrido de Stops ($502.60)",
+        "liquidity_score": 82,
+        "liquidity_bonus_pts": 7,
+        "liquidity_code": "SWEEP",
+        "liquidity_verdict": "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+      },
       "risk_mgmt": {
         "entry_price": 504.8,
         "entry_type": "MARKET",
@@ -118,6 +187,12 @@
         "atr_risk_pct": 11.66,
         "atr_rr_ratio_1": 1.09,
         "atr_rr_ratio_2": 2.61,
+        "ssl_pool_ref": 502.6,
+        "ssl_stop_loss": 486.41,
+        "ssl_risk_per_share": 18.39,
+        "ssl_risk_pct": 3.64,
+        "ssl_rr_ratio_1": 3.49,
+        "ssl_rr_ratio_2": 8.36,
         "take_profit_1": 568.94,
         "reward_1_pct": 12.71,
         "rr_ratio_1": 0.74,
@@ -304,9 +379,78 @@
             "61.8%": 555.74,
             "78.6%": 527.8
           },
-          "score": 78,
-          "confluence_rating": "🟢 ALTA PROBABILIDAD",
-          "confluence_code": "HIGH_PROB",
+          "score": 85,
+          "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
+          "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 613.48,
+            "poc_pct_pos": 72.9,
+            "poc_dist_pct": -17.72,
+            "val_price": 540.72,
+            "vah_price": 651.59,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "38.2%": {
+                "strength_pct": 42,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 62,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 78,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 47,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 555.74,
+              "strength_pct": 78,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 61.8% ($555.74)"
+            },
+            "rvol": 2.03,
+            "peak_rvol_3d": 2.03,
+            "rvol_status": "CLIMAX",
+            "rvol_label": "2.03x 🔥 Clímax",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 502.6,
+            "ssl_dist_pct": 0.44,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": true,
+            "sweep_price": 502.6,
+            "sweep_date": "2026-10-30",
+            "sweep_bars_ago": 0,
+            "sweep_label": "🧲 Barrido de Stops ($502.60)",
+            "liquidity_score": 82,
+            "liquidity_bonus_pts": 7,
+            "liquidity_code": "SWEEP",
+            "liquidity_verdict": "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+          },
           "risk_mgmt": {
             "entry_price": 504.8,
             "entry_type": "MARKET",
@@ -321,6 +465,12 @@
             "atr_risk_pct": 11.66,
             "atr_rr_ratio_1": 1.53,
             "atr_rr_ratio_2": 2.61,
+            "ssl_pool_ref": 502.6,
+            "ssl_stop_loss": 486.41,
+            "ssl_risk_per_share": 18.39,
+            "ssl_risk_pct": 3.64,
+            "ssl_rr_ratio_1": 4.9,
+            "ssl_rr_ratio_2": 8.36,
             "take_profit_1": 594.99,
             "reward_1_pct": 17.87,
             "rr_ratio_1": 4.52,
@@ -368,9 +518,78 @@
             "61.8%": 513.61,
             "78.6%": 474.21
           },
-          "score": 86,
+          "score": 93,
           "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
           "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 487.54,
+            "poc_pct_pos": 27.1,
+            "poc_dist_pct": 3.54,
+            "val_price": 443.57,
+            "vah_price": 560.82,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 36,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 16,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 37,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 78,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 94,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 513.61,
+              "strength_pct": 78,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 61.8% ($513.61)"
+            },
+            "rvol": 2.03,
+            "peak_rvol_3d": 2.03,
+            "rvol_status": "CLIMAX",
+            "rvol_label": "2.03x 🔥 Clímax",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 502.6,
+            "ssl_dist_pct": 0.44,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": true,
+            "sweep_price": 502.6,
+            "sweep_date": "2026-10-30",
+            "sweep_bars_ago": 0,
+            "sweep_label": "🧲 Barrido de Stops ($502.60)",
+            "liquidity_score": 82,
+            "liquidity_bonus_pts": 7,
+            "liquidity_code": "SWEEP",
+            "liquidity_verdict": "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+          },
           "risk_mgmt": {
             "entry_price": 504.8,
             "entry_type": "MARKET",
@@ -385,6 +604,12 @@
             "atr_risk_pct": 11.66,
             "atr_rr_ratio_1": 1.09,
             "atr_rr_ratio_2": 2.61,
+            "ssl_pool_ref": 502.6,
+            "ssl_stop_loss": 486.41,
+            "ssl_risk_per_share": 18.39,
+            "ssl_risk_pct": 3.64,
+            "ssl_rr_ratio_1": 3.49,
+            "ssl_rr_ratio_2": 8.36,
             "take_profit_1": 568.94,
             "reward_1_pct": 12.71,
             "rr_ratio_1": 0.74,
@@ -432,9 +657,78 @@
             "61.8%": 443.13,
             "78.6%": 384.58
           },
-          "score": 61,
-          "confluence_rating": "🟡 MODERADA / SEGUIMIENTO",
-          "confluence_code": "MODERATE",
+          "score": 65,
+          "confluence_rating": "🟢 ALTA PROBABILIDAD",
+          "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 520.56,
+            "poc_pct_pos": 60.4,
+            "poc_dist_pct": -3.03,
+            "val_price": 426.17,
+            "vah_price": 556.87,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 17,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 100,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "50.0%": {
+                "strength_pct": 68,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 40,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 6,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": false,
+              "level": null,
+              "price": null,
+              "strength_pct": 0,
+              "is_poc": false,
+              "label": ""
+            },
+            "rvol": 2.03,
+            "peak_rvol_3d": 2.03,
+            "rvol_status": "CLIMAX",
+            "rvol_label": "2.03x 🔥 Clímax",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 498.15,
+            "ssl_dist_pct": 1.32,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": true,
+            "sweep_price": 502.6,
+            "sweep_date": "2026-10-30",
+            "sweep_bars_ago": 0,
+            "sweep_label": "🧲 Barrido de Stops ($502.60)",
+            "liquidity_score": 62,
+            "liquidity_bonus_pts": 4,
+            "liquidity_code": "SWEEP",
+            "liquidity_verdict": "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+          },
           "risk_mgmt": {
             "entry_price": 443.13,
             "entry_type": "LIMIT_618",
@@ -449,6 +743,12 @@
             "atr_risk_pct": 13.29,
             "atr_rr_ratio_1": 1.4,
             "atr_rr_ratio_2": 3.66,
+            "ssl_pool_ref": 440.5,
+            "ssl_stop_loss": 424.31,
+            "ssl_risk_per_share": 18.82,
+            "ssl_risk_pct": 4.25,
+            "ssl_rr_ratio_1": 4.37,
+            "ssl_rr_ratio_2": 11.44,
             "take_profit_1": 525.39,
             "reward_1_pct": 18.56,
             "rr_ratio_1": 0.6,
@@ -496,9 +796,78 @@
             "61.8%": 367.87,
             "78.6%": 288.86
           },
-          "score": 51,
+          "score": 55,
           "confluence_rating": "🟡 MODERADA / SEGUIMIENTO",
           "confluence_code": "MODERATE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 217.61,
+            "poc_pct_pos": 6.2,
+            "poc_dist_pct": 131.97,
+            "val_price": 188.22,
+            "vah_price": 482.16,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 28,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 26,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 10,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 13,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 10,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": false,
+              "level": null,
+              "price": null,
+              "strength_pct": 0,
+              "is_poc": false,
+              "label": ""
+            },
+            "rvol": 2.03,
+            "peak_rvol_3d": 2.03,
+            "rvol_status": "CLIMAX",
+            "rvol_label": "2.03x 🔥 Clímax",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 498.15,
+            "ssl_dist_pct": 1.32,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": true,
+            "sweep_price": 502.6,
+            "sweep_date": "2026-10-30",
+            "sweep_bars_ago": 0,
+            "sweep_label": "🧲 Barrido de Stops ($502.60)",
+            "liquidity_score": 52,
+            "liquidity_bonus_pts": 4,
+            "liquidity_code": "SWEEP",
+            "liquidity_verdict": "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+          },
           "risk_mgmt": {
             "entry_price": 367.87,
             "entry_type": "LIMIT_618",
@@ -513,6 +882,12 @@
             "atr_risk_pct": 16.01,
             "atr_rr_ratio_1": 1.89,
             "atr_rr_ratio_2": 4.94,
+            "ssl_pool_ref": 310.0,
+            "ssl_stop_loss": 293.81,
+            "ssl_risk_per_share": 74.06,
+            "ssl_risk_pct": 20.13,
+            "ssl_rr_ratio_1": 1.5,
+            "ssl_rr_ratio_2": 3.92,
             "take_profit_1": 478.87,
             "reward_1_pct": 30.17,
             "rr_ratio_1": 0.61,
@@ -568,9 +943,78 @@
         "61.8%": 621.77,
         "78.6%": 578.81
       },
-      "score": 89,
+      "score": 92,
       "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
       "confluence_code": "MAX_CONFLUENCE",
+      "liquidity": {
+        "profile_type": "VOLUME",
+        "has_real_volume": true,
+        "poc_price": 731.87,
+        "poc_pct_pos": 81.3,
+        "poc_dist_pct": -15.97,
+        "val_price": 588.01,
+        "vah_price": 758.51,
+        "fib_liquidity": {
+          "23.6%": {
+            "strength_pct": 59,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "38.2%": {
+            "strength_pct": 38,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "50.0%": {
+            "strength_pct": 57,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "61.8%": {
+            "strength_pct": 83,
+            "tier": "HIGH",
+            "badge": "🏦 Alta Liq.",
+            "is_poc": false
+          },
+          "78.6%": {
+            "strength_pct": 87,
+            "tier": "HIGH",
+            "badge": "🏦 Alta Liq.",
+            "is_poc": false
+          }
+        },
+        "fib_poc_confluence": {
+          "has_confluence": true,
+          "level": "61.8%",
+          "price": 621.77,
+          "strength_pct": 83,
+          "is_poc": false,
+          "label": "🏦 Liquidez HVN en 61.8% ($621.77)"
+        },
+        "rvol": 1.12,
+        "peak_rvol_3d": 1.56,
+        "rvol_status": "NORMAL",
+        "rvol_label": "1.12x Normal",
+        "has_absorption": false,
+        "absorption_label": "",
+        "ssl_pool_price": 609.0,
+        "ssl_dist_pct": 0.97,
+        "ssl_type": "SWING_LOW",
+        "ssl_type_label": "Swing Low (Stops)",
+        "is_equal_lows": false,
+        "has_sweep": false,
+        "sweep_price": null,
+        "sweep_date": null,
+        "sweep_bars_ago": null,
+        "sweep_label": "",
+        "liquidity_score": 52,
+        "liquidity_bonus_pts": 3,
+        "liquidity_code": "FIB_POC",
+        "liquidity_verdict": "🏦 Soporte 61.8% respaldado por Liquidez HVN"
+      },
       "risk_mgmt": {
         "entry_price": 614.99,
         "entry_type": "MARKET",
@@ -585,6 +1029,12 @@
         "atr_risk_pct": 7.57,
         "atr_rr_ratio_1": 1.44,
         "atr_rr_ratio_2": 3.54,
+        "ssl_pool_ref": 609.0,
+        "ssl_stop_loss": 596.19,
+        "ssl_risk_per_share": 18.8,
+        "ssl_risk_pct": 3.06,
+        "ssl_rr_ratio_1": 3.57,
+        "ssl_rr_ratio_2": 8.77,
         "take_profit_1": 682.13,
         "reward_1_pct": 10.92,
         "rr_ratio_1": 0.68,
@@ -741,9 +1191,78 @@
             "61.8%": 670.99,
             "78.6%": 643.73
           },
-          "score": 76,
+          "score": 79,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 619.14,
+            "poc_pct_pos": 6.2,
+            "poc_dist_pct": -0.67,
+            "val_price": 609.0,
+            "vah_price": 730.7,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 82,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 38,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 26,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 6,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 24,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": false,
+              "level": null,
+              "price": null,
+              "strength_pct": 0,
+              "is_poc": false,
+              "label": ""
+            },
+            "rvol": 1.12,
+            "peak_rvol_3d": 1.56,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.12x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 609.0,
+            "ssl_dist_pct": 0.97,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 62,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
             "entry_price": 614.99,
             "entry_type": "MARKET",
@@ -758,6 +1277,12 @@
             "atr_risk_pct": 7.57,
             "atr_rr_ratio_1": 2.02,
             "atr_rr_ratio_2": 3.36,
+            "ssl_pool_ref": 609.0,
+            "ssl_stop_loss": 596.19,
+            "ssl_risk_per_share": 18.8,
+            "ssl_risk_pct": 3.06,
+            "ssl_rr_ratio_1": 5.02,
+            "ssl_rr_ratio_2": 8.31,
             "take_profit_1": 709.28,
             "reward_1_pct": 15.33,
             "rr_ratio_1": 6.24,
@@ -805,9 +1330,78 @@
             "61.8%": 621.77,
             "78.6%": 578.81
           },
-          "score": 89,
+          "score": 92,
           "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
           "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 731.87,
+            "poc_pct_pos": 81.3,
+            "poc_dist_pct": -15.97,
+            "val_price": 588.01,
+            "vah_price": 758.51,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 59,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 38,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 57,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 83,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 87,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 621.77,
+              "strength_pct": 83,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 61.8% ($621.77)"
+            },
+            "rvol": 1.12,
+            "peak_rvol_3d": 1.56,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.12x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 609.0,
+            "ssl_dist_pct": 0.97,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 52,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 61.8% respaldado por Liquidez HVN"
+          },
           "risk_mgmt": {
             "entry_price": 614.99,
             "entry_type": "MARKET",
@@ -822,6 +1416,12 @@
             "atr_risk_pct": 7.57,
             "atr_rr_ratio_1": 1.44,
             "atr_rr_ratio_2": 3.54,
+            "ssl_pool_ref": 609.0,
+            "ssl_stop_loss": 596.19,
+            "ssl_risk_per_share": 18.8,
+            "ssl_risk_pct": 3.06,
+            "ssl_rr_ratio_1": 3.57,
+            "ssl_rr_ratio_2": 8.77,
             "take_profit_1": 682.13,
             "reward_1_pct": 10.92,
             "rr_ratio_1": 0.68,
@@ -869,9 +1469,78 @@
             "61.8%": 621.77,
             "78.6%": 578.81
           },
-          "score": 89,
+          "score": 92,
           "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
           "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 614.65,
+            "poc_pct_pos": 35.4,
+            "poc_dist_pct": 0.06,
+            "val_price": 545.39,
+            "vah_price": 673.26,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 20,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 21,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 29,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "78.6%": {
+                "strength_pct": 45,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 621.77,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 61.8% ($621.77)"
+            },
+            "rvol": 1.12,
+            "peak_rvol_3d": 1.56,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.12x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 555.66,
+            "ssl_dist_pct": 9.65,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 56,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
             "entry_price": 614.99,
             "entry_type": "MARKET",
@@ -886,6 +1555,12 @@
             "atr_risk_pct": 7.57,
             "atr_rr_ratio_1": 1.44,
             "atr_rr_ratio_2": 3.54,
+            "ssl_pool_ref": 609.0,
+            "ssl_stop_loss": 596.19,
+            "ssl_risk_per_share": 18.8,
+            "ssl_risk_pct": 3.06,
+            "ssl_rr_ratio_1": 3.57,
+            "ssl_rr_ratio_2": 8.77,
             "take_profit_1": 682.13,
             "reward_1_pct": 10.92,
             "rr_ratio_1": 0.68,
@@ -933,9 +1608,78 @@
             "61.8%": 618.86,
             "78.6%": 575.11
           },
-          "score": 89,
+          "score": 92,
           "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
           "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 611.61,
+            "poc_pct_pos": 35.4,
+            "poc_dist_pct": 0.55,
+            "val_price": 573.63,
+            "vah_price": 671.3,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 20,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 39,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 78,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "78.6%": {
+                "strength_pct": 41,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 618.86,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 61.8% ($618.86)"
+            },
+            "rvol": 1.12,
+            "peak_rvol_3d": 1.56,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.12x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 607.98,
+            "ssl_dist_pct": 1.14,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 66,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
             "entry_price": 614.99,
             "entry_type": "MARKET",
@@ -950,6 +1694,12 @@
             "atr_risk_pct": 7.57,
             "atr_rr_ratio_1": 1.4,
             "atr_rr_ratio_2": 3.54,
+            "ssl_pool_ref": 609.0,
+            "ssl_stop_loss": 596.19,
+            "ssl_risk_per_share": 18.8,
+            "ssl_risk_pct": 3.06,
+            "ssl_rr_ratio_1": 3.48,
+            "ssl_rr_ratio_2": 8.77,
             "take_profit_1": 680.33,
             "reward_1_pct": 10.62,
             "rr_ratio_1": 0.63,
@@ -1005,9 +1755,78 @@
         "61.8%": 271.11,
         "78.6%": 260.6
       },
-      "score": 70,
+      "score": 73,
       "confluence_rating": "🟢 ALTA PROBABILIDAD",
       "confluence_code": "HIGH_PROB",
+      "liquidity": {
+        "profile_type": "VOLUME",
+        "has_real_volume": true,
+        "poc_price": 264.15,
+        "poc_pct_pos": 27.1,
+        "poc_dist_pct": -0.67,
+        "val_price": 252.42,
+        "vah_price": 283.72,
+        "fib_liquidity": {
+          "23.6%": {
+            "strength_pct": 62,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "38.2%": {
+            "strength_pct": 31,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          },
+          "50.0%": {
+            "strength_pct": 50,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "61.8%": {
+            "strength_pct": 66,
+            "tier": "HIGH",
+            "badge": "🏦 Alta Liq.",
+            "is_poc": false
+          },
+          "78.6%": {
+            "strength_pct": 94,
+            "tier": "POC_WALL",
+            "badge": "🏦 Muro POC",
+            "is_poc": true
+          }
+        },
+        "fib_poc_confluence": {
+          "has_confluence": true,
+          "level": "78.6%",
+          "price": 260.6,
+          "strength_pct": 94,
+          "is_poc": true,
+          "label": "🏦 Muro POC en 78.6% ($260.60)"
+        },
+        "rvol": 0.77,
+        "peak_rvol_3d": 0.77,
+        "rvol_status": "NORMAL",
+        "rvol_label": "0.77x Normal",
+        "has_absorption": false,
+        "absorption_label": "",
+        "ssl_pool_price": 247.2,
+        "ssl_dist_pct": 5.79,
+        "ssl_type": "EQL",
+        "ssl_type_label": "Doble Suelo EQL",
+        "is_equal_lows": true,
+        "has_sweep": false,
+        "sweep_price": null,
+        "sweep_date": null,
+        "sweep_bars_ago": null,
+        "sweep_label": "",
+        "liquidity_score": 56,
+        "liquidity_bonus_pts": 3,
+        "liquidity_code": "AT_POC",
+        "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+      },
       "risk_mgmt": {
         "entry_price": 262.38,
         "entry_type": "MARKET",
@@ -1022,6 +1841,12 @@
         "atr_risk_pct": 9.1,
         "atr_rr_ratio_1": 0.98,
         "atr_rr_ratio_2": 1.99,
+        "ssl_pool_ref": 260.27,
+        "ssl_stop_loss": 253.7,
+        "ssl_risk_per_share": 8.68,
+        "ssl_risk_pct": 3.31,
+        "ssl_rr_ratio_1": 2.71,
+        "ssl_rr_ratio_2": 5.46,
         "take_profit_1": 285.89,
         "reward_1_pct": 8.96,
         "rr_ratio_1": 1.24,
@@ -1185,9 +2010,78 @@
             "61.8%": 271.11,
             "78.6%": 260.6
           },
-          "score": 70,
+          "score": 73,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 258.94,
+            "poc_pct_pos": 18.8,
+            "poc_dist_pct": 1.33,
+            "val_price": 247.2,
+            "vah_price": 291.54,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 87,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 17,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 15,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 40,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "78.6%",
+              "price": 260.6,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 78.6% ($260.60)"
+            },
+            "rvol": 0.77,
+            "peak_rvol_3d": 0.77,
+            "rvol_status": "NORMAL",
+            "rvol_label": "0.77x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 247.2,
+            "ssl_dist_pct": 5.79,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 56,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
             "entry_price": 262.38,
             "entry_type": "MARKET",
@@ -1202,6 +2096,12 @@
             "atr_risk_pct": 9.1,
             "atr_rr_ratio_1": 0.98,
             "atr_rr_ratio_2": 1.99,
+            "ssl_pool_ref": 247.2,
+            "ssl_stop_loss": 240.63,
+            "ssl_risk_per_share": 21.75,
+            "ssl_risk_pct": 8.29,
+            "ssl_rr_ratio_1": 1.08,
+            "ssl_rr_ratio_2": 2.18,
             "take_profit_1": 285.89,
             "reward_1_pct": 8.96,
             "rr_ratio_1": 1.24,
@@ -1249,9 +2149,78 @@
             "61.8%": 271.11,
             "78.6%": 260.6
           },
-          "score": 70,
+          "score": 73,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 264.15,
+            "poc_pct_pos": 27.1,
+            "poc_dist_pct": -0.67,
+            "val_price": 252.42,
+            "vah_price": 283.72,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 62,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 31,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 50,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 66,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "78.6%",
+              "price": 260.6,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 78.6% ($260.60)"
+            },
+            "rvol": 0.77,
+            "peak_rvol_3d": 0.77,
+            "rvol_status": "NORMAL",
+            "rvol_label": "0.77x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 247.2,
+            "ssl_dist_pct": 5.79,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 56,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
             "entry_price": 262.38,
             "entry_type": "MARKET",
@@ -1266,6 +2235,12 @@
             "atr_risk_pct": 9.1,
             "atr_rr_ratio_1": 0.98,
             "atr_rr_ratio_2": 1.99,
+            "ssl_pool_ref": 260.27,
+            "ssl_stop_loss": 253.7,
+            "ssl_risk_per_share": 8.68,
+            "ssl_risk_pct": 3.31,
+            "ssl_rr_ratio_1": 2.71,
+            "ssl_rr_ratio_2": 5.46,
             "take_profit_1": 285.89,
             "reward_1_pct": 8.96,
             "rr_ratio_1": 1.24,
@@ -1313,9 +2288,78 @@
             "61.8%": 266.29,
             "78.6%": 249.57
           },
-          "score": 68,
+          "score": 71,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 267.67,
+            "poc_pct_pos": 39.6,
+            "poc_dist_pct": -1.98,
+            "val_price": 249.01,
+            "vah_price": 290.47,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 32,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 31,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 65,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 100,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "78.6%": {
+                "strength_pct": 42,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 266.29,
+              "strength_pct": 100,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 61.8% ($266.29)"
+            },
+            "rvol": 0.77,
+            "peak_rvol_3d": 0.77,
+            "rvol_status": "NORMAL",
+            "rvol_label": "0.77x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 255.71,
+            "ssl_dist_pct": 2.54,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 66,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
             "entry_price": 262.38,
             "entry_type": "MARKET",
@@ -1330,6 +2374,12 @@
             "atr_risk_pct": 9.1,
             "atr_rr_ratio_1": 1.15,
             "atr_rr_ratio_2": 2.74,
+            "ssl_pool_ref": 260.27,
+            "ssl_stop_loss": 253.7,
+            "ssl_risk_per_share": 8.68,
+            "ssl_risk_pct": 3.31,
+            "ssl_rr_ratio_1": 3.16,
+            "ssl_rr_ratio_2": 7.54,
             "take_profit_1": 289.77,
             "reward_1_pct": 10.44,
             "rr_ratio_1": 0.73,
@@ -1377,9 +2427,78 @@
             "61.8%": 288.65,
             "78.6%": 262.1
           },
-          "score": 70,
+          "score": 73,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 271.08,
+            "poc_pct_pos": 27.1,
+            "poc_dist_pct": -3.21,
+            "val_price": 248.03,
+            "vah_price": 313.88,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 24,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 21,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 39,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 73,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 91,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 288.65,
+              "strength_pct": 73,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 61.8% ($288.65)"
+            },
+            "rvol": 0.77,
+            "peak_rvol_3d": 0.77,
+            "rvol_status": "NORMAL",
+            "rvol_label": "0.77x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 255.71,
+            "ssl_dist_pct": 2.54,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 56,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 61.8% respaldado por Liquidez HVN"
+          },
           "risk_mgmt": {
             "entry_price": 262.38,
             "entry_type": "MARKET",
@@ -1394,6 +2513,12 @@
             "atr_risk_pct": 9.1,
             "atr_rr_ratio_1": 2.66,
             "atr_rr_ratio_2": 5.19,
+            "ssl_pool_ref": 260.27,
+            "ssl_stop_loss": 253.7,
+            "ssl_risk_per_share": 8.68,
+            "ssl_risk_pct": 3.31,
+            "ssl_rr_ratio_1": 7.32,
+            "ssl_rr_ratio_2": 14.28,
             "take_profit_1": 325.94,
             "reward_1_pct": 24.22,
             "rr_ratio_1": 1.69,
@@ -1449,9 +2574,78 @@
         "61.8%": 210.26,
         "78.6%": 201.26
       },
-      "score": 92,
+      "score": 98,
       "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
       "confluence_code": "MAX_CONFLUENCE",
+      "liquidity": {
+        "profile_type": "VOLUME",
+        "has_real_volume": true,
+        "poc_price": 219.93,
+        "poc_pct_pos": 56.2,
+        "poc_dist_pct": -6.95,
+        "val_price": 209.89,
+        "vah_price": 229.98,
+        "fib_liquidity": {
+          "23.6%": {
+            "strength_pct": 55,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "38.2%": {
+            "strength_pct": 94,
+            "tier": "POC_WALL",
+            "badge": "🏦 Muro POC",
+            "is_poc": true
+          },
+          "50.0%": {
+            "strength_pct": 87,
+            "tier": "HIGH",
+            "badge": "🏦 Alta Liq.",
+            "is_poc": false
+          },
+          "61.8%": {
+            "strength_pct": 47,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "78.6%": {
+            "strength_pct": 19,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          }
+        },
+        "fib_poc_confluence": {
+          "has_confluence": true,
+          "level": "50.0%",
+          "price": 216.58,
+          "strength_pct": 87,
+          "is_poc": false,
+          "label": "🏦 Liquidez HVN en 50.0% ($216.58)"
+        },
+        "rvol": 1.69,
+        "peak_rvol_3d": 1.69,
+        "rvol_status": "HIGH",
+        "rvol_label": "1.69x 🐋 Alto",
+        "has_absorption": true,
+        "absorption_label": "🐋 Absorción Inst. (1.7x Vol)",
+        "ssl_pool_price": 189.8,
+        "ssl_dist_pct": 7.25,
+        "ssl_type": "SWING_LOW",
+        "ssl_type_label": "Swing Low (Stops)",
+        "is_equal_lows": false,
+        "has_sweep": false,
+        "sweep_price": null,
+        "sweep_date": null,
+        "sweep_bars_ago": null,
+        "sweep_label": "",
+        "liquidity_score": 68,
+        "liquidity_bonus_pts": 6,
+        "liquidity_code": "ABSORPTION",
+        "liquidity_verdict": "🐋 Absorción Institucional en Retroceso"
+      },
       "risk_mgmt": {
         "entry_price": 204.64,
         "entry_type": "MARKET",
@@ -1466,6 +2660,12 @@
         "atr_risk_pct": 6.08,
         "atr_rr_ratio_1": 1.47,
         "atr_rr_ratio_2": 3.11,
+        "ssl_pool_ref": 189.8,
+        "ssl_stop_loss": 186.38,
+        "ssl_risk_per_share": 18.26,
+        "ssl_risk_pct": 8.92,
+        "ssl_rr_ratio_1": 1.0,
+        "ssl_rr_ratio_2": 2.12,
         "take_profit_1": 222.91,
         "reward_1_pct": 8.93,
         "rr_ratio_1": 1.03,
@@ -1659,9 +2859,78 @@
             "61.8%": 217.14,
             "78.6%": 210.0
           },
-          "score": 84,
+          "score": 90,
           "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
           "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 215.95,
+            "poc_pct_pos": 35.4,
+            "poc_dist_pct": -5.24,
+            "val_price": 209.76,
+            "vah_price": 232.76,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 47,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 48,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 37,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "78.6%": {
+                "strength_pct": 21,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 217.14,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 61.8% ($217.14)"
+            },
+            "rvol": 1.69,
+            "peak_rvol_3d": 1.69,
+            "rvol_status": "HIGH",
+            "rvol_label": "1.69x 🐋 Alto",
+            "has_absorption": true,
+            "absorption_label": "🐋 Absorción Inst. (1.7x Vol)",
+            "ssl_pool_price": 200.92,
+            "ssl_dist_pct": 1.82,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 74,
+            "liquidity_bonus_pts": 6,
+            "liquidity_code": "ABSORPTION",
+            "liquidity_verdict": "🐋 Absorción Institucional en Retroceso"
+          },
           "risk_mgmt": {
             "entry_price": 204.64,
             "entry_type": "MARKET",
@@ -1676,6 +2945,12 @@
             "atr_risk_pct": 6.08,
             "atr_rr_ratio_1": 1.81,
             "atr_rr_ratio_2": 3.11,
+            "ssl_pool_ref": 200.92,
+            "ssl_stop_loss": 197.5,
+            "ssl_risk_per_share": 7.14,
+            "ssl_risk_pct": 3.49,
+            "ssl_rr_ratio_1": 3.15,
+            "ssl_rr_ratio_2": 5.42,
             "take_profit_1": 227.15,
             "reward_1_pct": 11.0,
             "rr_ratio_1": 3.34,
@@ -1723,9 +2998,78 @@
             "61.8%": 210.26,
             "78.6%": 201.26
           },
-          "score": 92,
+          "score": 98,
           "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
           "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 219.93,
+            "poc_pct_pos": 56.2,
+            "poc_dist_pct": -6.95,
+            "val_price": 209.89,
+            "vah_price": 229.98,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 55,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "50.0%": {
+                "strength_pct": 87,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 47,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 19,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "50.0%",
+              "price": 216.58,
+              "strength_pct": 87,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 50.0% ($216.58)"
+            },
+            "rvol": 1.69,
+            "peak_rvol_3d": 1.69,
+            "rvol_status": "HIGH",
+            "rvol_label": "1.69x 🐋 Alto",
+            "has_absorption": true,
+            "absorption_label": "🐋 Absorción Inst. (1.7x Vol)",
+            "ssl_pool_price": 189.8,
+            "ssl_dist_pct": 7.25,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 68,
+            "liquidity_bonus_pts": 6,
+            "liquidity_code": "ABSORPTION",
+            "liquidity_verdict": "🐋 Absorción Institucional en Retroceso"
+          },
           "risk_mgmt": {
             "entry_price": 204.64,
             "entry_type": "MARKET",
@@ -1740,6 +3084,12 @@
             "atr_risk_pct": 6.08,
             "atr_rr_ratio_1": 1.47,
             "atr_rr_ratio_2": 3.11,
+            "ssl_pool_ref": 189.8,
+            "ssl_stop_loss": 186.38,
+            "ssl_risk_per_share": 18.26,
+            "ssl_risk_pct": 8.92,
+            "ssl_rr_ratio_1": 1.0,
+            "ssl_rr_ratio_2": 2.12,
             "take_profit_1": 222.91,
             "reward_1_pct": 8.93,
             "rr_ratio_1": 1.03,
@@ -1787,9 +3137,78 @@
             "61.8%": 210.13,
             "78.6%": 201.1
           },
-          "score": 92,
+          "score": 98,
           "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
           "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 219.84,
+            "poc_pct_pos": 56.2,
+            "poc_dist_pct": -6.91,
+            "val_price": 200.79,
+            "vah_price": 227.68,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 41,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "50.0%": {
+                "strength_pct": 85,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 96,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 52,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 210.13,
+              "strength_pct": 96,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 61.8% ($210.13)"
+            },
+            "rvol": 1.69,
+            "peak_rvol_3d": 1.69,
+            "rvol_status": "HIGH",
+            "rvol_label": "1.69x 🐋 Alto",
+            "has_absorption": true,
+            "absorption_label": "🐋 Absorción Inst. (1.7x Vol)",
+            "ssl_pool_price": 189.8,
+            "ssl_dist_pct": 7.25,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 68,
+            "liquidity_bonus_pts": 6,
+            "liquidity_code": "ABSORPTION",
+            "liquidity_verdict": "🐋 Absorción Institucional en Retroceso"
+          },
           "risk_mgmt": {
             "entry_price": 204.64,
             "entry_type": "MARKET",
@@ -1804,6 +3223,12 @@
             "atr_risk_pct": 6.08,
             "atr_rr_ratio_1": 1.46,
             "atr_rr_ratio_2": 3.11,
+            "ssl_pool_ref": 202.85,
+            "ssl_stop_loss": 199.43,
+            "ssl_risk_per_share": 5.21,
+            "ssl_risk_pct": 2.55,
+            "ssl_rr_ratio_1": 3.49,
+            "ssl_rr_ratio_2": 7.43,
             "take_profit_1": 222.83,
             "reward_1_pct": 8.89,
             "rr_ratio_1": 1.02,
@@ -1851,9 +3276,78 @@
             "61.8%": 194.25,
             "78.6%": 180.9
           },
-          "score": 67,
+          "score": 70,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 185.42,
+            "poc_pct_pos": 27.1,
+            "poc_dist_pct": 10.37,
+            "val_price": 173.83,
+            "vah_price": 213.57,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 38,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 54,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 43,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 47,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 96,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "78.6%",
+              "price": 180.9,
+              "strength_pct": 96,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 78.6% ($180.90)"
+            },
+            "rvol": 1.69,
+            "peak_rvol_3d": 1.69,
+            "rvol_status": "HIGH",
+            "rvol_label": "1.69x 🐋 Alto",
+            "has_absorption": true,
+            "absorption_label": "🐋 Absorción Inst. (1.7x Vol)",
+            "ssl_pool_price": 189.8,
+            "ssl_dist_pct": 7.25,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 68,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "ABSORPTION",
+            "liquidity_verdict": "🐋 Absorción Institucional en Retroceso"
+          },
           "risk_mgmt": {
             "entry_price": 194.25,
             "entry_type": "LIMIT_618",
@@ -1868,6 +3362,12 @@
             "atr_risk_pct": 6.4,
             "atr_rr_ratio_1": 1.51,
             "atr_rr_ratio_2": 3.95,
+            "ssl_pool_ref": 190.93,
+            "ssl_stop_loss": 187.51,
+            "ssl_risk_per_share": 6.74,
+            "ssl_risk_pct": 3.47,
+            "ssl_rr_ratio_1": 2.78,
+            "ssl_rr_ratio_2": 7.29,
             "take_profit_1": 213.01,
             "reward_1_pct": 9.66,
             "rr_ratio_1": 0.57,
@@ -1923,9 +3423,78 @@
         "61.8%": 4213.82,
         "78.6%": 4066.7
       },
-      "score": 72,
+      "score": 75,
       "confluence_rating": "🟢 ALTA PROBABILIDAD",
       "confluence_code": "HIGH_PROB",
+      "liquidity": {
+        "profile_type": "VOLUME",
+        "has_real_volume": true,
+        "poc_price": 4189.44,
+        "poc_pct_pos": 35.4,
+        "poc_dist_pct": -6.94,
+        "val_price": 3988.76,
+        "vah_price": 4426.61,
+        "fib_liquidity": {
+          "23.6%": {
+            "strength_pct": 34,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          },
+          "38.2%": {
+            "strength_pct": 98,
+            "tier": "HIGH",
+            "badge": "🏦 Alta Liq.",
+            "is_poc": false
+          },
+          "50.0%": {
+            "strength_pct": 50,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "61.8%": {
+            "strength_pct": 94,
+            "tier": "POC_WALL",
+            "badge": "🏦 Muro POC",
+            "is_poc": true
+          },
+          "78.6%": {
+            "strength_pct": 53,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          }
+        },
+        "fib_poc_confluence": {
+          "has_confluence": true,
+          "level": "61.8%",
+          "price": 4213.82,
+          "strength_pct": 94,
+          "is_poc": true,
+          "label": "🏦 Muro POC en 61.8% ($4,213.82)"
+        },
+        "rvol": 0.96,
+        "peak_rvol_3d": 1.03,
+        "rvol_status": "NORMAL",
+        "rvol_label": "0.96x Normal",
+        "has_absorption": false,
+        "absorption_label": "",
+        "ssl_pool_price": 3879.3,
+        "ssl_dist_pct": 0.5,
+        "ssl_type": "SWING_LOW",
+        "ssl_type_label": "Swing Low (Stops)",
+        "is_equal_lows": false,
+        "has_sweep": false,
+        "sweep_price": null,
+        "sweep_date": null,
+        "sweep_bars_ago": null,
+        "sweep_label": "",
+        "liquidity_score": 52,
+        "liquidity_bonus_pts": 3,
+        "liquidity_code": "FIB_POC",
+        "liquidity_verdict": "🏦 Soporte 61.8% respaldado por Muro POC"
+      },
       "risk_mgmt": {
         "entry_price": 3898.9,
         "entry_type": "MARKET",
@@ -1940,6 +3509,12 @@
         "atr_risk_pct": 4.17,
         "atr_rr_ratio_1": 3.2,
         "atr_rr_ratio_2": 5.26,
+        "ssl_pool_ref": 3879.3,
+        "ssl_stop_loss": 3834.54,
+        "ssl_risk_per_share": 64.36,
+        "ssl_risk_pct": 1.65,
+        "ssl_rr_ratio_1": 8.1,
+        "ssl_rr_ratio_2": 13.3,
         "take_profit_1": 4420.48,
         "reward_1_pct": 13.38,
         "rr_ratio_1": 6.7,
@@ -2124,6 +3699,75 @@
           "score": 67,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 4179.26,
+            "poc_pct_pos": 68.8,
+            "poc_dist_pct": -6.71,
+            "val_price": 4097.45,
+            "vah_price": 4261.06,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "38.2%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "50.0%": {
+                "strength_pct": 30,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 37,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 6,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": false,
+              "level": null,
+              "price": null,
+              "strength_pct": 0,
+              "is_poc": false,
+              "label": ""
+            },
+            "rvol": 0.96,
+            "peak_rvol_3d": 1.03,
+            "rvol_status": "NORMAL",
+            "rvol_label": "0.96x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 3879.3,
+            "ssl_dist_pct": 0.5,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 46,
+            "liquidity_bonus_pts": 0,
+            "liquidity_code": "BELOW_VAL",
+            "liquidity_verdict": "💎 Descuento bajo Área de Valor (VAL)"
+          },
           "risk_mgmt": {
             "entry_price": 3898.9,
             "entry_type": "MARKET",
@@ -2138,6 +3782,12 @@
             "atr_risk_pct": 4.17,
             "atr_rr_ratio_1": 1.54,
             "atr_rr_ratio_2": 2.56,
+            "ssl_pool_ref": 3879.3,
+            "ssl_stop_loss": 3834.54,
+            "ssl_risk_per_share": 64.36,
+            "ssl_risk_pct": 1.65,
+            "ssl_rr_ratio_1": 3.88,
+            "ssl_rr_ratio_2": 6.47,
             "take_profit_1": 4148.93,
             "reward_1_pct": 6.41,
             "rr_ratio_1": 3.21,
@@ -2185,9 +3835,78 @@
             "61.8%": 4213.82,
             "78.6%": 4066.7
           },
-          "score": 72,
+          "score": 75,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 4189.44,
+            "poc_pct_pos": 35.4,
+            "poc_dist_pct": -6.94,
+            "val_price": 3988.76,
+            "vah_price": 4426.61,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 34,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 98,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 50,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "78.6%": {
+                "strength_pct": 53,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 4213.82,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 61.8% ($4,213.82)"
+            },
+            "rvol": 0.96,
+            "peak_rvol_3d": 1.03,
+            "rvol_status": "NORMAL",
+            "rvol_label": "0.96x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 3879.3,
+            "ssl_dist_pct": 0.5,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 52,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 61.8% respaldado por Muro POC"
+          },
           "risk_mgmt": {
             "entry_price": 3898.9,
             "entry_type": "MARKET",
@@ -2202,6 +3921,12 @@
             "atr_risk_pct": 4.17,
             "atr_rr_ratio_1": 3.2,
             "atr_rr_ratio_2": 5.26,
+            "ssl_pool_ref": 3879.3,
+            "ssl_stop_loss": 3834.54,
+            "ssl_risk_per_share": 64.36,
+            "ssl_risk_pct": 1.65,
+            "ssl_rr_ratio_1": 8.1,
+            "ssl_rr_ratio_2": 13.3,
             "take_profit_1": 4420.48,
             "reward_1_pct": 13.38,
             "rr_ratio_1": 6.7,
@@ -2249,9 +3974,78 @@
             "61.8%": 4224.67,
             "78.6%": 4072.78
           },
-          "score": 72,
+          "score": 75,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 4161.83,
+            "poc_pct_pos": 31.2,
+            "poc_dist_pct": -6.32,
+            "val_price": 3992.31,
+            "vah_price": 4482.03,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 55,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 75,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 68,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 71,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 79,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "78.6%",
+              "price": 4072.78,
+              "strength_pct": 79,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 78.6% ($4,072.78)"
+            },
+            "rvol": 0.96,
+            "peak_rvol_3d": 1.03,
+            "rvol_status": "NORMAL",
+            "rvol_label": "0.96x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 3879.3,
+            "ssl_dist_pct": 0.5,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 52,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 78.6% respaldado por Liquidez HVN"
+          },
           "risk_mgmt": {
             "entry_price": 3898.9,
             "entry_type": "MARKET",
@@ -2266,6 +4060,12 @@
             "atr_risk_pct": 4.17,
             "atr_rr_ratio_1": 3.31,
             "atr_rr_ratio_2": 5.43,
+            "ssl_pool_ref": 3879.3,
+            "ssl_stop_loss": 3834.54,
+            "ssl_risk_per_share": 64.36,
+            "ssl_risk_pct": 1.65,
+            "ssl_rr_ratio_1": 8.38,
+            "ssl_rr_ratio_2": 13.74,
             "take_profit_1": 4438.03,
             "reward_1_pct": 13.83,
             "rr_ratio_1": 6.93,
@@ -2313,9 +4113,78 @@
             "61.8%": 4531.34,
             "78.6%": 4244.58
           },
-          "score": 74,
+          "score": 77,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 4057.1,
+            "poc_pct_pos": 10.4,
+            "poc_dist_pct": -3.9,
+            "val_price": 4021.54,
+            "vah_price": 4732.75,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 30,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 34,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 55,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 78,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 80,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 4531.34,
+              "strength_pct": 78,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 61.8% ($4,531.34)"
+            },
+            "rvol": 0.96,
+            "peak_rvol_3d": 1.03,
+            "rvol_status": "NORMAL",
+            "rvol_label": "0.96x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 3935.7,
+            "ssl_dist_pct": -0.94,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 46,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 61.8% respaldado por Liquidez HVN"
+          },
           "risk_mgmt": {
             "entry_price": 3898.9,
             "entry_type": "MARKET",
@@ -2330,6 +4199,12 @@
             "atr_risk_pct": 4.17,
             "atr_rr_ratio_1": 6.36,
             "atr_rr_ratio_2": 10.37,
+            "ssl_pool_ref": 3879.3,
+            "ssl_stop_loss": 3834.54,
+            "ssl_risk_per_share": 64.36,
+            "ssl_risk_pct": 1.65,
+            "ssl_rr_ratio_1": 16.09,
+            "ssl_rr_ratio_2": 26.22,
             "take_profit_1": 4934.16,
             "reward_1_pct": 26.55,
             "rr_ratio_1": 13.31,
@@ -2385,9 +4260,78 @@
         "61.8%": 7516.61,
         "78.6%": 7427.47
       },
-      "score": 57,
+      "score": 64,
       "confluence_rating": "🟡 MODERADA / SEGUIMIENTO",
       "confluence_code": "MODERATE",
+      "liquidity": {
+        "profile_type": "VOLUME",
+        "has_real_volume": true,
+        "poc_price": 7722.92,
+        "poc_pct_pos": 77.1,
+        "poc_dist_pct": -1.85,
+        "val_price": 7623.44,
+        "vah_price": 7778.2,
+        "fib_liquidity": {
+          "23.6%": {
+            "strength_pct": 100,
+            "tier": "POC_WALL",
+            "badge": "🏦 Muro POC",
+            "is_poc": true
+          },
+          "38.2%": {
+            "strength_pct": 94,
+            "tier": "POC_WALL",
+            "badge": "🏦 Muro POC",
+            "is_poc": true
+          },
+          "50.0%": {
+            "strength_pct": 22,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          },
+          "61.8%": {
+            "strength_pct": 6,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          },
+          "78.6%": {
+            "strength_pct": 17,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          }
+        },
+        "fib_poc_confluence": {
+          "has_confluence": false,
+          "level": null,
+          "price": null,
+          "strength_pct": 0,
+          "is_poc": false,
+          "label": ""
+        },
+        "rvol": 1.16,
+        "peak_rvol_3d": 1.16,
+        "rvol_status": "NORMAL",
+        "rvol_label": "1.16x Normal",
+        "has_absorption": false,
+        "absorption_label": "",
+        "ssl_pool_price": 7638.17,
+        "ssl_dist_pct": -0.77,
+        "ssl_type": "EQL",
+        "ssl_type_label": "Doble Suelo EQL",
+        "is_equal_lows": true,
+        "has_sweep": true,
+        "sweep_price": 7580.06,
+        "sweep_date": "2026-10-30",
+        "sweep_bars_ago": 0,
+        "sweep_label": "🧲 Barrido de Stops ($7,580.06)",
+        "liquidity_score": 74,
+        "liquidity_bonus_pts": 7,
+        "liquidity_code": "SWEEP",
+        "liquidity_verdict": "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+      },
       "risk_mgmt": {
         "entry_price": 7516.61,
         "entry_type": "LIMIT_618",
@@ -2402,6 +4346,12 @@
         "atr_risk_pct": 2.06,
         "atr_rr_ratio_1": 2.43,
         "atr_rr_ratio_2": 4.48,
+        "ssl_pool_ref": 7313.92,
+        "ssl_stop_loss": 7271.43,
+        "ssl_risk_per_share": 245.18,
+        "ssl_risk_pct": 3.26,
+        "ssl_rr_ratio_1": 1.53,
+        "ssl_rr_ratio_2": 2.82,
         "take_profit_1": 7892.44,
         "reward_1_pct": 5.0,
         "rr_ratio_1": 1.2,
@@ -2590,9 +4540,78 @@
             "61.8%": 7648.64,
             "78.6%": 7595.39
           },
-          "score": 74,
+          "score": 77,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 7719.06,
+            "poc_pct_pos": 60.4,
+            "poc_dist_pct": -1.8,
+            "val_price": 7646.42,
+            "vah_price": 7778.49,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "38.2%": {
+                "strength_pct": 100,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "50.0%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "61.8%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "78.6%": {
+                "strength_pct": 20,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 7648.64,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 61.8% ($7,648.64)"
+            },
+            "rvol": 1.16,
+            "peak_rvol_3d": 1.16,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.16x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 7616.78,
+            "ssl_dist_pct": -0.48,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 56,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
             "entry_price": 7580.07,
             "entry_type": "MARKET",
@@ -2607,6 +4626,12 @@
             "atr_risk_pct": 2.04,
             "atr_rr_ratio_1": 2.45,
             "atr_rr_ratio_2": 4.51,
+            "ssl_pool_ref": 7527.56,
+            "ssl_stop_loss": 7485.07,
+            "ssl_risk_per_share": 95.0,
+            "ssl_risk_pct": 1.25,
+            "ssl_rr_ratio_1": 3.99,
+            "ssl_rr_ratio_2": 7.34,
             "take_profit_1": 7959.07,
             "reward_1_pct": 5.0,
             "rr_ratio_1": 2.29,
@@ -2654,9 +4679,78 @@
             "61.8%": 7516.61,
             "78.6%": 7427.47
           },
-          "score": 57,
+          "score": 64,
           "confluence_rating": "🟡 MODERADA / SEGUIMIENTO",
           "confluence_code": "MODERATE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 7722.92,
+            "poc_pct_pos": 77.1,
+            "poc_dist_pct": -1.85,
+            "val_price": 7623.44,
+            "vah_price": 7778.2,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 100,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "38.2%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "50.0%": {
+                "strength_pct": 22,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 6,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 17,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": false,
+              "level": null,
+              "price": null,
+              "strength_pct": 0,
+              "is_poc": false,
+              "label": ""
+            },
+            "rvol": 1.16,
+            "peak_rvol_3d": 1.16,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.16x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 7638.17,
+            "ssl_dist_pct": -0.77,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": true,
+            "sweep_price": 7580.06,
+            "sweep_date": "2026-10-30",
+            "sweep_bars_ago": 0,
+            "sweep_label": "🧲 Barrido de Stops ($7,580.06)",
+            "liquidity_score": 74,
+            "liquidity_bonus_pts": 7,
+            "liquidity_code": "SWEEP",
+            "liquidity_verdict": "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+          },
           "risk_mgmt": {
             "entry_price": 7516.61,
             "entry_type": "LIMIT_618",
@@ -2671,6 +4765,12 @@
             "atr_risk_pct": 2.06,
             "atr_rr_ratio_1": 2.43,
             "atr_rr_ratio_2": 4.48,
+            "ssl_pool_ref": 7313.92,
+            "ssl_stop_loss": 7271.43,
+            "ssl_risk_per_share": 245.18,
+            "ssl_risk_pct": 3.26,
+            "ssl_rr_ratio_1": 1.53,
+            "ssl_rr_ratio_2": 2.82,
             "take_profit_1": 7892.44,
             "reward_1_pct": 5.0,
             "rr_ratio_1": 1.2,
@@ -2718,9 +4818,78 @@
             "61.8%": 7389.26,
             "78.6%": 7265.51
           },
-          "score": 47,
-          "confluence_rating": "⚪ NEUTRAL / CARO",
-          "confluence_code": "LOW",
+          "score": 51,
+          "confluence_rating": "🟡 MODERADA / SEGUIMIENTO",
+          "confluence_code": "MODERATE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 7737.09,
+            "poc_pct_pos": 85.4,
+            "poc_dist_pct": -2.03,
+            "val_price": 7414.8,
+            "vah_price": 7783.13,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "38.2%": {
+                "strength_pct": 57,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 79,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 65,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 13,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "50.0%",
+              "price": 7476.19,
+              "strength_pct": 79,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 50.0% ($7,476.19)"
+            },
+            "rvol": 1.16,
+            "peak_rvol_3d": 1.16,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.16x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 7638.17,
+            "ssl_dist_pct": -0.77,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": true,
+            "sweep_price": 7580.06,
+            "sweep_date": "2026-10-30",
+            "sweep_bars_ago": 0,
+            "sweep_label": "🧲 Barrido de Stops ($7,580.06)",
+            "liquidity_score": 74,
+            "liquidity_bonus_pts": 4,
+            "liquidity_code": "SWEEP",
+            "liquidity_verdict": "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+          },
           "risk_mgmt": {
             "entry_price": 7389.26,
             "entry_type": "LIMIT_618",
@@ -2735,6 +4904,12 @@
             "atr_risk_pct": 2.09,
             "atr_rr_ratio_1": 2.39,
             "atr_rr_ratio_2": 4.4,
+            "ssl_pool_ref": 7338.54,
+            "ssl_stop_loss": 7296.05,
+            "ssl_risk_per_share": 93.21,
+            "ssl_risk_pct": 1.26,
+            "ssl_rr_ratio_1": 3.96,
+            "ssl_rr_ratio_2": 7.29,
             "take_profit_1": 7758.72,
             "reward_1_pct": 5.0,
             "rr_ratio_1": 0.95,
@@ -2782,9 +4957,78 @@
             "61.8%": 6900.46,
             "78.6%": 6643.82
           },
-          "score": 39,
+          "score": 43,
           "confluence_rating": "⚪ NEUTRAL / CARO",
           "confluence_code": "LOW",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 6857.94,
+            "poc_pct_pos": 35.4,
+            "poc_dist_pct": 10.53,
+            "val_price": 6507.86,
+            "vah_price": 7589.92,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 61,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 11,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 19,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "78.6%": {
+                "strength_pct": 26,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 6900.46,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 61.8% ($6,900.46)"
+            },
+            "rvol": 1.16,
+            "peak_rvol_3d": 1.16,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.16x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 7638.17,
+            "ssl_dist_pct": -0.77,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": true,
+            "sweep_price": 7580.06,
+            "sweep_date": "2026-10-30",
+            "sweep_bars_ago": 0,
+            "sweep_label": "🧲 Barrido de Stops ($7,580.06)",
+            "liquidity_score": 52,
+            "liquidity_bonus_pts": 4,
+            "liquidity_code": "SWEEP",
+            "liquidity_verdict": "🧲 Barrido de Liquidez Recuperado (Spring SMC)"
+          },
           "risk_mgmt": {
             "entry_price": 6900.46,
             "entry_type": "LIMIT_618",
@@ -2799,6 +5043,12 @@
             "atr_risk_pct": 2.24,
             "atr_rr_ratio_1": 2.33,
             "atr_rr_ratio_2": 6.11,
+            "ssl_pool_ref": 6870.8,
+            "ssl_stop_loss": 6828.31,
+            "ssl_risk_per_share": 72.15,
+            "ssl_risk_pct": 1.05,
+            "ssl_rr_ratio_1": 5.0,
+            "ssl_rr_ratio_2": 13.08,
             "take_profit_1": 7260.97,
             "reward_1_pct": 5.22,
             "rr_ratio_1": 0.53,
@@ -2857,6 +5107,75 @@
       "score": 28,
       "confluence_rating": "⚪ NEUTRAL / CARO",
       "confluence_code": "LOW",
+      "liquidity": {
+        "profile_type": "VOLUME",
+        "has_real_volume": true,
+        "poc_price": 365.93,
+        "poc_pct_pos": 60.4,
+        "poc_dist_pct": 9.26,
+        "val_price": 339.93,
+        "vah_price": 387.21,
+        "fib_liquidity": {
+          "23.6%": {
+            "strength_pct": 62,
+            "tier": "MEDIUM",
+            "badge": "💧 Media",
+            "is_poc": false
+          },
+          "38.2%": {
+            "strength_pct": 100,
+            "tier": "POC_WALL",
+            "badge": "🏦 Muro POC",
+            "is_poc": true
+          },
+          "50.0%": {
+            "strength_pct": 96,
+            "tier": "HIGH",
+            "badge": "🏦 Alta Liq.",
+            "is_poc": false
+          },
+          "61.8%": {
+            "strength_pct": 32,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          },
+          "78.6%": {
+            "strength_pct": 20,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          }
+        },
+        "fib_poc_confluence": {
+          "has_confluence": true,
+          "level": "50.0%",
+          "price": 354.12,
+          "strength_pct": 96,
+          "is_poc": false,
+          "label": "🏦 Liquidez HVN en 50.0% ($354.12)"
+        },
+        "rvol": 1.13,
+        "peak_rvol_3d": 1.13,
+        "rvol_status": "NORMAL",
+        "rvol_label": "1.13x Normal",
+        "has_absorption": false,
+        "absorption_label": "",
+        "ssl_pool_price": 365.27,
+        "ssl_dist_pct": 8.64,
+        "ssl_type": "EQL",
+        "ssl_type_label": "Doble Suelo EQL",
+        "is_equal_lows": true,
+        "has_sweep": false,
+        "sweep_price": null,
+        "sweep_date": null,
+        "sweep_bars_ago": null,
+        "sweep_label": "",
+        "liquidity_score": 30,
+        "liquidity_bonus_pts": 0,
+        "liquidity_code": "FIB_POC",
+        "liquidity_verdict": "🏦 Soporte 50.0% respaldado por Liquidez HVN"
+      },
       "risk_mgmt": {
         "entry_price": 340.73,
         "entry_type": "LIMIT_618",
@@ -2871,6 +5190,12 @@
         "atr_risk_pct": 7.89,
         "atr_rr_ratio_1": 1.0,
         "atr_rr_ratio_2": 2.61,
+        "ssl_pool_ref": 331.12,
+        "ssl_stop_loss": 323.73,
+        "ssl_risk_per_share": 17.0,
+        "ssl_risk_pct": 4.99,
+        "ssl_rr_ratio_1": 1.57,
+        "ssl_rr_ratio_2": 4.12,
         "take_profit_1": 367.5,
         "reward_1_pct": 7.86,
         "rr_ratio_1": 0.56,
@@ -3067,6 +5392,75 @@
           "score": 28,
           "confluence_rating": "⚪ NEUTRAL / CARO",
           "confluence_code": "LOW",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 377.01,
+            "poc_pct_pos": 47.9,
+            "poc_dist_pct": 6.05,
+            "val_price": 354.0,
+            "vah_price": 386.49,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 21,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 54,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "61.8%": {
+                "strength_pct": 74,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 66,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "50.0%",
+              "price": 378.37,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 50.0% ($378.37)"
+            },
+            "rvol": 1.13,
+            "peak_rvol_3d": 1.13,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.13x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 365.27,
+            "ssl_dist_pct": 8.64,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 30,
+            "liquidity_bonus_pts": 0,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 50.0% respaldado por Muro POC"
+          },
           "risk_mgmt": {
             "entry_price": 370.7,
             "entry_type": "LIMIT_618",
@@ -3081,6 +5475,12 @@
             "atr_risk_pct": 7.25,
             "atr_rr_ratio_1": 0.69,
             "atr_rr_ratio_2": 1.49,
+            "ssl_pool_ref": 368.03,
+            "ssl_stop_loss": 360.64,
+            "ssl_risk_per_share": 10.06,
+            "ssl_risk_pct": 2.71,
+            "ssl_rr_ratio_1": 1.84,
+            "ssl_rr_ratio_2": 3.99,
             "take_profit_1": 389.24,
             "reward_1_pct": 5.0,
             "rr_ratio_1": 0.62,
@@ -3131,6 +5531,75 @@
           "score": 28,
           "confluence_rating": "⚪ NEUTRAL / CARO",
           "confluence_code": "LOW",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 365.93,
+            "poc_pct_pos": 60.4,
+            "poc_dist_pct": 9.26,
+            "val_price": 339.93,
+            "vah_price": 387.21,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 62,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 100,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "50.0%": {
+                "strength_pct": 96,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 32,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 20,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "50.0%",
+              "price": 354.12,
+              "strength_pct": 96,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 50.0% ($354.12)"
+            },
+            "rvol": 1.13,
+            "peak_rvol_3d": 1.13,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.13x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 365.27,
+            "ssl_dist_pct": 8.64,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 30,
+            "liquidity_bonus_pts": 0,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 50.0% respaldado por Liquidez HVN"
+          },
           "risk_mgmt": {
             "entry_price": 340.73,
             "entry_type": "LIMIT_618",
@@ -3145,6 +5614,12 @@
             "atr_risk_pct": 7.89,
             "atr_rr_ratio_1": 1.0,
             "atr_rr_ratio_2": 2.61,
+            "ssl_pool_ref": 331.12,
+            "ssl_stop_loss": 323.73,
+            "ssl_risk_per_share": 17.0,
+            "ssl_risk_pct": 4.99,
+            "ssl_rr_ratio_1": 1.57,
+            "ssl_rr_ratio_2": 4.12,
             "take_profit_1": 367.5,
             "reward_1_pct": 7.86,
             "rr_ratio_1": 0.56,
@@ -3195,6 +5670,75 @@
           "score": 38,
           "confluence_rating": "⚪ NEUTRAL / CARO",
           "confluence_code": "LOW",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 378.64,
+            "poc_pct_pos": 52.1,
+            "poc_dist_pct": 5.59,
+            "val_price": 349.39,
+            "vah_price": 420.9,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 51,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 72,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 100,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "61.8%": {
+                "strength_pct": 69,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 30,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "50.0%",
+              "price": 375.39,
+              "strength_pct": 100,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 50.0% ($375.39)"
+            },
+            "rvol": 1.13,
+            "peak_rvol_3d": 1.13,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.13x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 365.27,
+            "ssl_dist_pct": 8.64,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 30,
+            "liquidity_bonus_pts": 0,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 50.0% respaldado por Muro POC"
+          },
           "risk_mgmt": {
             "entry_price": 356.98,
             "entry_type": "LIMIT_618",
@@ -3209,6 +5753,12 @@
             "atr_risk_pct": 7.53,
             "atr_rr_ratio_1": 1.37,
             "atr_rr_ratio_2": 3.59,
+            "ssl_pool_ref": 354.05,
+            "ssl_stop_loss": 346.66,
+            "ssl_risk_per_share": 10.32,
+            "ssl_risk_pct": 2.89,
+            "ssl_rr_ratio_1": 3.57,
+            "ssl_rr_ratio_2": 9.34,
             "take_profit_1": 393.8,
             "reward_1_pct": 10.31,
             "rr_ratio_1": 0.57,
@@ -3256,9 +5806,78 @@
             "61.8%": 374.33,
             "78.6%": 340.49
           },
-          "score": 53,
+          "score": 56,
           "confluence_rating": "🟡 MODERADA / SEGUIMIENTO",
           "confluence_code": "MODERATE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 402.3,
+            "poc_pct_pos": 52.1,
+            "poc_dist_pct": -0.62,
+            "val_price": 364.53,
+            "vah_price": 448.47,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 55,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 61,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "61.8%": {
+                "strength_pct": 71,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 24,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "50.0%",
+              "price": 398.1,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 50.0% ($398.10)"
+            },
+            "rvol": 1.13,
+            "peak_rvol_3d": 1.13,
+            "rvol_status": "NORMAL",
+            "rvol_label": "1.13x Normal",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 365.27,
+            "ssl_dist_pct": 8.64,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 52,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
             "entry_price": 374.33,
             "entry_type": "LIMIT_618",
@@ -3273,6 +5892,12 @@
             "atr_risk_pct": 7.18,
             "atr_rr_ratio_1": 1.77,
             "atr_rr_ratio_2": 4.63,
+            "ssl_pool_ref": 369.43,
+            "ssl_stop_loss": 362.04,
+            "ssl_risk_per_share": 12.29,
+            "ssl_risk_pct": 3.28,
+            "ssl_rr_ratio_1": 3.87,
+            "ssl_rr_ratio_2": 10.13,
             "take_profit_1": 421.88,
             "reward_1_pct": 12.7,
             "rr_ratio_1": 0.58,
@@ -3307,7 +5932,7 @@
       "name": "Bitcoin (BTC)",
       "currency": "$",
       "decimals": 2,
-      "current_price": 77527.2,
+      "current_price": 77560.87,
       "period": "3mo",
       "min": 62226.58,
       "max": 87363.76,
@@ -3317,7 +5942,7 @@
       "bars_since_low": 89,
       "swing_type": "BULLISH_PULLBACK",
       "swing_label": "🐂 Impulso Alcista (Mín→Máx)",
-      "drop_pct": 11.26,
+      "drop_pct": 11.22,
       "zone_desc": "Zona 38.2%",
       "signal": "🟡 EN OBSERVACIÓN (38.2%)",
       "status_code": "WATCH_38",
@@ -3328,9 +5953,78 @@
         "61.8%": 71828.98,
         "78.6%": 67605.93
       },
-      "score": 65,
+      "score": 68,
       "confluence_rating": "🟢 ALTA PROBABILIDAD",
       "confluence_code": "HIGH_PROB",
+      "liquidity": {
+        "profile_type": "VOLUME",
+        "has_real_volume": true,
+        "poc_price": 77413.62,
+        "poc_pct_pos": 60.4,
+        "poc_dist_pct": 0.19,
+        "val_price": 75842.55,
+        "vah_price": 85268.99,
+        "fib_liquidity": {
+          "23.6%": {
+            "strength_pct": 82,
+            "tier": "HIGH",
+            "badge": "🏦 Alta Liq.",
+            "is_poc": false
+          },
+          "38.2%": {
+            "strength_pct": 100,
+            "tier": "POC_WALL",
+            "badge": "🏦 Muro POC",
+            "is_poc": true
+          },
+          "50.0%": {
+            "strength_pct": 9,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          },
+          "61.8%": {
+            "strength_pct": 10,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          },
+          "78.6%": {
+            "strength_pct": 8,
+            "tier": "LOW",
+            "badge": "🕳️ Vacío LVN",
+            "is_poc": false
+          }
+        },
+        "fib_poc_confluence": {
+          "has_confluence": false,
+          "level": null,
+          "price": null,
+          "strength_pct": 0,
+          "is_poc": false,
+          "label": ""
+        },
+        "rvol": 0.42,
+        "peak_rvol_3d": 1.71,
+        "rvol_status": "LOW",
+        "rvol_label": "0.42x Seco",
+        "has_absorption": false,
+        "absorption_label": "",
+        "ssl_pool_price": 76248.3,
+        "ssl_dist_pct": 1.69,
+        "ssl_type": "EQL",
+        "ssl_type_label": "Doble Suelo EQL",
+        "is_equal_lows": true,
+        "has_sweep": false,
+        "sweep_price": null,
+        "sweep_date": null,
+        "sweep_bars_ago": null,
+        "sweep_label": "",
+        "liquidity_score": 62,
+        "liquidity_bonus_pts": 3,
+        "liquidity_code": "AT_POC",
+        "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+      },
       "risk_mgmt": {
         "entry_price": 71828.98,
         "entry_type": "LIMIT_618",
@@ -3338,13 +6032,19 @@
         "stop_loss": 61293.18,
         "risk_per_share": 10535.8,
         "risk_pct": 14.67,
-        "atr_14": 1999.95,
+        "atr_14": 2002.33,
         "atr_pct": 2.58,
-        "atr_stop_loss": 67829.08,
-        "atr_risk_per_share": 3999.9,
-        "atr_risk_pct": 5.57,
+        "atr_stop_loss": 67824.32,
+        "atr_risk_per_share": 4004.66,
+        "atr_risk_pct": 5.58,
         "atr_rr_ratio_1": 1.48,
         "atr_rr_ratio_2": 3.88,
+        "ssl_pool_ref": 62487.7,
+        "ssl_stop_loss": 61386.42,
+        "ssl_risk_per_share": 10442.56,
+        "ssl_risk_pct": 14.54,
+        "ssl_rr_ratio_1": 0.57,
+        "ssl_rr_ratio_2": 1.49,
         "take_profit_1": 77761.36,
         "reward_1_pct": 8.26,
         "rr_ratio_1": 0.56,
@@ -3359,24 +6059,24 @@
         "sell_signal": "🟢 SIN PRESIÓN DE VENTA",
         "sell_action": "Activo en zona baja o de retroceso; no es momento de vender.",
         "sell_status_code": "ACCUMULATE",
-        "gain_from_low_pct": 24.59,
-        "dist_to_high_pct": 11.26,
+        "gain_from_low_pct": 24.64,
+        "dist_to_high_pct": 11.22,
         "ext_127": 94201.07,
         "ext_161": 102898.53,
-        "dist_to_ext127_pct": 21.51,
-        "dist_to_ext161_pct": 32.73,
-        "trailing_stop": 73263.21,
+        "dist_to_ext127_pct": 21.45,
+        "dist_to_ext161_pct": 32.67,
+        "trailing_stop": 73295.02,
         "trailing_stop_pct": 5.5,
-        "atr_trailing_stop": 73127.31,
+        "atr_trailing_stop": 73155.74,
         "atr_trailing_pct": 5.68
       },
-      "rsi": 36.0,
+      "rsi": 36.2,
       "rsi_desc": "Zona Descuento (30-40)",
       "rsi_zone": "OVERSOLD_MILD",
-      "sma_200": 73132.14,
-      "sma_dist_pct": 6.01,
+      "sma_200": 73132.31,
+      "sma_dist_pct": 6.06,
       "is_above_sma": true,
-      "atr_14": 1999.95,
+      "atr_14": 2002.33,
       "atr_pct": 2.58,
       "earnings": {
         "has_earnings": false,
@@ -3388,7 +6088,7 @@
           "min_price": 77761.36,
           "max_price": 78534.57,
           "spread_pct": 0.99,
-          "dist_pct": -0.8,
+          "dist_pct": -0.75,
           "members": [
             "1M 78.6%",
             "1A 61.8%",
@@ -3425,7 +6125,7 @@
           "min_price": 71828.98,
           "max_price": 72555.76,
           "spread_pct": 1.01,
-          "dist_pct": 7.39,
+          "dist_pct": 7.44,
           "members": [
             "6M 50.0%",
             "3M 61.8%"
@@ -3455,7 +6155,7 @@
           "min_price": 69061.07,
           "max_price": 69179.55,
           "spread_pct": 0.17,
-          "dist_pct": 12.16,
+          "dist_pct": 12.21,
           "members": [
             "1A 78.6%",
             "6M 61.8%"
@@ -3486,7 +6186,7 @@
         "min_price": 77761.36,
         "max_price": 78534.57,
         "spread_pct": 0.99,
-        "dist_pct": -0.8,
+        "dist_pct": -0.75,
         "members": [
           "1M 78.6%",
           "1A 61.8%",
@@ -3529,7 +6229,7 @@
           "bars_since_low": 1,
           "swing_type": "FALLING_KNIFE",
           "swing_label": "⚠️ Caída Activa (Buscando Suelo)",
-          "drop_pct": 11.04,
+          "drop_pct": 11.0,
           "zone_desc": "Zona > 78.6%",
           "signal": "🟢 COMPRA FUERTE (78.6%)",
           "status_code": "STRONG_BUY",
@@ -3540,29 +6240,104 @@
             "61.8%": 80375.25,
             "78.6%": 78534.57
           },
-          "score": 82,
+          "score": 85,
           "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
           "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 81896.38,
+            "poc_pct_pos": 52.1,
+            "poc_dist_pct": -5.29,
+            "val_price": 79842.04,
+            "vah_price": 84863.75,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 44,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "50.0%": {
+                "strength_pct": 100,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "61.8%": {
+                "strength_pct": 59,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 26,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "50.0%",
+              "price": 81668.12,
+              "strength_pct": 100,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 50.0% ($81,668.12)"
+            },
+            "rvol": 0.42,
+            "peak_rvol_3d": 1.71,
+            "rvol_status": "LOW",
+            "rvol_label": "0.42x Seco",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 77737.19,
+            "ssl_dist_pct": -0.23,
+            "ssl_type": "SWING_LOW",
+            "ssl_type_label": "Swing Low (Stops)",
+            "is_equal_lows": false,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 54,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 50.0% respaldado por Muro POC"
+          },
           "risk_mgmt": {
-            "entry_price": 77527.2,
+            "entry_price": 77560.87,
             "entry_type": "MARKET",
-            "entry_label": "Precio de Mercado ($77,527.20)",
+            "entry_label": "Precio de Mercado ($77,560.87)",
             "stop_loss": 75047.03,
-            "risk_per_share": 2480.17,
-            "risk_pct": 3.2,
-            "atr_14": 1999.95,
+            "risk_per_share": 2513.84,
+            "risk_pct": 3.24,
+            "atr_14": 2002.33,
             "atr_pct": 2.58,
-            "atr_stop_loss": 73527.3,
-            "atr_risk_per_share": 3999.9,
+            "atr_stop_loss": 73556.21,
+            "atr_risk_per_share": 4004.66,
             "atr_risk_pct": 5.16,
-            "atr_rr_ratio_1": 1.36,
-            "atr_rr_ratio_2": 2.4,
+            "atr_rr_ratio_1": 1.35,
+            "atr_rr_ratio_2": 2.39,
+            "ssl_pool_ref": 76189.88,
+            "ssl_stop_loss": 75088.6,
+            "ssl_risk_per_share": 2472.27,
+            "ssl_risk_pct": 3.19,
+            "ssl_rr_ratio_1": 2.18,
+            "ssl_rr_ratio_2": 3.88,
             "take_profit_1": 82960.98,
-            "reward_1_pct": 7.01,
-            "rr_ratio_1": 2.19,
+            "reward_1_pct": 6.96,
+            "rr_ratio_1": 2.15,
             "take_profit_2": 87146.35,
-            "reward_2_pct": 12.41,
-            "rr_ratio_2": 3.88,
+            "reward_2_pct": 12.36,
+            "rr_ratio_2": 3.81,
             "rr_rating": "⭐ Excelente (R:R > 1:3)",
             "rr_code": "EXCELLENT"
           },
@@ -3571,15 +6346,15 @@
             "sell_signal": "🟢 SIN PRESIÓN DE VENTA",
             "sell_action": "Activo en zona baja o de retroceso; no es momento de vender.",
             "sell_status_code": "ACCUMULATE",
-            "gain_from_low_pct": 1.76,
-            "dist_to_high_pct": 11.04,
+            "gain_from_low_pct": 1.8,
+            "dist_to_high_pct": 11.0,
             "ext_127": 90126.51,
             "ext_161": 93917.45,
-            "dist_to_ext127_pct": 16.25,
-            "dist_to_ext161_pct": 21.14,
-            "trailing_stop": 73263.21,
+            "dist_to_ext127_pct": 16.2,
+            "dist_to_ext161_pct": 21.09,
+            "trailing_stop": 73295.02,
             "trailing_stop_pct": 5.5,
-            "atr_trailing_stop": 73127.31,
+            "atr_trailing_stop": 73155.74,
             "atr_trailing_pct": 5.68
           }
         },
@@ -3593,7 +6368,7 @@
           "bars_since_low": 89,
           "swing_type": "BULLISH_PULLBACK",
           "swing_label": "🐂 Impulso Alcista (Mín→Máx)",
-          "drop_pct": 11.26,
+          "drop_pct": 11.22,
           "zone_desc": "Zona 38.2%",
           "signal": "🟡 EN OBSERVACIÓN (38.2%)",
           "status_code": "WATCH_38",
@@ -3604,9 +6379,78 @@
             "61.8%": 71828.98,
             "78.6%": 67605.93
           },
-          "score": 65,
+          "score": 68,
           "confluence_rating": "🟢 ALTA PROBABILIDAD",
           "confluence_code": "HIGH_PROB",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 77413.62,
+            "poc_pct_pos": 60.4,
+            "poc_dist_pct": 0.19,
+            "val_price": 75842.55,
+            "vah_price": 85268.99,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 82,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 100,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              },
+              "50.0%": {
+                "strength_pct": 9,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 10,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 8,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": false,
+              "level": null,
+              "price": null,
+              "strength_pct": 0,
+              "is_poc": false,
+              "label": ""
+            },
+            "rvol": 0.42,
+            "peak_rvol_3d": 1.71,
+            "rvol_status": "LOW",
+            "rvol_label": "0.42x Seco",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 76248.3,
+            "ssl_dist_pct": 1.69,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 62,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
             "entry_price": 71828.98,
             "entry_type": "LIMIT_618",
@@ -3614,13 +6458,19 @@
             "stop_loss": 61293.18,
             "risk_per_share": 10535.8,
             "risk_pct": 14.67,
-            "atr_14": 1999.95,
+            "atr_14": 2002.33,
             "atr_pct": 2.58,
-            "atr_stop_loss": 67829.08,
-            "atr_risk_per_share": 3999.9,
-            "atr_risk_pct": 5.57,
+            "atr_stop_loss": 67824.32,
+            "atr_risk_per_share": 4004.66,
+            "atr_risk_pct": 5.58,
             "atr_rr_ratio_1": 1.48,
             "atr_rr_ratio_2": 3.88,
+            "ssl_pool_ref": 62487.7,
+            "ssl_stop_loss": 61386.42,
+            "ssl_risk_per_share": 10442.56,
+            "ssl_risk_pct": 14.54,
+            "ssl_rr_ratio_1": 0.57,
+            "ssl_rr_ratio_2": 1.49,
             "take_profit_1": 77761.36,
             "reward_1_pct": 8.26,
             "rr_ratio_1": 0.56,
@@ -3635,15 +6485,15 @@
             "sell_signal": "🟢 SIN PRESIÓN DE VENTA",
             "sell_action": "Activo en zona baja o de retroceso; no es momento de vender.",
             "sell_status_code": "ACCUMULATE",
-            "gain_from_low_pct": 24.59,
-            "dist_to_high_pct": 11.26,
+            "gain_from_low_pct": 24.64,
+            "dist_to_high_pct": 11.22,
             "ext_127": 94201.07,
             "ext_161": 102898.53,
-            "dist_to_ext127_pct": 21.51,
-            "dist_to_ext161_pct": 32.73,
-            "trailing_stop": 73263.21,
+            "dist_to_ext127_pct": 21.45,
+            "dist_to_ext161_pct": 32.67,
+            "trailing_stop": 73295.02,
             "trailing_stop_pct": 5.5,
-            "atr_trailing_stop": 73127.31,
+            "atr_trailing_stop": 73155.74,
             "atr_trailing_pct": 5.68
           }
         },
@@ -3657,7 +6507,7 @@
           "bars_since_low": 122,
           "swing_type": "BULLISH_PULLBACK",
           "swing_label": "🐂 Impulso Alcista (Mín→Máx)",
-          "drop_pct": 11.26,
+          "drop_pct": 11.22,
           "zone_desc": "Zona 23.6%",
           "signal": "🟡 RETROCESO LEVE (23.6%)",
           "status_code": "WATCH_23",
@@ -3671,6 +6521,75 @@
           "score": 55,
           "confluence_rating": "🟡 MODERADA / SEGUIMIENTO",
           "confluence_code": "MODERATE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 63300.76,
+            "poc_pct_pos": 18.7,
+            "poc_dist_pct": 22.53,
+            "val_price": 57747.77,
+            "vah_price": 79959.76,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 72,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 62,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 14,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 8,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 94,
+                "tier": "POC_WALL",
+                "badge": "🏦 Muro POC",
+                "is_poc": true
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "78.6%",
+              "price": 64085.59,
+              "strength_pct": 94,
+              "is_poc": true,
+              "label": "🏦 Muro POC en 78.6% ($64,085.59)"
+            },
+            "rvol": 0.42,
+            "peak_rvol_3d": 1.71,
+            "rvol_status": "LOW",
+            "rvol_label": "0.42x Seco",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 76248.3,
+            "ssl_dist_pct": 1.69,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 40,
+            "liquidity_bonus_pts": 0,
+            "liquidity_code": "FIB_POC",
+            "liquidity_verdict": "🏦 Soporte 78.6% respaldado por Muro POC"
+          },
           "risk_mgmt": {
             "entry_price": 69061.07,
             "entry_type": "LIMIT_618",
@@ -3678,13 +6597,19 @@
             "stop_loss": 56881.55,
             "risk_per_share": 12179.52,
             "risk_pct": 17.64,
-            "atr_14": 1999.95,
+            "atr_14": 2002.33,
             "atr_pct": 2.58,
-            "atr_stop_loss": 65061.17,
-            "atr_risk_per_share": 3999.9,
-            "atr_risk_pct": 5.79,
+            "atr_stop_loss": 65056.41,
+            "atr_risk_per_share": 4004.66,
+            "atr_risk_pct": 5.8,
             "atr_rr_ratio_1": 1.75,
-            "atr_rr_ratio_2": 4.58,
+            "atr_rr_ratio_2": 4.57,
+            "ssl_pool_ref": 63720.39,
+            "ssl_stop_loss": 62619.11,
+            "ssl_risk_per_share": 6441.96,
+            "ssl_risk_pct": 9.33,
+            "ssl_rr_ratio_1": 1.08,
+            "ssl_rr_ratio_2": 2.84,
             "take_profit_1": 76050.45,
             "reward_1_pct": 10.12,
             "rr_ratio_1": 0.57,
@@ -3699,15 +6624,15 @@
             "sell_signal": "🟢 SIN PRESIÓN DE VENTA",
             "sell_action": "Activo en zona baja o de retroceso; no es momento de vender.",
             "sell_status_code": "ACCUMULATE",
-            "gain_from_low_pct": 34.25,
-            "dist_to_high_pct": 11.26,
+            "gain_from_low_pct": 34.31,
+            "dist_to_high_pct": 11.22,
             "ext_127": 95419.31,
             "ext_161": 105666.44,
-            "dist_to_ext127_pct": 23.08,
-            "dist_to_ext161_pct": 36.3,
-            "trailing_stop": 73263.21,
+            "dist_to_ext127_pct": 23.03,
+            "dist_to_ext161_pct": 36.24,
+            "trailing_stop": 73295.02,
             "trailing_stop_pct": 5.5,
-            "atr_trailing_stop": 73127.31,
+            "atr_trailing_stop": 73155.74,
             "atr_trailing_pct": 5.68
           }
         },
@@ -3721,7 +6646,7 @@
           "bars_since_low": 122,
           "swing_type": "BOTTOM_REBOUND",
           "swing_label": "🔄 Rebote tras Suelo",
-          "drop_pct": 30.26,
+          "drop_pct": 30.23,
           "zone_desc": "Zona Áurea 61.8%",
           "signal": "🟢 COMPRA ÓPTIMA (61.8%)",
           "status_code": "BUY_GOLDEN",
@@ -3732,28 +6657,103 @@
             "61.8%": 78154.03,
             "78.6%": 69179.55
           },
-          "score": 92,
+          "score": 95,
           "confluence_rating": "🔥 CONFLUENCIA MÁXIMA",
           "confluence_code": "MAX_CONFLUENCE",
+          "liquidity": {
+            "profile_type": "VOLUME",
+            "has_real_volume": true,
+            "poc_price": 76667.19,
+            "poc_pct_pos": 35.4,
+            "poc_dist_pct": 1.17,
+            "val_price": 62199.39,
+            "vah_price": 88909.17,
+            "fib_liquidity": {
+              "23.6%": {
+                "strength_pct": 17,
+                "tier": "LOW",
+                "badge": "🕳️ Vacío LVN",
+                "is_poc": false
+              },
+              "38.2%": {
+                "strength_pct": 99,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "50.0%": {
+                "strength_pct": 63,
+                "tier": "MEDIUM",
+                "badge": "💧 Media",
+                "is_poc": false
+              },
+              "61.8%": {
+                "strength_pct": 90,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              },
+              "78.6%": {
+                "strength_pct": 84,
+                "tier": "HIGH",
+                "badge": "🏦 Alta Liq.",
+                "is_poc": false
+              }
+            },
+            "fib_poc_confluence": {
+              "has_confluence": true,
+              "level": "61.8%",
+              "price": 78154.03,
+              "strength_pct": 90,
+              "is_poc": false,
+              "label": "🏦 Liquidez HVN en 61.8% ($78,154.03)"
+            },
+            "rvol": 0.42,
+            "peak_rvol_3d": 1.71,
+            "rvol_status": "LOW",
+            "rvol_label": "0.42x Seco",
+            "has_absorption": false,
+            "absorption_label": "",
+            "ssl_pool_price": 76248.3,
+            "ssl_dist_pct": 1.69,
+            "ssl_type": "EQL",
+            "ssl_type_label": "Doble Suelo EQL",
+            "is_equal_lows": true,
+            "has_sweep": false,
+            "sweep_price": null,
+            "sweep_date": null,
+            "sweep_bars_ago": null,
+            "sweep_label": "",
+            "liquidity_score": 74,
+            "liquidity_bonus_pts": 3,
+            "liquidity_code": "AT_POC",
+            "liquidity_verdict": "🏦 Cotizando sobre Muro POC de Liquidez"
+          },
           "risk_mgmt": {
-            "entry_price": 77527.2,
+            "entry_price": 77560.87,
             "entry_type": "MARKET",
-            "entry_label": "Precio de Mercado ($77,527.20)",
+            "entry_label": "Precio de Mercado ($77,560.87)",
             "stop_loss": 56881.55,
-            "risk_per_share": 20645.65,
-            "risk_pct": 26.63,
-            "atr_14": 1999.95,
+            "risk_per_share": 20679.32,
+            "risk_pct": 26.66,
+            "atr_14": 2002.33,
             "atr_pct": 2.58,
-            "atr_stop_loss": 73527.3,
-            "atr_risk_per_share": 3999.9,
+            "atr_stop_loss": 73556.21,
+            "atr_risk_per_share": 4004.66,
             "atr_risk_pct": 5.16,
-            "atr_rr_ratio_1": 3.31,
-            "atr_rr_ratio_2": 8.41,
+            "atr_rr_ratio_1": 3.3,
+            "atr_rr_ratio_2": 8.39,
+            "ssl_pool_ref": 76909.35,
+            "ssl_stop_loss": 75808.07,
+            "ssl_risk_per_share": 1752.8,
+            "ssl_risk_pct": 2.26,
+            "ssl_rr_ratio_1": 7.53,
+            "ssl_rr_ratio_2": 19.17,
             "take_profit_1": 90761.05,
-            "reward_1_pct": 17.07,
+            "reward_1_pct": 17.02,
             "rr_ratio_1": 0.64,
             "take_profit_2": 111167.31,
-            "reward_2_pct": 43.39,
+            "reward_2_pct": 43.33,
             "rr_ratio_2": 1.63,
             "rr_rating": "🟡 Aceptable (R:R > 1:1.5)",
             "rr_code": "ACCEPTABLE"
@@ -3763,15 +6763,15 @@
             "sell_signal": "🟢 SIN PRESIÓN DE VENTA",
             "sell_action": "Activo en zona baja o de retroceso; no es momento de vender.",
             "sell_status_code": "ACCUMULATE",
-            "gain_from_low_pct": 34.25,
-            "dist_to_high_pct": 30.26,
+            "gain_from_low_pct": 34.31,
+            "dist_to_high_pct": 30.23,
             "ext_127": 125697.43,
             "ext_161": 144180.59,
-            "dist_to_ext127_pct": 62.13,
-            "dist_to_ext161_pct": 85.97,
-            "trailing_stop": 73263.21,
+            "dist_to_ext127_pct": 62.06,
+            "dist_to_ext161_pct": 85.89,
+            "trailing_stop": 73295.02,
             "trailing_stop_pct": 5.5,
-            "atr_trailing_stop": 73127.31,
+            "atr_trailing_stop": 73155.74,
             "atr_trailing_pct": 5.68
           }
         }

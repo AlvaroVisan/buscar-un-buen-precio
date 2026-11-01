@@ -1128,11 +1128,32 @@ function renderDashboard(data) {
   renderFilteredCards();
 }
 
+function hasInstitutionalLiquiditySignal(item) {
+  const liq = item && item.liquidity;
+  if (!liq) return false;
+  const nearPoc = typeof liq.poc_dist_pct === "number" && Math.abs(liq.poc_dist_pct) <= 2.5;
+  const fib38 = item.fib_levels && item.fib_levels["38.2%"];
+  const hasFibPocInPullback = Boolean(
+    liq.fib_poc_confluence &&
+    liq.fib_poc_confluence.has_confluence &&
+    typeof fib38 === "number" &&
+    item.current_price <= fib38
+  );
+  return Boolean(
+    liq.has_sweep ||
+    liq.has_absorption ||
+    nearPoc ||
+    hasFibPocInPullback ||
+    (liq.liquidity_score || 0) >= 68
+  );
+}
+
 function updateFilterBadges(items) {
   let countAll = items.length;
   let countConfluence = 0;
   let countBuy = 0;
   let countGolden = 0;
+  let countLiquidity = 0;
   let countWatch = 0;
 
   let countSellStrong = 0;
@@ -1144,6 +1165,7 @@ function updateFilterBadges(items) {
     if ((it.score || 0) >= 70) countConfluence++;
     if (it.current_price <= it.fib_levels["50.0%"]) countBuy++;
     if (it.current_price <= it.fib_levels["61.8%"]) countGolden++;
+    if (hasInstitutionalLiquiditySignal(it)) countLiquidity++;
     if (it.status_code === "WATCH_38" || it.status_code === "WATCH_23") countWatch++;
 
     const sm = it.sell_mgmt || {};
@@ -1166,6 +1188,7 @@ function updateFilterBadges(items) {
   setCount("countConfluence", countConfluence);
   setCount("countBuy", countBuy);
   setCount("countGolden", countGolden);
+  setCount("countLiquidity", countLiquidity);
   setCount("countWatch", countWatch);
 
   setCount("countSellStrong", countSellStrong);
@@ -1189,8 +1212,10 @@ function updateAlertsCenter(items) {
     const isGolden = item.current_price <= item.fib_levels["61.8%"];
     const isConfluence = (item.score || 0) >= 70;
     const isBuy50 = item.current_price <= item.fib_levels["50.0%"];
+    const liq = item.liquidity || null;
+    const isSweepSignal = Boolean(liq && liq.has_sweep && item.current_price <= item.fib_levels["38.2%"]);
 
-    if (isGolden || isConfluence || isBuy50) {
+    if (isGolden || isConfluence || isBuy50 || isSweepSignal) {
       let priorityClass = "priority-buy";
       let priorityBadge = "🟢 Zona de Compra (50%)";
       let priorityWeight = 1;
@@ -1207,6 +1232,10 @@ function updateAlertsCenter(items) {
         priorityClass = "priority-confluence";
         priorityBadge = "🔥 Confluencia Alta";
         priorityWeight = 2;
+      } else if (isSweepSignal) {
+        priorityClass = "priority-confluence";
+        priorityBadge = "🧲 Barrido de Stops (Spring SMC)";
+        priorityWeight = 1.8;
       }
 
       alertItems.push({
@@ -1296,8 +1325,20 @@ function updateAlertsCenter(items) {
     else if (score >= 65) scoreClass = "score-high";
 
     const earnWarnHtml = (item.earnings && item.earnings.warning_level === "IMMINENT" && item.earnings.label)
-      ? `<div style="margin-top:4px; color:#fbbf24; font-size:0.74rem; font-weight:600;">${item.earnings.label}</div>`
+      ? `<div style="margin-top:4px; color:#fbbf24; font-size:0.74rem; font-weight:600;">${escapeHtml(item.earnings.label)}</div>`
       : "";
+
+    const liq = item.liquidity || null;
+    let liqAlertHtml = "";
+    if (liq) {
+      if (liq.has_sweep && liq.sweep_label) {
+        liqAlertHtml = `<div style="margin-top:3px; color:#38bdf8; font-size:0.73rem; font-weight:600;">${escapeHtml(liq.sweep_label)}</div>`;
+      } else if (liq.has_absorption && liq.absorption_label) {
+        liqAlertHtml = `<div style="margin-top:3px; color:#34d399; font-size:0.73rem; font-weight:600;">${escapeHtml(liq.absorption_label)}</div>`;
+      } else if (liq.poc_price) {
+        liqAlertHtml = `<div style="margin-top:3px; color:#94a3b8; font-size:0.72rem;">🏦 Muro POC: <strong>${formatPrice(liq.poc_price, item)}</strong> • RVOL ${(liq.rvol || 1).toFixed(2)}x</div>`;
+      }
+    }
 
     cardItem.innerHTML = `
       <div class="alert-item-header">
@@ -1310,6 +1351,7 @@ function updateAlertsCenter(items) {
       <div class="alert-item-desc">
         <strong>${priorityBadge}</strong>: Cotizando a <strong>${formatPrice(item.current_price, item)}</strong> 
         (-${item.drop_pct.toFixed(1)}% desde máx). RSI: <strong>${item.rsi ? item.rsi.toFixed(1) : '--'}</strong>.
+        ${liqAlertHtml}
         ${earnWarnHtml}
       </div>
       <div class="alert-item-actions">
@@ -1498,6 +1540,9 @@ function renderFilteredCards() {
     if (currentFilter === "GOLDEN") {
       return item.current_price <= item.fib_levels["61.8%"];
     }
+    if (currentFilter === "LIQUIDITY") {
+      return hasInstitutionalLiquiditySignal(item);
+    }
     if (currentFilter === "WATCH") {
       return item.status_code === "WATCH_38" || item.status_code === "WATCH_23";
     }
@@ -1548,6 +1593,10 @@ function renderFilteredCards() {
     switch (currentSort) {
       case "score_desc":
         return (b.score || 0) - (a.score || 0);
+      case "liquidity_desc":
+        return ((b.liquidity && b.liquidity.liquidity_score) || 0) - ((a.liquidity && a.liquidity.liquidity_score) || 0);
+      case "rvol_desc":
+        return ((b.liquidity && b.liquidity.rvol) || 0) - ((a.liquidity && a.liquidity.rvol) || 0);
       case "drop_desc":
         return b.drop_pct - a.drop_pct;
       case "drop_asc":
@@ -1695,7 +1744,8 @@ function createAssetCard(item) {
     ? `<div class="swing-row"><span class="swing-pill ${swingClass}" title="${swingTooltip}">${swingLabel}</span></div>`
     : "";
 
-  // Píldoras de Inteligencia Bloque 3: Aviso de Resultados (Earnings) + Cluster Multi-Timeframe
+  // Píldoras de Inteligencia Bloque 3 + Motor de Liquidez Institucional
+  const liq = item.liquidity || null;
   const intelBadges = [];
   if (item.earnings && item.earnings.has_earnings && (item.earnings.warning_level === "IMMINENT" || item.earnings.warning_level === "UPCOMING")) {
     const eCls = item.earnings.warning_level === "IMMINENT" ? "earnings-imminent" : "earnings-upcoming";
@@ -1716,12 +1766,89 @@ function createAssetCard(item) {
       `<span class="cluster-pill ${cCls}" title="Confluencia Multi-Timeframe: ${cTooltip}">${item.best_cluster.label}</span>`
     );
   }
+  if (liq && liq.has_sweep && liq.sweep_label) {
+    intelBadges.push(
+      `<span class="liq-pill liq-sweep" title="Barrido de Stops / Spring SMC (${escapeHtml(liq.sweep_date || '')}): perforó soporte previo y cerró por encima capturando liquidez">${escapeHtml(liq.sweep_label)}</span>`
+    );
+  }
+  if (liq && liq.has_absorption && liq.absorption_label) {
+    intelBadges.push(
+      `<span class="liq-pill liq-absorption" title="Absorción Institucional detectada (RVOL pico 3 sesiones: ${(liq.peak_rvol_3d || liq.rvol || 1).toFixed(2)}x)">${escapeHtml(liq.absorption_label)}</span>`
+    );
+  } else if (liq && liq.fib_poc_confluence && liq.fib_poc_confluence.has_confluence) {
+    intelBadges.push(
+      `<span class="liq-pill liq-poc" title="Confluencia Fibonacci + Volume Profile (${liq.profile_type === 'TPO' ? 'TPO' : 'Volumen Real'}) | Área de Valor 70%: ${formatPrice(liq.val_price, item)} – ${formatPrice(liq.vah_price, item)}">${escapeHtml(liq.fib_poc_confluence.label)}</span>`
+    );
+  }
   const intelPillsHtml = intelBadges.length > 0
     ? `<div class="card-intel-pills">${intelBadges.join("")}</div>`
     : "";
 
+  const pocPinHtml = (liq && typeof liq.poc_pct_pos === "number")
+    ? `<div class="range-poc-pin" style="left: ${Math.max(2, Math.min(98, liq.poc_pct_pos))}%;" title="🏦 Muro POC (Mayor Liquidez): ${formatPrice(liq.poc_price, item)} | Área de Valor 70% (VAL–VAH): ${formatPrice(liq.val_price, item)} – ${formatPrice(liq.vah_price, item)}"></div>`
+    : "";
+
+  let liquidityCardHtml = "";
+  if (liq && liq.poc_price) {
+    const liqScore = liq.liquidity_score || 0;
+    let liqScoreCls = "liq-score-normal";
+    if (liqScore >= 72 || liq.has_sweep) liqScoreCls = "liq-score-prime";
+    else if (liqScore >= 52 || liq.has_absorption) liqScoreCls = "liq-score-high";
+
+    let verdictCls = "verdict-normal";
+    if (liq.liquidity_code === "SWEEP_ABSORPTION" || liq.liquidity_code === "SWEEP") verdictCls = "verdict-sweep";
+    else if (liq.liquidity_code === "ABSORPTION" || liq.liquidity_code === "AT_POC" || liq.liquidity_code === "FIB_POC") verdictCls = "verdict-bullish";
+    else if (liq.liquidity_code === "EQL_MAGNET") verdictCls = "verdict-warn";
+    else if (liq.liquidity_code === "BELOW_VAL") verdictCls = "verdict-discount";
+
+    const pocSign = (liq.poc_dist_pct || 0) >= 0 ? "+" : "";
+    const pocSub = `${pocSign}${(liq.poc_dist_pct || 0).toFixed(1)}% vs actual${liq.profile_type === "TPO" ? " • TPO" : ""}`;
+    const rvolMain = liq.has_real_volume ? `${(liq.rvol || 0).toFixed(2)}x` : "TPO";
+    const rvolCls = (liq.rvol_status === "CLIMAX" || liq.rvol_status === "HIGH")
+      ? "val-liq-cyan"
+      : (liq.rvol_status === "LOW" ? "val-liq-muted" : "val-liq-neutral");
+    const sslDist = Math.abs(liq.ssl_dist_pct || 0).toFixed(1);
+    const sslTag = liq.is_equal_lows ? "🧲 Doble Suelo" : "Swing Low";
+
+    liquidityCardHtml = `
+    <!-- Panel Motor de Liquidez Institucional (Volume Profile POC + RVOL + Piscinas SSL) -->
+    <div class="liquidity-engine-card">
+      <div class="liq-header-row">
+        <div class="liq-title">
+          <span>🏦 Liquidez Institucional (SMC)</span>
+        </div>
+        <span class="liq-score-badge ${liqScoreCls}" title="Score de Liquidez Institucional (POC + RVOL/Absorción + Piscina Stops)">Liq: ${liqScore}/100</span>
+      </div>
+
+      <div class="liq-metrics-row">
+        <div class="liq-col" title="Point of Control (${liq.profile_type === 'TPO' ? 'TPO' : 'Volume Profile'}): ${formatPrice(liq.poc_price, item)} | Área de Valor 70% (VAL–VAH): ${formatPrice(liq.val_price, item)} – ${formatPrice(liq.vah_price, item)}">
+          <span class="liq-label">🏦 Muro POC</span>
+          <span class="liq-val val-liq-gold">${formatPrice(liq.poc_price, item)}</span>
+          <span class="liq-sub">${pocSub}</span>
+        </div>
+        <div class="liq-col" title="Volumen Relativo frente a media de 20 sesiones (Pico últimas 3 sesiones: ${(liq.peak_rvol_3d || liq.rvol || 0).toFixed(2)}x)">
+          <span class="liq-label">🐋 RVOL (20d)</span>
+          <span class="liq-val ${rvolCls}">${rvolMain}</span>
+          <span class="liq-sub">${escapeHtml(liq.rvol_label || "Normal")}</span>
+        </div>
+        <div class="liq-col" title="${escapeHtml(liq.ssl_type_label || 'Piscina de Stops')} en ${formatPrice(liq.ssl_pool_price, item)}${risk.ssl_stop_loss ? ` | Stop protegido bajo piscina SSL: ${formatPrice(risk.ssl_stop_loss, item)}` : ''}">
+          <span class="liq-label">🧲 Piscina SSL</span>
+          <span class="liq-val val-liq-cyan">${formatPrice(liq.ssl_pool_price, item)}</span>
+          <span class="liq-sub">-${sslDist}% • ${sslTag}</span>
+        </div>
+      </div>
+
+      <div class="liq-verdict-strip ${verdictCls}">
+        <span>${escapeHtml(liq.liquidity_verdict || "💧 Flujo de Liquidez Normal")}</span>
+      </div>
+    </div>`;
+  }
+
   const atrTooltipExtra = risk.atr_stop_loss
     ? ` | Stop Volatilidad 2x ATR(14): ${formatPrice(risk.atr_stop_loss, item)} (-${(risk.atr_risk_pct || 0).toFixed(1)}%)`
+    : "";
+  const sslTooltipExtra = risk.ssl_stop_loss
+    ? ` | Stop Bajo Piscina Liquidez (SSL): ${formatPrice(risk.ssl_stop_loss, item)} (-${(risk.ssl_risk_pct || 0).toFixed(1)}%)`
     : "";
 
   card.innerHTML = `
@@ -1800,16 +1927,17 @@ function createAssetCard(item) {
       </div>
       <div class="range-track">
         <div class="range-fill" style="width: ${pctPos}%;"></div>
+        ${pocPinHtml}
         <div class="range-pin" style="left: ${pctPos}%;" title="Precio actual: ${formatPrice(item.current_price, item)}"></div>
       </div>
       <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #64748b; margin-top: 4px;">
         <span>Descuento Máximo</span>
-        <span>Rango: ${formatPrice(item.range, item)}</span>
+        <span>${liq && liq.poc_price ? `🏦 POC: ${formatPrice(liq.poc_price, item)}` : `Rango: ${formatPrice(item.range, item)}`}</span>
         <span>Resistencia</span>
       </div>
     </div>
 
-    <!-- Escalera de Retrocesos de Fibonacci -->
+    <!-- Escalera de Retrocesos de Fibonacci + Densidad Volume Profile -->
     <div class="fib-ladder">
       ${renderFibRow("23.6%", item.fib_levels["23.6%"], item.current_price, "🟡", false, item)}
       ${renderFibRow("38.2%", item.fib_levels["38.2%"], item.current_price, "🟡", false, item)}
@@ -1817,6 +1945,8 @@ function createAssetCard(item) {
       ${renderFibRow("61.8%", item.fib_levels["61.8%"], item.current_price, "🏆", true, item)}
       ${renderFibRow("78.6%", item.fib_levels["78.6%"], item.current_price, "💎", false, item)}
     </div>
+
+    ${liquidityCardHtml}
 
     <!-- Panel de Gestión de Riesgo (Módulo 1) -->
     <div class="risk-management-card">
@@ -1829,7 +1959,7 @@ function createAssetCard(item) {
       </div>
 
       <div class="risk-metrics-row">
-        <div class="risk-col stop-loss-col" title="Stop Loss estructural bajo 78.6%${atrTooltipExtra}">
+        <div class="risk-col stop-loss-col" title="Stop Loss estructural bajo 78.6%${atrTooltipExtra}${sslTooltipExtra}">
           <span class="risk-label">🛡️ Stop Loss</span>
           <span class="risk-val val-danger">${formatPrice(risk.stop_loss, item)}</span>
           <span class="risk-sub">-${(risk.risk_pct || 0).toFixed(1)}%${item.atr_pct ? ` • ATR ${item.atr_pct.toFixed(1)}%` : " riesgo"}</span>
@@ -1847,7 +1977,7 @@ function createAssetCard(item) {
       </div>
 
       <div class="risk-actions-row">
-        <button class="btn-calc-position" data-ticker="${item.ticker}" title="Calcular posición con Stop Fibonacci o Volatilidad 2x ATR">
+        <button class="btn-calc-position" data-ticker="${item.ticker}" title="Calcular posición con Stop Fibonacci, Volatilidad 2x ATR o Bajo Piscina Liquidez (SSL)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
           🧮 Calcular Posición
         </button>
@@ -1984,6 +2114,7 @@ function createAssetCard(item) {
         </div>
         <div class="range-track">
           <div class="range-fill" style="width: ${pctPos}%;"></div>
+          ${pocPinHtml}
           <div class="range-pin" style="left: ${pctPos}%;" title="Precio actual: ${formatPrice(item.current_price, item)}"></div>
         </div>
       </div>
@@ -2131,6 +2262,21 @@ function attachCardCommonEvents(card, item) {
       openPortfolioModalForAsset(item);
     });
   }
+
+  // Clic para copiar precio exacto en filas de Fibonacci
+  card.querySelectorAll(".fib-row[data-copy-price]").forEach(row => {
+    row.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const rawPrice = row.dataset.copyPrice;
+      const lvlName = row.dataset.fibLevel || "Fibonacci";
+      if (!rawPrice) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(rawPrice).then(() => {
+          showToast(`📋 Precio ${lvlName} de ${item.tab} copiado: ${rawPrice}`);
+        }).catch(() => {});
+      }
+    });
+  });
 }
 
 function toggleMiniChart(ticker, cardElement, tabName) {
@@ -2279,11 +2425,37 @@ function renderFibRow(level, targetPrice, currentPrice, icon, isGolden = false, 
     distLabel = `<span>A +${distPct}%</span>`;
   }
 
+  const fibLiq = (item && item.liquidity && item.liquidity.fib_liquidity)
+    ? item.liquidity.fib_liquidity[level]
+    : null;
+  let volBarHtml = "";
+  let liqBadgeHtml = "";
+  let liqTooltip = "";
+
+  if (fibLiq) {
+    const strength = Math.max(4, Math.min(100, fibLiq.strength_pct || 0));
+    const tierCls = `tier-${(fibLiq.tier || "LOW").toLowerCase()}`;
+    volBarHtml = `<div class="fib-vol-bar ${tierCls}" style="width: ${strength}%;"></div>`;
+
+    let shortBadge = `💧 ${strength}%`;
+    if (fibLiq.is_poc || fibLiq.tier === "POC_WALL") shortBadge = "🏦 POC";
+    else if (fibLiq.tier === "HIGH") shortBadge = `🏦 ${strength}%`;
+    else if (fibLiq.tier === "LOW") shortBadge = "🕳️ LVN";
+
+    liqBadgeHtml = `<span class="fib-liq-badge ${tierCls}">${shortBadge}</span>`;
+    liqTooltip = ` | Liquidez institucional: ${fibLiq.badge || shortBadge} (${strength}%)`;
+  }
+
+  const dec = (item && typeof item.decimals === "number") ? item.decimals : 2;
+  const rawPriceCopy = typeof targetPrice === "number" ? targetPrice.toFixed(dec) : `${targetPrice}`;
+
   return `
-    <div class="fib-row ${goldenClass} ${activeClass}">
+    <div class="fib-row ${goldenClass} ${activeClass}" data-copy-price="${rawPriceCopy}" data-fib-level="${level}" title="Clic para copiar ${formatPrice(targetPrice, item)}${escapeHtml(liqTooltip)}">
+      ${volBarHtml}
       <span class="fib-level-tag">
         <span>${icon}</span>
         <span>${level} ${isGolden ? "(Áureo)" : ""}</span>
+        ${liqBadgeHtml}
       </span>
       <span class="fib-target-price">${formatPrice(targetPrice, item)}</span>
       <span class="fib-distance">${distLabel}</span>
@@ -2330,6 +2502,15 @@ let currentCalcAsset = null;
 
 function resolveActiveCalcStop(item, risk) {
   const entry = risk.entry_price || item.current_price;
+  if (currentCalcSlMode === "SSL" && risk.ssl_stop_loss && risk.ssl_stop_loss > 0) {
+    const slVal = risk.ssl_stop_loss;
+    const pct = risk.ssl_risk_pct || (entry > 0 ? ((entry - slVal) / entry) * 100 : 5.0);
+    return {
+      sl: slVal,
+      riskPct: Math.max(0.1, pct),
+      label: "🧲 Stop Bajo Piscina Liquidez (SSL)"
+    };
+  }
   if (currentCalcSlMode === "ATR" && risk.atr_stop_loss && risk.atr_stop_loss > 0) {
     const slVal = risk.atr_stop_loss;
     const pct = risk.atr_risk_pct || (entry > 0 ? ((entry - slVal) / entry) * 100 : 5.0);
@@ -2383,9 +2564,10 @@ function openPositionCalculator(item) {
   }
 
   document.querySelectorAll(".btn-sl-mode").forEach(b => {
-    const isAtrBtn = b.dataset.slMode === "ATR";
-    if (isAtrBtn) {
+    if (b.dataset.slMode === "ATR") {
       b.disabled = !(risk.atr_stop_loss && risk.atr_stop_loss > 0);
+    } else if (b.dataset.slMode === "SSL") {
+      b.disabled = !(risk.ssl_stop_loss && risk.ssl_stop_loss > 0);
     }
     b.classList.toggle("active", b.dataset.slMode === "FIBO");
   });
@@ -2477,7 +2659,11 @@ function recalcPositionPlan() {
   const adviceEl = document.getElementById("calcAdviceText");
 
   const earnNote = (item.earnings && item.earnings.warning_level === "IMMINENT" && item.earnings.label)
-    ? `<br><span style="color:#fbbf24;"><strong>${item.earnings.label}:</strong> Valora reducir lote a la mitad ante posible gap de resultados.</span>`
+    ? `<br><span style="color:#fbbf24;"><strong>${escapeHtml(item.earnings.label)}:</strong> Valora reducir lote a la mitad ante posible gap de resultados.</span>`
+    : "";
+
+  const sslNote = (currentCalcSlMode !== "SSL" && risk.ssl_pool_ref && risk.ssl_stop_loss && sl >= risk.ssl_pool_ref)
+    ? `<br><span style="color:#38bdf8;"><strong>🧲 Aviso de Liquidez SMC:</strong> Hay una piscina de stops en <strong>${formatPrice(risk.ssl_pool_ref, item)}</strong>. Valora el método <em>Bajo Piscina Liquidez (${formatPrice(risk.ssl_stop_loss, item)})</em> para evitar barridos institucionales.</span>`
     : "";
 
   if (isFractionalOnly) {
@@ -2492,7 +2678,7 @@ function recalcPositionPlan() {
     if (adviceBanner) adviceBanner.classList.add("calc-advice-warning");
     if (adviceIcon) adviceIcon.textContent = "⚠️";
     if (adviceEl) {
-      adviceEl.innerHTML = `<strong>Presupuesto inferior al riesgo de 1 título entero (-${formatPrice(riskPerShare, item)}):</strong> Para respetar estrictamente tu límite de <strong>-${sym}${formatCurrency(budget, 2)}</strong>, debes comprar <strong>${fracStr} títulos fraccionados</strong> (inversión: <strong>${sym}${formatCurrency(totalCapital, 2)}</strong>). Si tu broker no permite fracciones, comprar <strong>1 título entero</strong> requerirá invertir <strong>${formatPrice(entry, item)}</strong> y asumir un riesgo real de <strong>-${formatPrice(riskPerShare, item)}</strong>.${earnNote}`;
+      adviceEl.innerHTML = `<strong>Presupuesto inferior al riesgo de 1 título entero (-${formatPrice(riskPerShare, item)}):</strong> Para respetar estrictamente tu límite de <strong>-${sym}${formatCurrency(budget, 2)}</strong>, debes comprar <strong>${fracStr} títulos fraccionados</strong> (inversión: <strong>${sym}${formatCurrency(totalCapital, 2)}</strong>). Si tu broker no permite fracciones, comprar <strong>1 título entero</strong> requerirá invertir <strong>${formatPrice(entry, item)}</strong> y asumir un riesgo real de <strong>-${formatPrice(riskPerShare, item)}</strong>.${sslNote}${earnNote}`;
     }
   } else {
     if (elShares) elShares.textContent = `${wholeShares}`;
@@ -2508,7 +2694,7 @@ function recalcPositionPlan() {
     if (adviceBanner) adviceBanner.classList.remove("calc-advice-warning");
     if (adviceIcon) adviceIcon.textContent = "💡";
     if (adviceEl) {
-      adviceEl.innerHTML = `Comprando <strong>${wholeShares} ${wholeShares === 1 ? 'acción' : 'acciones'}</strong> a <strong>${formatPrice(entry, item)}</strong>, tu pérdida máxima estará acotada exactamente a <strong>-${sym}${formatCurrency(actualLoss, 2)}</strong> si el precio toca tu Stop Loss en <strong>${formatPrice(sl, item)}</strong>. Si el activo alcanza tu objetivo principal (TP 2 en ${formatPrice(risk.take_profit_2, item)}), tu beneficio neto estimado será de <strong>+${sym}${formatCurrency(reward2, 2)}</strong>.${earnNote}`;
+      adviceEl.innerHTML = `Comprando <strong>${wholeShares} ${wholeShares === 1 ? 'acción' : 'acciones'}</strong> a <strong>${formatPrice(entry, item)}</strong>, tu pérdida máxima estará acotada exactamente a <strong>-${sym}${formatCurrency(actualLoss, 2)}</strong> si el precio toca tu Stop Loss en <strong>${formatPrice(sl, item)}</strong>. Si el activo alcanza tu objetivo principal (TP 2 en ${formatPrice(risk.take_profit_2, item)}), tu beneficio neto estimado será de <strong>+${sym}${formatCurrency(reward2, 2)}</strong>.${sslNote}${earnNote}`;
     }
   }
 }
@@ -2531,13 +2717,17 @@ function registerCalcPlanIntoPortfolio() {
   const calcModal = document.getElementById("positionCalcModal");
   if (calcModal) calcModal.style.display = "none";
 
+  const slModeText = currentCalcSlMode === "SSL"
+    ? "Stop Piscina SSL"
+    : (currentCalcSlMode === "ATR" ? "Stop 2x ATR" : "Stop Fibo 78.6%");
+
   openPortfolioModal({
     ticker: item.ticker,
     shares: effectiveShares,
     avg_price: entry,
     custom_sl: activeStop.sl,
     custom_tp: tp2,
-    notes: `Plan calculado (${currentCalcSlMode === "ATR" ? "Stop 2x ATR" : "Stop Fibo 78.6%"}, riesgo ${item.currency || "$"}${budget})`,
+    notes: `Plan calculado (${slModeText}, riesgo ${item.currency || "$"}${budget})`,
     merge: true
   });
 }
@@ -2652,6 +2842,10 @@ function renderModeToolbarControls(mode) {
           <span class="chip-dot dot-gold"></span>
           Zona Áurea (61.8%) <span class="chip-count" id="countGolden">0</span>
         </button>
+        <button class="chip-btn chip-liquidity ${currentFilter === 'LIQUIDITY' ? 'active' : ''}" data-filter="LIQUIDITY">
+          <span class="chip-dot dot-liquidity"></span>
+          🏦 Liquidez / Barrido <span class="chip-count" id="countLiquidity">0</span>
+        </button>
         <button class="chip-btn chip-yellow ${currentFilter === 'WATCH' ? 'active' : ''}" data-filter="WATCH">
           <span class="chip-dot dot-yellow"></span>
           En Observación <span class="chip-count" id="countWatch">0</span>
@@ -2661,6 +2855,8 @@ function renderModeToolbarControls(mode) {
     if (sortSelect) {
       sortSelect.innerHTML = `
         <option value="score_desc">🔥 Mayor Score Técnico (0-100)</option>
+        <option value="liquidity_desc">🏦 Mayor Liquidez Institucional (0-100)</option>
+        <option value="rvol_desc">🐋 Mayor Volumen Relativo (RVOL)</option>
         <option value="drop_desc">Mayor Caída %</option>
         <option value="rsi_asc">RSI Más Bajo (Sobreventa)</option>
         <option value="drop_asc">Menor Caída %</option>

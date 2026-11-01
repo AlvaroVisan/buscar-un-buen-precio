@@ -84,7 +84,7 @@ def _fmt_price(val, item=None):
 # Teclado persistente con botones rápidos de acceso en la app de Telegram
 TELEGRAM_MAIN_KEYBOARD = {
     "keyboard": [
-        [{"text": "📊 Resumen"}, {"text": "🎯 Alertas"}],
+        [{"text": "📊 Resumen"}, {"text": "🎯 Alertas"}, {"text": "🏦 Liquidez"}],
         [{"text": "💼 Mi Cartera"}, {"text": "🔴 Modo Venta"}],
         [{"text": "📔 Historial"}, {"text": "🔄 Sincronizar"}, {"text": "ℹ️ Ayuda"}]
     ],
@@ -252,8 +252,9 @@ def setup_bot_commands(bot_token):
         cmds = [
             {"command": "resumen", "description": "📊 Precios y Scores de todos los activos"},
             {"command": "alertas", "description": "🎯 Oportunidades en Zona Áurea / Alta Confluencia"},
+            {"command": "liquidez", "description": "🏦 Radar de Liquidez (Muro POC, RVOL y Barridos)"},
             {"command": "cartera", "description": "💼 Mi Cartera Real, PnL abierto y alertas SL/TP"},
-            {"command": "riesgo", "description": "🛡️ Calculadora de riesgo, Stop Loss (Fibo/ATR) y lote"},
+            {"command": "riesgo", "description": "🛡️ Calculadora de riesgo, Stop Loss (Fibo/ATR/SSL) y lote"},
             {"command": "venta", "description": "🔴 Modo Venta / Toma de beneficios y extensiones"},
             {"command": "add", "description": "➕ Añadir nuevo activo (ej: /add AAPL Apple)"},
             {"command": "del", "description": "🗑️ Eliminar activo de la lista (ej: /del AAPL)"},
@@ -327,6 +328,15 @@ def format_telegram_alert(item, period="3mo"):
     tv_url = get_tradingview_url(ticker)
 
     extra_lines = ""
+    liq = item.get("liquidity") or {}
+    if liq.get("poc_price"):
+        rvol_part = f" | RVOL `{escape_md(liq.get('rvol_label', ''))}`" if liq.get("has_real_volume") else ""
+        extra_lines += f"🏦 *Muro POC Liquidez*: `{_fmt_price(liq['poc_price'], item)}`{rvol_part}\n"
+    if liq.get("has_sweep") and liq.get("sweep_label"):
+        extra_lines += f"🧲 *Smart Money*: `{escape_md(liq['sweep_label'])}`\n"
+    elif liq.get("has_absorption") and liq.get("absorption_label"):
+        extra_lines += f"🐋 *Flujo Institucional*: `{escape_md(liq['absorption_label'])}`\n"
+
     best_cluster = item.get("best_cluster")
     if isinstance(best_cluster, dict) and best_cluster.get("label"):
         extra_lines += f"🧬 *Cluster MTF*: `{escape_md(best_cluster['label'])}`\n"
@@ -447,10 +457,12 @@ def handle_start_or_help(bot_token, chat_id):
         "Lista general de todos tus activos con precio, caída y score de confluencia.\n\n"
         "🎯 */alertas* u */oportunidades*\n"
         "Filtra solo los activos en Zona Áurea (61.8%) o con Score ≥ 70.\n\n"
+        "🏦 */liquidez* o */poc*\n"
+        "Radar de Liquidez Institucional: Muros de Volumen (POC), Volumen Relativo (RVOL / Absorción) y Barridos de Stops (SMC).\n\n"
         "🔍 */ver TICKER* (ej: `/ver AMD` o simplemente escribe `AMD`)\n"
-        "Ficha técnica con todos los retrocesos Fibonacci, RSI, SMA 200 y enlace a TradingView.\n\n"
+        "Ficha técnica con Fibonacci + Liquidez por nivel, Muro POC, RSI, SMA 200 y enlace a TradingView.\n\n"
         "🛡️ */riesgo TICKER [capital]* (ej: `/riesgo AMD 100`)\n"
-        "Calculadora de posición: Stop Loss (Fibonacci 78.6% y Volatilidad 2x ATR), Take Profit 1 y 2, Ratio R:R y lote exacto.\n\n"
+        "Calculadora de posición: Stop Loss (Fibonacci 78.6%, Volatilidad 2x ATR y Bajo Piscina SSL), Take Profit 1 y 2 y lote exacto.\n\n"
         "💼 */cartera*\n"
         "Mi Cartera Real: PnL abierto en vivo, precio medio, distancia a Stop Loss / Take Profit y diagnósticos.\n\n"
         "➕ */add TICKER [Nombre]* y 🗑️ */del TICKER*\n"
@@ -685,14 +697,63 @@ def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
         if atr_sl:
             atr_sl_line = f"• Stop Volatilidad (2x ATR): `{_fmt_price(atr_sl, view_item)}` (-{atr_sl_pct:.1f}%)\n"
 
+        ssl_sl = risk_data.get("ssl_stop_loss")
+        ssl_sl_pct = risk_data.get("ssl_risk_pct", 0)
+        ssl_sl_line = ""
+        if ssl_sl:
+            ssl_sl_line = f"• Stop Bajo Piscina Liquidez (SSL): `{_fmt_price(ssl_sl, view_item)}` (-{ssl_sl_pct:.1f}%)\n"
+
         risk_info = (
             f"🛡️ *GESTIÓN DE RIESGO SUGERIDA:*\n"
             f"• Entrada: `{_fmt_price(entry_p, view_item)}` ({escape_md(risk_data.get('entry_label', ''))})\n"
             f"• Stop Fibonacci (78.6%): `{_fmt_price(sl, view_item)}` (-{sl_pct:.1f}%)\n"
             f"{atr_sl_line}"
+            f"{ssl_sl_line}"
             f"• TP 1 (38.2%): `{_fmt_price(tp1, view_item)}` (+{tp1_pct:.1f}%)\n"
             f"• TP 2 (Máx): `{_fmt_price(tp2, view_item)}` (+{tp2_pct:.1f}%)\n"
             f"• Ratio R:R (TP2): `1:{rr2}` ({escape_md(rr_rating)})\n\n"
+        )
+
+    # Bloque de Liquidez Institucional (Volume Profile POC + RVOL + Piscina Stops SSL)
+    liq = view_item.get("liquidity") or {}
+    fib_liq_map = liq.get("fib_liquidity") or {}
+
+    def _fib_liq_tag(lvl_k):
+        fl = fib_liq_map.get(lvl_k)
+        if not fl:
+            return ""
+        if fl.get("is_poc"):
+            return " `🏦 Muro POC`"
+        if fl.get("tier") == "HIGH":
+            return f" `🏦 Liq {fl.get('strength_pct', 0)}%`"
+        return ""
+
+    liquidity_block = ""
+    if liq:
+        poc_p = liq.get("poc_price", price)
+        poc_dist = liq.get("poc_dist_pct", 0.0)
+        poc_sign = "+" if poc_dist >= 0 else ""
+        val_p = liq.get("val_price", p_min)
+        vah_p = liq.get("vah_price", p_max)
+        rvol_lbl = escape_md(liq.get("rvol_label", "Normal"))
+        ssl_p = liq.get("ssl_pool_price", p_min)
+        ssl_type_lbl = escape_md(liq.get("ssl_type_label", "Swing Low"))
+        verdict = escape_md(liq.get("liquidity_verdict", "Flujo Normal"))
+
+        smc_events = ""
+        if liq.get("has_sweep") and liq.get("sweep_label"):
+            smc_events += f"• Evento SMC: `{escape_md(liq['sweep_label'])}`\n"
+        if liq.get("has_absorption") and liq.get("absorption_label"):
+            smc_events += f"• Flujo Ballenas: `{escape_md(liq['absorption_label'])}`\n"
+
+        liquidity_block = (
+            f"🏦 *LIQUIDEZ INSTITUCIONAL ({liq.get('liquidity_score', 0)}/100):*\n"
+            f"• Muro POC (Mayor Volumen): `{_fmt_price(poc_p, view_item)}` ({poc_sign}{poc_dist:.1f}%)\n"
+            f"• Área de Valor 70%: `{_fmt_price(val_p, view_item)}` – `{_fmt_price(vah_p, view_item)}`\n"
+            f"• Volumen Relativo (RVOL): `{rvol_lbl}`\n"
+            f"• Piscina Stops ({ssl_type_lbl}): `{_fmt_price(ssl_p, view_item)}`\n"
+            f"{smc_events}"
+            f"• Lectura: _{verdict}_\n\n"
         )
 
     msg = (
@@ -704,11 +765,12 @@ def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
         f"🚦 *Estado*: `{escape_md(signal)}`\n"
         f"{extra_badges}\n"
         f"🏆 *RETROCESOS DE FIBONACCI ({period.upper()}):*\n"
-        f"• 23.6%: `{_fmt_price(fibs.get('23.6%', 0), view_item)}`\n"
-        f"• 38.2%: `{_fmt_price(fibs.get('38.2%', 0), view_item)}`\n"
-        f"• 50.0% (Zona Compra): `{_fmt_price(fibs.get('50.0%', 0), view_item)}`\n"
-        f"• 61.8% (Zona Áurea): `{_fmt_price(fibs.get('61.8%', 0), view_item)}`\n"
-        f"• 78.6% (Soporte Extremo): `{_fmt_price(fibs.get('78.6%', 0), view_item)}`\n\n"
+        f"• 23.6%: `{_fmt_price(fibs.get('23.6%', 0), view_item)}`{_fib_liq_tag('23.6%')}\n"
+        f"• 38.2%: `{_fmt_price(fibs.get('38.2%', 0), view_item)}`{_fib_liq_tag('38.2%')}\n"
+        f"• 50.0% (Zona Compra): `{_fmt_price(fibs.get('50.0%', 0), view_item)}`{_fib_liq_tag('50.0%')}\n"
+        f"• 61.8% (Zona Áurea): `{_fmt_price(fibs.get('61.8%', 0), view_item)}`{_fib_liq_tag('61.8%')}\n"
+        f"• 78.6% (Soporte Extremo): `{_fmt_price(fibs.get('78.6%', 0), view_item)}`{_fib_liq_tag('78.6%')}\n\n"
+        f"{liquidity_block}"
         f"📈 *CONFLUENCIA TÉCNICA:*\n"
         f"🔥 *Score*: `{score}/100` ({escape_md(confluence)})\n"
         f"📉 *RSI (14 sesiones)*: `{rsi}` ({escape_md(rsi_desc)})\n"
@@ -836,6 +898,10 @@ def handle_riesgo(bot_token, chat_id, raw_args):
     atr_sl_pct = risk_mgmt.get("atr_risk_pct", 0)
     atr_line = f"🌊 *Stop Volatilidad (2x ATR 14)*: `{_fmt_price(atr_sl, matched_item)}` (-{atr_sl_pct:.1f}%)\n" if atr_sl else ""
 
+    ssl_sl = risk_mgmt.get("ssl_stop_loss")
+    ssl_sl_pct = risk_mgmt.get("ssl_risk_pct", 0)
+    ssl_line = f"🧲 *Stop Bajo Piscina Liquidez (SSL)*: `{_fmt_price(ssl_sl, matched_item)}` (-{ssl_sl_pct:.1f}%)\n" if ssl_sl else ""
+
     earnings = matched_item.get("earnings") or {}
     earn_warn = ""
     if earnings.get("warning_level") == "IMMINENT" and earnings.get("label"):
@@ -849,6 +915,7 @@ def handle_riesgo(bot_token, chat_id, raw_args):
         f"📍 *Punto de Entrada*: `{_fmt_price(entry, matched_item)}` ({escape_md(risk_mgmt.get('entry_label', ''))})\n"
         f"🛑 *Stop Loss Fibonacci (78.6%)*: `{_fmt_price(sl, matched_item)}` (-{risk_pct:.1f}%)\n"
         f"{atr_line}"
+        f"{ssl_line}"
         f"🎯 *Take Profit 1 (38.2%)*: `{_fmt_price(tp1, matched_item)}` (+{tp1_pct:.1f}%)\n"
         f"🏆 *Take Profit 2 (Máximos)*: `{_fmt_price(tp2, matched_item)}` (+{tp2_pct:.1f}%)\n"
         f"⚖️ *Ratio Riesgo/Beneficio*: `1:{rr2}` ({escape_md(rr_rating)})\n\n"
@@ -1312,6 +1379,68 @@ def process_callback_query(bot_token, chat_id, callback_id, data_str):
     else:
         answer_callback_query(bot_token, callback_id, "Acción recibida")
 
+def handle_liquidez(bot_token, chat_id):
+    """
+    Radar de Liquidez Institucional:
+    Muestra Muro POC (Volume Profile), RVOL / Absorción de Ballenas y Piscinas / Barridos de Stops (SMC).
+    """
+    if not os.path.exists(LATEST_DATA_PATH):
+        send_telegram_message(
+            bot_token, chat_id,
+            "⚠️ Aún no hay datos disponibles. Pulsa *🔄 Sincronizar* primero.",
+            reply_markup=TELEGRAM_MAIN_KEYBOARD
+        )
+        return
+
+    try:
+        with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        items = list(payload.get("data", []))
+        period = payload.get("period", "3mo").upper()
+        items.sort(key=lambda x: (x.get("liquidity") or {}).get("liquidity_score", 0), reverse=True)
+
+        lines = [
+            f"🏦 *RADAR DE LIQUIDEZ INSTITUCIONAL ({period})*",
+            "_Muro POC (Vol. Profile) • RVOL Ballenas • Piscinas SSL_",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        ]
+
+        for it in items:
+            ticker = it.get("ticker", "")
+            tab = escape_md(it.get("tab", ticker))
+            price = it.get("current_price", 0)
+            liq = it.get("liquidity") or {}
+            l_score = liq.get("liquidity_score", 0)
+            poc_p = liq.get("poc_price", price)
+            poc_dist = liq.get("poc_dist_pct", 0.0)
+            poc_sign = "+" if poc_dist >= 0 else ""
+            rvol_lbl = escape_md(liq.get("rvol_label", "Normal"))
+            ssl_p = liq.get("ssl_pool_price", it.get("min", price))
+            verdict = escape_md(liq.get("liquidity_verdict", "Flujo Normal"))
+
+            if liq.get("has_sweep"):
+                icon = "🧲"
+            elif liq.get("has_absorption"):
+                icon = "🐋"
+            elif abs(poc_dist) <= 2.2 or liq.get("fib_poc_confluence", {}).get("has_confluence"):
+                icon = "🏦"
+            else:
+                icon = "💧"
+
+            lines.append(
+                f"{icon} *{tab}* (`{ticker}`) — Liq: *{l_score}/100*\n"
+                f"• Precio: `{_fmt_price(price, it)}` | POC: `{_fmt_price(poc_p, it)}` ({poc_sign}{poc_dist:.1f}%)\n"
+                f"• RVOL: `{rvol_lbl}` | Stops SSL: `{_fmt_price(ssl_p, it)}`\n"
+                f"• _{verdict}_\n"
+            )
+
+        lines.append("💡 _Escribe `/ver TICKER` para ver la liquidez exacta de cada escalón Fibonacci._")
+        send_telegram_message(bot_token, chat_id, "\n".join(lines), reply_markup=TELEGRAM_MAIN_KEYBOARD)
+    except Exception as e:
+        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar liquidez: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
+
 def process_user_telegram_command(bot_token, chat_id, raw_text):
     """
     Enrutador principal de comandos y mensajes recibidos del usuario.
@@ -1329,6 +1458,10 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
 
     if cmd in ("/alertas", "/oportunidades", "🎯 alertas", "alertas", "oportunidades"):
         handle_alertas(bot_token, chat_id)
+        return
+
+    if cmd in ("/liquidez", "/poc", "/ballenas", "/smc", "🏦 liquidez", "liquidez", "poc"):
+        handle_liquidez(bot_token, chat_id)
         return
 
     if cmd in ("/sync", "/actualizar", "🔄 sincronizar", "sincronizar", "sync"):
