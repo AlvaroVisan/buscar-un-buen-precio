@@ -42,7 +42,7 @@
 
         <button id="btnOpenAddModal" class="btn btn-emerald" title="Añadir un nuevo activo o ticker a seguimiento">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Añadir activo <span aria-hidden="true">↗</span>
+          Añadir activo <span aria-hidden="true">↗︎</span>
         </button>
 
         <!-- Centro de Alertas y Oportunidades -->
@@ -59,7 +59,7 @@
           <div id="alertsDropdown" class="alerts-dropdown" style="display: none;">
             <div class="alerts-dropdown-header">
               <div class="alerts-header-title">
-                <span class="alerts-bell-emoji">🎯</span>
+                <span class="alerts-bell-emoji">◎</span>
                 <span>Radar de Oportunidades</span>
               </div>
               <span id="alertsSummaryCount" class="alerts-summary-pill">0 activas</span>
@@ -76,7 +76,7 @@
                   <input type="checkbox" id="chkAlertSound" checked>
                   <span class="slider-toggle"></span>
                 </label>
-                <button id="btnTestSound" class="btn-text-action" type="button" title="Probar sonido">🔊 Probar</button>
+                <button id="btnTestSound" class="btn-text-action" type="button" title="Probar sonido">◇ Probar</button>
               </div>
               <div class="alert-setting-row">
                 <button id="btnToggleBrowserNotifs" class="btn-browser-notif" type="button">
@@ -87,7 +87,7 @@
               <div class="alert-setting-row">
                 <button id="btnOpenTelegramModal" class="btn-telegram-config" type="button">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                  <span>📱 Alertas Móvil (Telegram & Auto-Sync)</span>
+                  <span>▯ Alertas Móvil (Telegram & Auto-Sync)</span>
                 </button>
               </div>
             </div>
@@ -105,7 +105,7 @@
       <div>
         <p class="section-eyebrow"><span class="eyebrow-line" aria-hidden="true"></span> TU ESPACIO DE INVERSIÓN</p>
         <h2 id="dashboardTitle">El mercado, en perspectiva.<br><span>Tu próxima oportunidad, más cerca.</span></h2>
-        <a class="workspace-link" href="#marketWorkspace">Explorar el mercado <span aria-hidden="true">↗</span></a>
+        <a class="workspace-link" href="#marketWorkspace">Explorar el mercado <span aria-hidden="true">↗︎</span></a>
       </div>
       <div class="dashboard-label"><span>Una visión. Todos tus activos.</span><span>Fibonacci · Riesgo · Cartera</span></div>
     </section>
@@ -151,7 +151,7 @@
         </div>
         <div class="kpi-value-row">
           <div class="sentiment-score-group">
-            <span class="sentiment-icon" id="kpiSentimentIcon">😨</span>
+            <span class="sentiment-icon" id="kpiSentimentIcon">◇</span>
             <span class="kpi-value text-sentiment" id="kpiSentimentScore">--</span>
             <span class="sentiment-max">/100</span>
           </div>
@@ -200,7 +200,7 @@
     <nav class="mode-navigation-bar" id="marketWorkspace" aria-label="Vistas del panel">
       <div class="mode-tabs-wrapper">
         <button class="mode-tab-btn active" id="btnModeBuy" data-mode="BUY">
-          <span class="mode-icon">🟢</span>
+          <span class="mode-icon">●</span>
           <span class="mode-text-col">
             <span class="mode-tab-title">Oportunidades</span>
             <span class="mode-tab-sub">Retrocesos Fibonacci & Entradas</span>
@@ -208,7 +208,7 @@
         </button>
 
         <button class="mode-tab-btn" id="btnModeSell" data-mode="SELL">
-          <span class="mode-icon">🔴</span>
+          <span class="mode-icon">●</span>
           <span class="mode-text-col">
             <span class="mode-tab-title">Radar de venta</span>
             <span class="mode-tab-sub">Extensiones 127.2%/161.8% & Techos</span>
@@ -217,7 +217,7 @@
         </button>
 
         <button class="mode-tab-btn" id="btnModeJournal" data-mode="JOURNAL">
-          <span class="mode-icon">📔</span>
+          <span class="mode-icon">▤</span>
           <span class="mode-text-col">
             <span class="mode-tab-title">Diario</span>
             <span class="mode-tab-sub">Historial & Tasa de Acierto</span>
@@ -226,7 +226,7 @@
         </button>
 
         <button class="mode-tab-btn" id="btnModePortfolio" data-mode="PORTFOLIO">
-          <span class="mode-icon">💼</span>
+          <span class="mode-icon">▣</span>
           <span class="mode-text-col">
             <span class="mode-tab-title">Mi cartera</span>
             <span class="mode-tab-sub">Posiciones, PnL & Alertas SL/TP</span>
@@ -240,12 +240,12 @@
     <section class="legend-bar" id="buyLegendBar">
       <div class="legend-title">NIVELES DE ENTRADA FIBONACCI:</div>
       <div class="legend-items">
-        <span class="legend-tag tag-gray">⚪ &lt; 23.6% En Máximos</span>
-        <span class="legend-tag tag-yellow">🟡 23.6% - 38.2% Observación</span>
-        <span class="legend-tag tag-teal">🟢 50.0% Buen Descuento</span>
-        <span class="legend-tag tag-gold">🏆 61.8% Proporción Áurea (Entrada Óptima)</span>
-        <span class="legend-tag tag-cyan">💎 78.6% Soporte Extremo</span>
-        <span class="legend-tag tag-liquidity">🏦 Liquidez Institucional (POC / RVOL / Sweep)</span>
+        <span class="legend-tag tag-gray">○ &lt; 23.6% En Máximos</span>
+        <span class="legend-tag tag-yellow">○ 23.6% - 38.2% Observación</span>
+        <span class="legend-tag tag-teal">● 50.0% Buen Descuento</span>
+        <span class="legend-tag tag-gold">◇ 61.8% Proporción Áurea (Entrada Óptima)</span>
+        <span class="legend-tag tag-cyan">◇ 78.6% Soporte Extremo</span>
+        <span class="legend-tag tag-liquidity">▥ Liquidez Institucional (POC / RVOL / Sweep)</span>
       </div>
     </section>
 
@@ -253,10 +253,10 @@
     <section class="legend-bar sell-legend-bar" id="sellLegendBar" style="display: none;">
       <div class="legend-title">CRITERIOS DE TOMA DE BENEFICIOS / MODO VENTA:</div>
       <div class="legend-items">
-        <span class="legend-tag tag-red">🔴 Venta Fuerte (Score ≥ 70 / Extensión 127% / RSI &gt; 70)</span>
-        <span class="legend-tag tag-orange">🟠 Resistencia / Venta Parcial (Techo o Extensión)</span>
-        <span class="legend-tag tag-yellow">🟡 Mantener con Trailing Stop Activo</span>
-        <span class="legend-tag tag-teal">🟢 Sin Presión de Venta (Zona de acumulación)</span>
+        <span class="legend-tag tag-red">● Venta Fuerte (Score ≥ 70 / Extensión 127% / RSI &gt; 70)</span>
+        <span class="legend-tag tag-orange">○ Resistencia / Venta Parcial (Techo o Extensión)</span>
+        <span class="legend-tag tag-yellow">○ Mantener con Trailing Stop Activo</span>
+        <span class="legend-tag tag-teal">● Sin Presión de Venta (Zona de acumulación)</span>
       </div>
     </section>
 
@@ -292,7 +292,7 @@
           </button>
           <button class="chip-btn chip-fire" data-filter="CONFLUENCE">
             <span class="chip-dot dot-fire"></span>
-            🔥 Alta Confluencia (Score ≥ 70) <span class="chip-count" id="countConfluence">0</span>
+            ✦ Alta Confluencia (Score ≥ 70) <span class="chip-count" id="countConfluence">0</span>
           </button>
           <button class="chip-btn chip-green" data-filter="BUY_ZONE">
             <span class="chip-dot dot-green"></span>
@@ -304,7 +304,7 @@
           </button>
           <button class="chip-btn chip-liquidity" data-filter="LIQUIDITY">
             <span class="chip-dot dot-liquidity"></span>
-            🏦 Liquidez / Barrido <span class="chip-count" id="countLiquidity">0</span>
+            ▥ Liquidez / Barrido <span class="chip-count" id="countLiquidity">0</span>
           </button>
           <button class="chip-btn chip-yellow" data-filter="WATCH">
             <span class="chip-dot dot-yellow"></span>
@@ -318,9 +318,9 @@
             Ordenar:
           </span>
           <select id="sortSelect" class="sort-select">
-            <option value="score_desc">🔥 Mayor Score Técnico (0-100)</option>
-            <option value="liquidity_desc">🏦 Mayor Liquidez Institucional (0-100)</option>
-            <option value="rvol_desc">🐋 Mayor Volumen Relativo (RVOL)</option>
+            <option value="score_desc">✦ Mayor Score Técnico (0-100)</option>
+            <option value="liquidity_desc">▥ Mayor Liquidez Institucional (0-100)</option>
+            <option value="rvol_desc">◇ Mayor Volumen Relativo (RVOL)</option>
             <option value="drop_desc">Mayor Caída %</option>
             <option value="rsi_asc">RSI Más Bajo (Sobreventa)</option>
             <option value="drop_asc">Menor Caída %</option>
@@ -334,7 +334,7 @@
 
     <!-- Empty State cuando no hay coincidencias -->
     <div id="emptyState" class="empty-state" style="display: none;">
-      <div class="empty-icon">🔍</div>
+      <div class="empty-icon">◇</div>
       <h3 class="empty-title">No se encontraron activos</h3>
       <p class="empty-desc" id="emptyStateMsg">Ningún activo coincide con los criterios de búsqueda o filtro seleccionados.</p>
       <button id="btnResetFilters" class="btn btn-secondary btn-sm">Restablecer Filtros</button>
@@ -350,22 +350,22 @@
       <!-- Stats KPIs -->
       <div class="journal-kpi-grid">
         <div class="journal-kpi-card highlight-winrate">
-          <span class="j-kpi-label">🎯 Tasa de Acierto (Win Rate)</span>
+          <span class="j-kpi-label">◎ Tasa de Acierto (Win Rate)</span>
           <div class="j-kpi-val" id="jStatWinRate">0.0%</div>
           <span class="j-kpi-sub" id="jStatWinRateSub">0 operaciones cerradas</span>
         </div>
         <div class="journal-kpi-card">
-          <span class="j-kpi-label">📦 Oportunidades Registradas</span>
+          <span class="j-kpi-label">□ Oportunidades Registradas</span>
           <div class="j-kpi-val" id="jStatTotal">0</div>
           <span class="j-kpi-sub" id="jStatActiveSub">0 activas en seguimiento</span>
         </div>
         <div class="journal-kpi-card highlight-success">
-          <span class="j-kpi-label">🏆 Operaciones Ganadas (TP)</span>
+          <span class="j-kpi-label">◇ Operaciones Ganadas (TP)</span>
           <div class="j-kpi-val text-green" id="jStatWon">0</div>
           <span class="j-kpi-sub" id="jStatAvgWin">Retorno medio: +0.0%</span>
         </div>
         <div class="journal-kpi-card highlight-danger">
-          <span class="j-kpi-label">🛑 Operaciones en Stop</span>
+          <span class="j-kpi-label">◇ Operaciones en Stop</span>
           <div class="j-kpi-val text-red" id="jStatLost">0</div>
           <span class="j-kpi-sub">Pérdida acotada estrictamente</span>
         </div>
@@ -383,7 +383,7 @@
             Refrescar
           </button>
           <button id="btnResetJournal" class="btn btn-secondary btn-sm btn-danger-soft">
-            🗑️ Resetear Diario
+            × Resetear Diario
           </button>
         </div>
       </div>
@@ -398,22 +398,22 @@
     <section class="portfolio-section" id="portfolioSection" style="display: none;">
       <div class="journal-kpi-grid">
         <div class="journal-kpi-card highlight-winrate">
-          <span class="j-kpi-label">💼 Valor Actual de Cartera</span>
+          <span class="j-kpi-label">▣ Valor Actual de Cartera</span>
           <div class="j-kpi-val" id="pfStatMarketVal">$0.00</div>
           <span class="j-kpi-sub" id="pfStatInvestedSub">Capital invertido: $0.00</span>
         </div>
         <div class="journal-kpi-card" id="pfKpiOpenPnlCard">
-          <span class="j-kpi-label">📈 PnL Abierto (Latente)</span>
+          <span class="j-kpi-label">↗ PnL Abierto (Latente)</span>
           <div class="j-kpi-val" id="pfStatOpenPnl">$0.00</div>
           <span class="j-kpi-sub" id="pfStatOpenPnlPct">0.00% rentabilidad actual</span>
         </div>
         <div class="journal-kpi-card">
-          <span class="j-kpi-label">🛡️ Posiciones & Vigilancia SL/TP</span>
+          <span class="j-kpi-label">◇ Posiciones & Vigilancia SL/TP</span>
           <div class="j-kpi-val" id="pfStatPositions">0</div>
           <span class="j-kpi-sub" id="pfStatAlertsSub">0 alertas de gestión activas</span>
         </div>
         <div class="journal-kpi-card highlight-success">
-          <span class="j-kpi-label">🏦 Beneficio Realizado (Ventas)</span>
+          <span class="j-kpi-label">▥ Beneficio Realizado (Ventas)</span>
           <div class="j-kpi-val" id="pfStatRealizedPnl">$0.00</div>
           <span class="j-kpi-sub" id="pfStatRealizedSub">0 cierres registrados</span>
         </div>
@@ -440,7 +440,7 @@
       </div>
 
       <div id="portfolioClosedWrapper" class="portfolio-closed-wrapper" style="display: none;">
-        <h4 class="pf-closed-heading">📜 Historial Reciente de Ventas Realizadas</h4>
+        <h4 class="pf-closed-heading">◇ Historial Reciente de Ventas Realizadas</h4>
         <div id="portfolioClosedContainer" class="portfolio-closed-list"></div>
       </div>
     </section>
@@ -571,7 +571,7 @@
         <!-- Guía rápida de configuración -->
         <div class="telegram-guide-box">
           <div class="guide-title">
-            <span>⚡ Cómo configurar tu bot de Telegram en 1 minuto:</span>
+            <span>↯ Cómo configurar tu bot de Telegram en 1 minuto:</span>
           </div>
           <ol class="guide-steps">
             <li>Abre Telegram en tu móvil o PC, busca <strong>@BotFather</strong> y escribe <code>/newbot</code>. Te dará tu <strong>Bot Token</strong>.</li>
@@ -601,7 +601,7 @@
           <div class="input-with-button">
             <input type="text" id="tgChatIdInput" class="form-input" placeholder="Ej: 8885183008, 987654321" autocomplete="off">
             <button id="btnTestTelegram" class="btn btn-secondary btn-sm" type="button">
-              📲 Probar en Móvil
+              ◇ Probar en Móvil
             </button>
           </div>
           <span class="form-hint">Puedes poner varios Chat IDs separados por comas (ej: <code>8885183008, 987654321</code>) para que tu hermano o amigos también reciban alertas y usen el bot en privado.</span>
@@ -623,7 +623,7 @@
 
         <div class="form-group toggle-row-group">
           <div class="toggle-row-label">
-            <strong>🕒 Horario Inteligente de Mercado (L-V 08:45–22:30)</strong>
+            <strong>◇ Horario Inteligente de Mercado (L-V 08:45–22:30)</strong>
             <span class="form-hint">Pausa consultas automáticas de acciones con bolsa cerrada y mantiene Cripto 24/7 suave. <span id="marketHoursStatusTag" class="mh-status-inline"></span></span>
           </div>
           <label class="switch-toggle">
@@ -680,9 +680,9 @@
             <span class="sl-atr-badge" id="calcAtrInfoBadge">ATR(14): --</span>
           </div>
           <div class="sl-mode-buttons">
-            <button type="button" class="btn-sl-mode active" data-sl-mode="FIBO">📐 Estructural Fibonacci (78.6%)</button>
-            <button type="button" class="btn-sl-mode" data-sl-mode="ATR">🌊 Volatilidad Dinámica (2x ATR)</button>
-            <button type="button" class="btn-sl-mode" data-sl-mode="SSL">🧲 Bajo Piscina Liquidez (SSL)</button>
+            <button type="button" class="btn-sl-mode active" data-sl-mode="FIBO">∠ Estructural Fibonacci (78.6%)</button>
+            <button type="button" class="btn-sl-mode" data-sl-mode="ATR">≈ Volatilidad Dinámica (2x ATR)</button>
+            <button type="button" class="btn-sl-mode" data-sl-mode="SSL">⌁ Bajo Piscina Liquidez (SSL)</button>
           </div>
         </div>
 
@@ -694,17 +694,17 @@
             <span class="calc-level-sub" id="calcEntryType">Al mercado</span>
           </div>
           <div class="calc-level-card card-sl">
-            <span class="calc-level-label" id="calcStopLossLabel">🛡️ Stop Loss Sugerido</span>
+            <span class="calc-level-label" id="calcStopLossLabel">◇ Stop Loss Sugerido</span>
             <span class="calc-level-val val-danger" id="calcStopLoss">$0.00</span>
             <span class="calc-level-sub" id="calcRiskPct">-0.0% riesgo</span>
           </div>
           <div class="calc-level-card card-tp1">
-            <span class="calc-level-label">🎯 Take Profit 1 (38.2%)</span>
+            <span class="calc-level-label">◎ Take Profit 1 (38.2%)</span>
             <span class="calc-level-val val-success" id="calcTP1">$0.00</span>
             <span class="calc-level-sub" id="calcTP1Ratio">+0.0% | R:R 1:0.0</span>
           </div>
           <div class="calc-level-card card-tp2">
-            <span class="calc-level-label">🚀 Take Profit 2 (Máx)</span>
+            <span class="calc-level-label">↗ Take Profit 2 (Máx)</span>
             <span class="calc-level-val val-rocket" id="calcTP2">$0.00</span>
             <span class="calc-level-sub" id="calcTP2Ratio">+0.0% | R:R 1:0.0</span>
           </div>
@@ -731,29 +731,29 @@
         <!-- Resultados del Plan de Trading -->
         <div class="calc-results-container">
           <div class="calc-result-kpi">
-            <span class="calc-kpi-label">📦 Acciones a Comprar</span>
+            <span class="calc-kpi-label">□ Acciones a Comprar</span>
             <span class="calc-kpi-val" id="calcSharesCount">0</span>
             <span class="calc-kpi-sub" id="calcSharesSub">acciones completas</span>
           </div>
           <div class="calc-result-kpi">
-            <span class="calc-kpi-label">💰 Inversión Total Necesaria</span>
+            <span class="calc-kpi-label">¤ Inversión Total Necesaria</span>
             <span class="calc-kpi-val" id="calcTotalCapital">$0.00</span>
             <span class="calc-kpi-sub">capital en broker</span>
           </div>
           <div class="calc-result-kpi highlight-risk">
-            <span class="calc-kpi-label">🛡️ Pérdida Máxima (Stop)</span>
+            <span class="calc-kpi-label">◇ Pérdida Máxima (Stop)</span>
             <span class="calc-kpi-val val-danger" id="calcMaxLoss">-$0.00</span>
             <span class="calc-kpi-sub">tu presupuesto de riesgo</span>
           </div>
           <div class="calc-result-kpi highlight-reward">
-            <span class="calc-kpi-label">🚀 Beneficio Esperado (TP 2)</span>
+            <span class="calc-kpi-label">↗ Beneficio Esperado (TP 2)</span>
             <span class="calc-kpi-val val-success" id="calcMaxProfit">+$0.00</span>
             <span class="calc-kpi-sub" id="calcProfitRatio">Ratio 1:0.0</span>
           </div>
         </div>
 
         <div class="calc-advice-banner" id="calcAdviceBanner">
-          <div class="calc-advice-icon">💡</div>
+          <div class="calc-advice-icon">✧</div>
           <div class="calc-advice-text" id="calcAdviceText">
             Si compras a la entrada sugerida y salta el Stop Loss, tu pérdida estará limitada exactamente a tu presupuesto.
           </div>
@@ -761,8 +761,8 @@
       </div>
 
       <div class="modal-footer">
-        <button id="btnRegisterInPortfolioFromCalc" class="btn btn-emerald" type="button">💼 Registrar en Mi Cartera</button>
-        <button id="btnCopyTradingPlan" class="btn btn-secondary" type="button">📋 Copiar Plan de Trading</button>
+        <button id="btnRegisterInPortfolioFromCalc" class="btn btn-emerald" type="button">▣ Registrar en Mi Cartera</button>
+        <button id="btnCopyTradingPlan" class="btn btn-secondary" type="button">▤ Copiar Plan de Trading</button>
         <button id="btnCloseCalcModalFooter" class="btn btn-primary" type="button">Cerrar</button>
       </div>
     </div>
@@ -830,24 +830,24 @@
 
         <div class="calc-results-container">
           <div class="calc-result-kpi highlight-reward">
-            <span class="calc-kpi-label">💵 Efectivo a Recoger Hoy</span>
+            <span class="calc-kpi-label">◇ Efectivo a Recoger Hoy</span>
             <span class="calc-kpi-val val-success" id="sellCashOut">$0.00</span>
             <span class="calc-kpi-sub" id="sellSharesToSell">0 acciones vendidas</span>
           </div>
           <div class="calc-result-kpi">
-            <span class="calc-kpi-label">🛡️ Acciones en Cartera</span>
+            <span class="calc-kpi-label">◇ Acciones en Cartera</span>
             <span class="calc-kpi-val" id="sellRemainingShares">0</span>
             <span class="calc-kpi-sub" id="sellRemainingVal">$0.00 en posición</span>
           </div>
           <div class="calc-result-kpi highlight-risk">
-            <span class="calc-kpi-label">🛑 Stop Dinámico Protección</span>
+            <span class="calc-kpi-label">◇ Stop Dinámico Protección</span>
             <span class="calc-kpi-val val-danger" id="sellProtectStop">$0.00</span>
             <span class="calc-kpi-sub">Protege el resto</span>
           </div>
         </div>
 
         <div class="calc-advice-banner" id="sellAdviceBanner">
-          <div class="calc-advice-icon">💡</div>
+          <div class="calc-advice-icon">✧</div>
           <div class="calc-advice-text" id="sellAdviceText">
             Vendiendo el 50% recoges ganancias seguras y dejas el 50% restante correr libremente hacia las extensiones de Fibonacci.
           </div>
@@ -865,7 +865,7 @@
     <div class="modal-card modal-sentiment-detail">
       <div class="modal-header">
         <div class="modal-header-icon-col">
-          <span class="modal-icon-big">🌡️</span>
+          <span class="modal-icon-big">◇</span>
           <div>
             <h2 class="modal-title">Índice CNN Fear & Greed (Wall Street)</h2>
             <p class="modal-subtitle">Desglose de los 7 pilares cuantitativos del sentimiento de mercado</p>
@@ -878,7 +878,7 @@
         <!-- Banner Resumen -->
         <div class="sentiment-modal-hero" id="sentimentModalHero">
           <div class="sentiment-hero-score-box">
-            <span class="sentiment-hero-icon" id="modalSentimentIcon">😨</span>
+            <span class="sentiment-hero-icon" id="modalSentimentIcon">◇</span>
             <div>
               <div class="sentiment-hero-score" id="modalSentimentScore">--</div>
               <div class="sentiment-hero-status" id="modalSentimentStatus">Cargando...</div>
@@ -910,7 +910,7 @@
         </div>
 
         <div class="sentiment-factors-header">
-          <span class="factors-title">📊 LOS 7 INDICADORES COMPONENTES</span>
+          <span class="factors-title">▥ LOS 7 INDICADORES COMPONENTES</span>
           <span class="factors-sub">Fuentes directas de CNN Business y bolsas de Nueva York</span>
         </div>
 
@@ -921,7 +921,7 @@
 
         <!-- Guía estratégica con Fibonacci -->
         <div class="sentiment-strategy-guide">
-          <div class="guide-icon">💡</div>
+          <div class="guide-icon">✧</div>
           <div class="guide-text">
             <strong>¿Cómo sincronizar este índice con Fibonacci?</strong><br>
             Warren Buffett: <em>"Sé temeroso cuando los demás son codiciosos y sé codicioso cuando los demás tienen miedo"</em>.<br>
@@ -934,7 +934,7 @@
       <div class="modal-footer">
         <button id="btnCloseSentimentModalFooter" class="btn btn-secondary" type="button">Cerrar</button>
         <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-          Ver en CNN Markets ↗
+          Ver en CNN Markets ◇
         </a>
       </div>
     </div>
@@ -946,7 +946,7 @@
       <div class="modal-header">
         <div class="modal-title-row">
           <div class="modal-icon-badge icon-calc">
-            <span style="font-size: 1.15rem;">💼</span>
+            <span style="font-size: 1.15rem;">▣</span>
           </div>
           <div>
             <h3 class="modal-title" id="pfModalTitle">Registrar Compra en Mi Cartera</h3>
@@ -1015,7 +1015,7 @@
       <div class="modal-header">
         <div class="modal-title-row">
           <div class="modal-icon-badge icon-sell">
-            <span style="font-size: 1.15rem;">💰</span>
+            <span style="font-size: 1.15rem;">¤</span>
           </div>
           <div>
             <h3 class="modal-title" id="pfCloseTitle">Registrar Venta / Cerrar Posición</h3>
@@ -1048,7 +1048,7 @@
         </div>
 
         <div class="calc-advice-banner" id="pfClosePreviewBanner">
-          <div class="calc-advice-icon">📊</div>
+          <div class="calc-advice-icon">▥</div>
           <div class="calc-advice-text" id="pfClosePreviewText">
             Introduce el precio de salida para previsualizar el resultado neto de la venta.
           </div>
@@ -1059,11 +1059,11 @@
 
       <div class="modal-footer pf-close-footer">
         <button id="btnDeletePortfolioRaw" class="btn btn-secondary btn-danger-soft btn-sm" type="button" title="Eliminar registro sin contabilizar venta en el historial">
-          🗑️ Borrar sin historial
+          × Borrar sin historial
         </button>
         <div class="pf-close-footer-right">
           <button id="btnCancelPfCloseModal" class="btn btn-secondary" type="button">Cancelar</button>
-          <button id="btnConfirmPfClose" class="btn btn-primary" type="button">💰 Confirmar Venta</button>
+          <button id="btnConfirmPfClose" class="btn btn-primary" type="button">¤ Confirmar Venta</button>
         </div>
       </div>
     </div>
