@@ -12,11 +12,6 @@ let currentCalcSlMode = "FIBO"; // 'FIBO' | 'ATR'
 let portfolioData = null;
 let currentPortfolioClosePos = null;
 let pendingDeleteTicker = null;
-// Market labels keep their meaning while decorative emoji stay out of the UI.
-function monochromeLabel(value) {
-  return String(value ?? "").replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").trim();
-}
-
 let alertSoundEnabled = localStorage.getItem("alertSoundEnabled") !== "false";
 let previousAlertTickers = new Set();
 
@@ -86,7 +81,7 @@ function setupEventListeners() {
   if (btnRefreshPortfolio) {
     btnRefreshPortfolio.addEventListener("click", async () => {
       await loadAndRenderPortfolio();
-      showToast("Mi Cartera Real actualizada ↻");
+      showToast("Mi Cartera Real actualizada 🔄");
     });
   }
 
@@ -101,7 +96,7 @@ function setupEventListeners() {
   if (btnRefreshJournal) {
     btnRefreshJournal.addEventListener("click", () => {
       loadAndRenderJournal();
-      showToast("Diario de trading actualizado ↻");
+      showToast("Diario de trading actualizado 🔄");
     });
   }
 
@@ -142,7 +137,7 @@ function setupEventListeners() {
         });
         marketData.period = selectedPeriod;
         renderDashboard(marketData);
-        showToast(`↯ Ventana cambiada al instante a ${formatPeriodLabel(selectedPeriod)} (0 ms)`);
+        showToast(`⚡ Ventana cambiada al instante a ${formatPeriodLabel(selectedPeriod)} (0 ms)`);
 
         // Persistir cambio de periodo en segundo plano sin bloquear la UI
         fetch("/api/period", {
@@ -239,7 +234,7 @@ function setupEventListeners() {
     chkAlertSound.addEventListener("change", (e) => {
       alertSoundEnabled = e.target.checked;
       localStorage.setItem("alertSoundEnabled", alertSoundEnabled);
-      showToast(alertSoundEnabled ? "Sonido Chime activado ◇" : "Sonido Chime silenciado ◇");
+      showToast(alertSoundEnabled ? "Sonido Chime activado 🔊" : "Sonido Chime silenciado 🔇");
     });
   }
 
@@ -247,7 +242,7 @@ function setupEventListeners() {
     btnTestSound.addEventListener("click", (e) => {
       e.stopPropagation();
       playAlertChime();
-      showToast("◇ Sonido Chime de alerta reproducido");
+      showToast("🔊 Sonido Chime de alerta reproducido");
     });
   }
 
@@ -637,22 +632,22 @@ async function testTelegramAction() {
       resultBox.style.display = "block";
       if (data.success) {
         resultBox.className = "tg-result-box success";
-        resultBox.textContent = "✓ ¡Mensaje de prueba recibido en tu Telegram con éxito! Comprueba tu móvil.";
+        resultBox.textContent = "✅ ¡Mensaje de prueba recibido en tu Telegram con éxito! Comprueba tu móvil.";
       } else {
         resultBox.className = "tg-result-box error";
-        resultBox.textContent = `× Error de Telegram: ${data.message || "No se pudo entregar el mensaje"}`;
+        resultBox.textContent = `❌ Error de Telegram: ${data.message || "No se pudo entregar el mensaje"}`;
       }
     }
   } catch (err) {
     if (resultBox) {
       resultBox.className = "tg-result-box error";
-      resultBox.textContent = `× Error de conexión al probar Telegram: ${err.message}`;
+      resultBox.textContent = `❌ Error de conexión al probar Telegram: ${err.message}`;
       resultBox.style.display = "block";
     }
   } finally {
     if (btnTest) {
       btnTest.disabled = false;
-      btnTest.textContent = "◇ Probar en Móvil";
+      btnTest.textContent = "📲 Probar en Móvil";
     }
   }
 }
@@ -709,7 +704,7 @@ async function saveTelegramSettingsAction() {
       const modal = document.getElementById("telegramModal");
       if (modal) modal.style.display = "none";
       const intervalMsg = interval_val > 0 ? `Auto-sync cada ${interval_val} min` : "Auto-sync pausado";
-      showToast(`¡Configuración guardada! Telegram: ${enabled ? 'Activado ◇' : 'Pausado'}, ${intervalMsg}.`);
+      showToast(`¡Configuración guardada! Telegram: ${enabled ? 'Activado 📲' : 'Pausado'}, ${intervalMsg}.`);
     } else {
       showToast("Hubo un problema al guardar la configuración en el servidor.");
     }
@@ -930,7 +925,7 @@ function startLivePolling() {
       if (resp.ok) {
         const fresh = await resp.json();
         if (fresh && fresh.timestamp && (!marketData || fresh.timestamp !== marketData.timestamp)) {
-          console.log(`[Live Polling] ↻ Nuevos datos detectados (${fresh.timestamp}). Actualizando dashboard...`);
+          console.log(`[Live Polling] 🔄 Nuevos datos detectados (${fresh.timestamp}). Actualizando dashboard...`);
           marketData = fresh;
           if (marketData.period) {
             currentPeriod = marketData.period;
@@ -1096,7 +1091,7 @@ function renderDashboard(data) {
 
   if (elTopScore) elTopScore.textContent = `${topScore}/100`;
   if (elTopScoreName) elTopScoreName.textContent = topScoreName;
-  if (elTopScoreDesc) elTopScoreDesc.textContent = monochromeLabel(topScoreDesc);
+  if (elTopScoreDesc) elTopScoreDesc.textContent = topScoreDesc;
 
   // 1b. Render KPI Sentimiento de Mercado (CNN Fear & Greed)
   renderMarketSentiment(data.market_sentiment);
@@ -1117,8 +1112,8 @@ function renderDashboard(data) {
   const elSellPill = document.getElementById("sellAlertPill");
   if (elSellPill) {
     elSellPill.textContent = `${sellAlerts} ${sellAlerts === 1 ? 'alerta' : 'alertas'}`;
-    elSellPill.style.background = sellAlerts > 0 ? 'rgba(104, 104, 104, 0.3)' : 'rgba(255, 255, 255, 0.08)';
-    elSellPill.style.color = sellAlerts > 0 ? '#b8b8b8' : '#a0a0a0';
+    elSellPill.style.background = sellAlerts > 0 ? 'rgba(244, 63, 94, 0.3)' : 'rgba(255, 255, 255, 0.08)';
+    elSellPill.style.color = sellAlerts > 0 ? '#fda4af' : '#a89f91';
   }
 
   // 3c. Cargar métricas del diario y de Mi Cartera Real en segundo plano
@@ -1222,24 +1217,24 @@ function updateAlertsCenter(items) {
 
     if (isGolden || isConfluence || isBuy50 || isSweepSignal) {
       let priorityClass = "priority-buy";
-      let priorityBadge = "● Zona de Compra (50%)";
+      let priorityBadge = "🟢 Zona de Compra (50%)";
       let priorityWeight = 1;
 
       if (isGolden && isConfluence) {
         priorityClass = "priority-confluence";
-        priorityBadge = "✦ Confluencia Áurea";
+        priorityBadge = "🔥 Confluencia Áurea";
         priorityWeight = 3;
       } else if (isGolden) {
         priorityClass = "priority-golden";
-        priorityBadge = "◇ Zona Áurea (61.8%)";
+        priorityBadge = "🏆 Zona Áurea (61.8%)";
         priorityWeight = 2.5;
       } else if (isConfluence) {
         priorityClass = "priority-confluence";
-        priorityBadge = "✦ Confluencia Alta";
+        priorityBadge = "🔥 Confluencia Alta";
         priorityWeight = 2;
       } else if (isSweepSignal) {
         priorityClass = "priority-confluence";
-        priorityBadge = "⌁ Barrido de Stops (Spring SMC)";
+        priorityBadge = "🧲 Barrido de Stops (Spring SMC)";
         priorityWeight = 1.8;
       }
 
@@ -1287,7 +1282,7 @@ function updateAlertsCenter(items) {
   if (totalAlerts === 0) {
     alertsList.innerHTML = `
       <div class="alerts-empty-state">
-        <div class="alerts-empty-icon">◇</div>
+        <div class="alerts-empty-icon">🛡️</div>
         <div class="alerts-empty-title">Sin alertas en este momento</div>
         <div class="alerts-empty-desc">Ningún activo se encuentra en Zona Áurea o Confluencia Alta para este periodo.</div>
       </div>
@@ -1313,7 +1308,7 @@ function updateAlertsCenter(items) {
   if (hasNewAlerts && Notification.permission === "granted" && previousAlertTickers.size > 0) {
     const topAlert = alertItems[0];
     sendDesktopNotification(
-      `◎ Oportunidad: ${topAlert.item.tab} (${topAlert.item.ticker})`,
+      `🎯 Oportunidad: ${topAlert.item.tab} (${topAlert.item.ticker})`,
       `${topAlert.priorityBadge} a ${formatPrice(topAlert.item.current_price, topAlert.item)}. Score Técnico: ${topAlert.score}/100.`
     );
   }
@@ -1330,18 +1325,18 @@ function updateAlertsCenter(items) {
     else if (score >= 65) scoreClass = "score-high";
 
     const earnWarnHtml = (item.earnings && item.earnings.warning_level === "IMMINENT" && item.earnings.label)
-      ? `<div style="margin-top:4px; color:#c1c1c1; font-size:0.74rem; font-weight:600;">${escapeHtml(monochromeLabel(item.earnings.label))}</div>`
+      ? `<div style="margin-top:4px; color:#fbbf24; font-size:0.74rem; font-weight:600;">${escapeHtml(item.earnings.label)}</div>`
       : "";
 
     const liq = item.liquidity || null;
     let liqAlertHtml = "";
     if (liq) {
       if (liq.has_sweep && liq.sweep_label) {
-        liqAlertHtml = `<div style="margin-top:3px; color:#b3b3b3; font-size:0.73rem; font-weight:600;">${escapeHtml(monochromeLabel(liq.sweep_label))}</div>`;
+        liqAlertHtml = `<div style="margin-top:3px; color:#9bb8cc; font-size:0.73rem; font-weight:600;">${escapeHtml(liq.sweep_label)}</div>`;
       } else if (liq.has_absorption && liq.absorption_label) {
-        liqAlertHtml = `<div style="margin-top:3px; color:#a7a7a7; font-size:0.73rem; font-weight:600;">${escapeHtml(monochromeLabel(liq.absorption_label))}</div>`;
+        liqAlertHtml = `<div style="margin-top:3px; color:#5cc092; font-size:0.73rem; font-weight:600;">${escapeHtml(liq.absorption_label)}</div>`;
       } else if (liq.poc_price) {
-        liqAlertHtml = `<div style="margin-top:3px; color:#a0a0a0; font-size:0.72rem;">▥ Muro POC: <strong>${formatPrice(liq.poc_price, item)}</strong> • RVOL ${(liq.rvol || 1).toFixed(2)}x</div>`;
+        liqAlertHtml = `<div style="margin-top:3px; color:#a89f91; font-size:0.72rem;">🏦 Muro POC: <strong>${formatPrice(liq.poc_price, item)}</strong> • RVOL ${(liq.rvol || 1).toFixed(2)}x</div>`;
       }
     }
 
@@ -1366,7 +1361,7 @@ function updateAlertsCenter(items) {
         </button>
         <button class="btn-alert-chart" data-ticker="${item.ticker}" data-tab="${item.tab}" title="Abrir gráfico avanzado">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-          Gráfico ◇
+          Gráfico ⛶
         </button>
       </div>
     `;
@@ -1490,7 +1485,7 @@ async function toggleBrowserNotifications() {
     if (permission === "granted") {
       showToast("¡Avisos de escritorio activados! Recibirás alertas en segundo plano.");
       sendDesktopNotification(
-        "Radar de Oportunidades Activado ◎",
+        "Radar de Oportunidades Activado 🎯",
         "Te avisaremos cuando un valor alcance la Zona Áurea o Confluencia Alta."
       );
     } else {
@@ -1685,13 +1680,13 @@ function createAssetCard(item) {
   let scoreLabel = "Neutral";
   if (score >= 80) {
     scoreBadgeClass = "score-fire";
-    scoreLabel = "✦ Confluencia";
+    scoreLabel = "🔥 Confluencia";
   } else if (score >= 65) {
     scoreBadgeClass = "score-high";
-    scoreLabel = "● Alta Prob.";
+    scoreLabel = "🟢 Alta Prob.";
   } else if (score >= 45) {
     scoreBadgeClass = "score-moderate";
-    scoreLabel = "○ Moderada";
+    scoreLabel = "🟡 Moderada";
   }
 
   const rsi = typeof item.rsi === "number" ? item.rsi : 50;
@@ -1712,7 +1707,7 @@ function createAssetCard(item) {
   const smaDist = typeof item.sma_dist_pct === "number" ? item.sma_dist_pct : 0;
   const smaClass = isAboveSma ? "bullish" : "bearish";
   const smaSign = smaDist >= 0 ? "+" : "";
-  const smaLabel = isAboveSma ? `${smaSign}${smaDist.toFixed(1)}% ◇ Alcista` : `${smaSign}${smaDist.toFixed(1)}% ◇ Bajista`;
+  const smaLabel = isAboveSma ? `${smaSign}${smaDist.toFixed(1)}% 🐂 Alcista` : `${smaSign}${smaDist.toFixed(1)}% 🐻 Bajista`;
 
   // Módulo 1: Gestión de Riesgo (Risk Management)
   const risk = item.risk_mgmt || {
@@ -1725,7 +1720,7 @@ function createAssetCard(item) {
     take_profit_2: item.max,
     reward_2_pct: 20.0,
     rr_ratio_2: 2.5,
-    rr_rating: "● Favorable (R:R > 1:2)",
+    rr_rating: "🟢 Favorable (R:R > 1:2)",
     rr_code: "FAVORABLE"
   };
 
@@ -1746,7 +1741,7 @@ function createAssetCard(item) {
     ? `Suelo registrado: ${item.low_date} | Techo registrado: ${item.high_date}`
     : "Cronología entre el mínimo y el máximo de la ventana seleccionada";
   const swingBadgeHtml = swingLabel
-    ? `<div class="swing-row"><span class="swing-pill ${swingClass}" title="${swingTooltip}">${monochromeLabel(swingLabel)}</span></div>`
+    ? `<div class="swing-row"><span class="swing-pill ${swingClass}" title="${swingTooltip}">${swingLabel}</span></div>`
     : "";
 
   // Píldoras de Inteligencia Bloque 3 + Motor de Liquidez Institucional
@@ -1758,7 +1753,7 @@ function createAssetCard(item) {
       ? ` | BPA estimado: ${item.earnings.eps_avg}`
       : "";
     intelBadges.push(
-      `<span class="earnings-pill ${eCls}" title="Próxima presentación de resultados: ${item.earnings.next_date}${epsHint}">${monochromeLabel(item.earnings.label)}</span>`
+      `<span class="earnings-pill ${eCls}" title="Próxima presentación de resultados: ${item.earnings.next_date}${epsHint}">${item.earnings.label}</span>`
     );
   }
   if (item.best_cluster && item.best_cluster.label) {
@@ -1768,21 +1763,21 @@ function createAssetCard(item) {
       .map(m => typeof m === "string" ? m : `${m.period_label || (m.period || "").toUpperCase()} ${m.level} (${formatPrice(m.price, item)})`)
       .join(" + ");
     intelBadges.push(
-      `<span class="cluster-pill ${cCls}" title="Confluencia Multi-Timeframe: ${cTooltip}">${monochromeLabel(item.best_cluster.label)}</span>`
+      `<span class="cluster-pill ${cCls}" title="Confluencia Multi-Timeframe: ${cTooltip}">${item.best_cluster.label}</span>`
     );
   }
   if (liq && liq.has_sweep && liq.sweep_label) {
     intelBadges.push(
-      `<span class="liq-pill liq-sweep" title="Barrido de Stops / Spring SMC (${escapeHtml(liq.sweep_date || '')}): perforó soporte previo y cerró por encima capturando liquidez">${escapeHtml(monochromeLabel(liq.sweep_label))}</span>`
+      `<span class="liq-pill liq-sweep" title="Barrido de Stops / Spring SMC (${escapeHtml(liq.sweep_date || '')}): perforó soporte previo y cerró por encima capturando liquidez">${escapeHtml(liq.sweep_label)}</span>`
     );
   }
   if (liq && liq.has_absorption && liq.absorption_label) {
     intelBadges.push(
-      `<span class="liq-pill liq-absorption" title="Absorción Institucional detectada (RVOL pico 3 sesiones: ${(liq.peak_rvol_3d || liq.rvol || 1).toFixed(2)}x)">${escapeHtml(monochromeLabel(liq.absorption_label))}</span>`
+      `<span class="liq-pill liq-absorption" title="Absorción Institucional detectada (RVOL pico 3 sesiones: ${(liq.peak_rvol_3d || liq.rvol || 1).toFixed(2)}x)">${escapeHtml(liq.absorption_label)}</span>`
     );
   } else if (liq && liq.fib_poc_confluence && liq.fib_poc_confluence.has_confluence) {
     intelBadges.push(
-      `<span class="liq-pill liq-poc" title="Confluencia Fibonacci + Volume Profile (${liq.profile_type === 'TPO' ? 'TPO' : 'Volumen Real'}) | Área de Valor 70%: ${formatPrice(liq.val_price, item)} – ${formatPrice(liq.vah_price, item)}">${escapeHtml(monochromeLabel(liq.fib_poc_confluence.label))}</span>`
+      `<span class="liq-pill liq-poc" title="Confluencia Fibonacci + Volume Profile (${liq.profile_type === 'TPO' ? 'TPO' : 'Volumen Real'}) | Área de Valor 70%: ${formatPrice(liq.val_price, item)} – ${formatPrice(liq.vah_price, item)}">${escapeHtml(liq.fib_poc_confluence.label)}</span>`
     );
   }
   const intelPillsHtml = intelBadges.length > 0
@@ -1790,7 +1785,7 @@ function createAssetCard(item) {
     : "";
 
   const pocPinHtml = (liq && typeof liq.poc_pct_pos === "number")
-    ? `<div class="range-poc-pin" style="left: ${Math.max(2, Math.min(98, liq.poc_pct_pos))}%;" title="▥ Muro POC (Mayor Liquidez): ${formatPrice(liq.poc_price, item)} | Área de Valor 70% (VAL–VAH): ${formatPrice(liq.val_price, item)} – ${formatPrice(liq.vah_price, item)}"></div>`
+    ? `<div class="range-poc-pin" style="left: ${Math.max(2, Math.min(98, liq.poc_pct_pos))}%;" title="🏦 Muro POC (Mayor Liquidez): ${formatPrice(liq.poc_price, item)} | Área de Valor 70% (VAL–VAH): ${formatPrice(liq.val_price, item)} – ${formatPrice(liq.vah_price, item)}"></div>`
     : "";
 
   let liquidityCardHtml = "";
@@ -1813,38 +1808,38 @@ function createAssetCard(item) {
       ? "val-liq-cyan"
       : (liq.rvol_status === "LOW" ? "val-liq-muted" : "val-liq-neutral");
     const sslDist = Math.abs(liq.ssl_dist_pct || 0).toFixed(1);
-    const sslTag = liq.is_equal_lows ? "⌁ Doble Suelo" : "Swing Low";
+    const sslTag = liq.is_equal_lows ? "🧲 Doble Suelo" : "Swing Low";
 
     liquidityCardHtml = `
     <!-- Panel Motor de Liquidez Institucional (Volume Profile POC + RVOL + Piscinas SSL) -->
     <div class="liquidity-engine-card">
       <div class="liq-header-row">
         <div class="liq-title">
-          <span>▥ Liquidez Institucional (SMC)</span>
+          <span>🏦 Liquidez Institucional (SMC)</span>
         </div>
         <span class="liq-score-badge ${liqScoreCls}" title="Score de Liquidez Institucional (POC + RVOL/Absorción + Piscina Stops)">Liq: ${liqScore}/100</span>
       </div>
 
       <div class="liq-metrics-row">
         <div class="liq-col" title="Point of Control (${liq.profile_type === 'TPO' ? 'TPO' : 'Volume Profile'}): ${formatPrice(liq.poc_price, item)} | Área de Valor 70% (VAL–VAH): ${formatPrice(liq.val_price, item)} – ${formatPrice(liq.vah_price, item)}">
-          <span class="liq-label">▥ Muro POC</span>
+          <span class="liq-label">🏦 Muro POC</span>
           <span class="liq-val val-liq-gold">${formatPrice(liq.poc_price, item)}</span>
           <span class="liq-sub">${pocSub}</span>
         </div>
         <div class="liq-col" title="Volumen Relativo frente a media de 20 sesiones (Pico últimas 3 sesiones: ${(liq.peak_rvol_3d || liq.rvol || 0).toFixed(2)}x)">
-          <span class="liq-label">◇ RVOL (20d)</span>
+          <span class="liq-label">🐋 RVOL (20d)</span>
           <span class="liq-val ${rvolCls}">${rvolMain}</span>
-          <span class="liq-sub">${escapeHtml(monochromeLabel(liq.rvol_label || "Normal"))}</span>
+          <span class="liq-sub">${escapeHtml(liq.rvol_label || "Normal")}</span>
         </div>
         <div class="liq-col" title="${escapeHtml(liq.ssl_type_label || 'Piscina de Stops')} en ${formatPrice(liq.ssl_pool_price, item)}${risk.ssl_stop_loss ? ` | Stop protegido bajo piscina SSL: ${formatPrice(risk.ssl_stop_loss, item)}` : ''}">
-          <span class="liq-label">⌁ Piscina SSL</span>
+          <span class="liq-label">🧲 Piscina SSL</span>
           <span class="liq-val val-liq-cyan">${formatPrice(liq.ssl_pool_price, item)}</span>
           <span class="liq-sub">-${sslDist}% • ${sslTag}</span>
         </div>
       </div>
 
       <div class="liq-verdict-strip ${verdictCls}">
-        <span>${escapeHtml(monochromeLabel(liq.liquidity_verdict || "◇ Flujo de Liquidez Normal"))}</span>
+        <span>${escapeHtml(liq.liquidity_verdict || "💧 Flujo de Liquidez Normal")}</span>
       </div>
     </div>`;
   }
@@ -1880,7 +1875,7 @@ function createAssetCard(item) {
 
     <!-- Banner de Señal Principal -->
     <div class="signal-banner ${signalClass}">
-      <span>${monochromeLabel(item.signal)}</span>
+      <span>${item.signal}</span>
       <span style="font-size: 0.75rem; opacity: 0.85;">${item.zone_desc}</span>
     </div>
 
@@ -1893,7 +1888,7 @@ function createAssetCard(item) {
         </span>
         <div class="tech-metric-value">
           <span class="tech-score-val">${score}/100</span>
-          <span class="tech-score-badge ${scoreBadgeClass}">${monochromeLabel(scoreLabel)}</span>
+          <span class="tech-score-badge ${scoreBadgeClass}">${scoreLabel}</span>
         </div>
       </div>
 
@@ -1935,20 +1930,20 @@ function createAssetCard(item) {
         ${pocPinHtml}
         <div class="range-pin" style="left: ${pctPos}%;" title="Precio actual: ${formatPrice(item.current_price, item)}"></div>
       </div>
-      <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #6d6d6d; margin-top: 4px;">
+      <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #756c60; margin-top: 4px;">
         <span>Descuento Máximo</span>
-        <span>${liq && liq.poc_price ? `▥ POC: ${formatPrice(liq.poc_price, item)}` : `Rango: ${formatPrice(item.range, item)}`}</span>
+        <span>${liq && liq.poc_price ? `🏦 POC: ${formatPrice(liq.poc_price, item)}` : `Rango: ${formatPrice(item.range, item)}`}</span>
         <span>Resistencia</span>
       </div>
     </div>
 
     <!-- Escalera de Retrocesos de Fibonacci + Densidad Volume Profile -->
     <div class="fib-ladder">
-      ${renderFibRow("23.6%", item.fib_levels["23.6%"], item.current_price, "○", false, item)}
-      ${renderFibRow("38.2%", item.fib_levels["38.2%"], item.current_price, "○", false, item)}
-      ${renderFibRow("50.0%", item.fib_levels["50.0%"], item.current_price, "●", false, item)}
-      ${renderFibRow("61.8%", item.fib_levels["61.8%"], item.current_price, "◇", true, item)}
-      ${renderFibRow("78.6%", item.fib_levels["78.6%"], item.current_price, "◇", false, item)}
+      ${renderFibRow("23.6%", item.fib_levels["23.6%"], item.current_price, "🟡", false, item)}
+      ${renderFibRow("38.2%", item.fib_levels["38.2%"], item.current_price, "🟡", false, item)}
+      ${renderFibRow("50.0%", item.fib_levels["50.0%"], item.current_price, "🟢", false, item)}
+      ${renderFibRow("61.8%", item.fib_levels["61.8%"], item.current_price, "🏆", true, item)}
+      ${renderFibRow("78.6%", item.fib_levels["78.6%"], item.current_price, "💎", false, item)}
     </div>
 
     ${liquidityCardHtml}
@@ -1960,34 +1955,34 @@ function createAssetCard(item) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           <span>Gestión de Riesgo & R:R</span>
         </div>
-        <span class="rr-badge ${rrBadgeClass}">${monochromeLabel(risk.rr_rating || '● Favorable')}</span>
+        <span class="rr-badge ${rrBadgeClass}">${risk.rr_rating || '🟢 Favorable'}</span>
       </div>
 
       <div class="risk-metrics-row">
         <div class="risk-col stop-loss-col" title="Stop Loss estructural bajo 78.6%${atrTooltipExtra}${sslTooltipExtra}">
-          <span class="risk-label">◇ Stop Loss</span>
+          <span class="risk-label">🛡️ Stop Loss</span>
           <span class="risk-val val-danger">${formatPrice(risk.stop_loss, item)}</span>
           <span class="risk-sub">-${(risk.risk_pct || 0).toFixed(1)}%${item.atr_pct ? ` • ATR ${item.atr_pct.toFixed(1)}%` : " riesgo"}</span>
         </div>
         <div class="risk-col tp1-col" title="Take Profit 1 en resistencia 38.2%">
-          <span class="risk-label">◎ TP 1 (38.2%)</span>
+          <span class="risk-label">🎯 TP 1 (38.2%)</span>
           <span class="risk-val val-success">${formatPrice(risk.take_profit_1, item)}</span>
           <span class="risk-sub">+${(risk.reward_1_pct || 0).toFixed(1)}% | 1:${risk.rr_ratio_1 || 1}</span>
         </div>
         <div class="risk-col tp2-col" title="Take Profit 2 en re-test de máximos">
-          <span class="risk-label">↗ TP 2 (Máx)</span>
+          <span class="risk-label">🚀 TP 2 (Máx)</span>
           <span class="risk-val val-rocket">${formatPrice(risk.take_profit_2, item)}</span>
-          <span class="risk-sub">+${(risk.reward_2_pct || 0).toFixed(1)}% | 1:${risk.rr_ratio_2 || 2}${risk.ssl_rr_ratio_2 && Math.abs(risk.ssl_rr_ratio_2 - (risk.rr_ratio_2 || 0)) > 0.1 ? ` <span class="badge-ssl-rr" title="Ratio R:R 1:${risk.ssl_rr_ratio_2} con Stop ceñido bajo piscina SSL (${formatPrice(risk.ssl_stop_loss, item)})" style="color:#a5a5a5; font-weight:600; cursor:help;">(1:${risk.ssl_rr_ratio_2} SSL)</span>` : ""}</span>
+          <span class="risk-sub">+${(risk.reward_2_pct || 0).toFixed(1)}% | 1:${risk.rr_ratio_2 || 2}${risk.ssl_rr_ratio_2 && Math.abs(risk.ssl_rr_ratio_2 - (risk.rr_ratio_2 || 0)) > 0.1 ? ` <span class="badge-ssl-rr" title="Ratio R:R 1:${risk.ssl_rr_ratio_2} con Stop ceñido bajo piscina SSL (${formatPrice(risk.ssl_stop_loss, item)})" style="color:#38bdf8; font-weight:600; cursor:help;">(1:${risk.ssl_rr_ratio_2} SSL)</span>` : ""}</span>
         </div>
       </div>
 
       <div class="risk-actions-row">
         <button class="btn-calc-position" data-ticker="${item.ticker}" title="Calcular posición con Stop Fibonacci, Volatilidad 2x ATR o Bajo Piscina Liquidez (SSL)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
-          ▦ Calcular Posición
+          🧮 Calcular Posición
         </button>
         <button class="btn-card-portfolio" data-ticker="${item.ticker}" title="Registrar compra de ${item.tab} en Mi Cartera Real">
-          ▣ Cartera
+          💼 Cartera
         </button>
       </div>
     </div>
@@ -2000,7 +1995,7 @@ function createAssetCard(item) {
       </button>
       <button class="btn-fullscreen-trigger" data-ticker="${item.ticker}" data-tab="${item.tab}" title="Abrir gráfico avanzado a pantalla completa">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-        Expandir ◇
+        Expandir ⛶
       </button>
     </div>
 
@@ -2017,7 +2012,7 @@ function createAssetCard(item) {
         </button>
       </div>
       <div class="chart-widget-wrapper">
-        <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #a0a0a0; font-size: 0.82rem;">
+        <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #a89f91; font-size: 0.82rem;">
           Cargando gráfico interactivo de ${item.tab}...
         </div>
       </div>
@@ -2028,7 +2023,7 @@ function createAssetCard(item) {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         TradingView Oficial
       </a>
-      <span style="font-size: 0.75rem; color: #a0a0a0;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
+      <span style="font-size: 0.75rem; color: #a89f91;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
     </div>
   `;
 
@@ -2036,7 +2031,7 @@ function createAssetCard(item) {
   if (currentAppMode === "SELL") {
     const sell = item.sell_mgmt || {
       sell_score: 20,
-      sell_signal: "● SIN PRESIÓN DE VENTA",
+      sell_signal: "🟢 SIN PRESIÓN DE VENTA",
       sell_action: "Activo en zona baja o media; no es momento de vender.",
       sell_status_code: "ACCUMULATE",
       gain_from_low_pct: 5.0,
@@ -2066,7 +2061,7 @@ function createAssetCard(item) {
         <div style="display: flex; align-items: flex-start; gap: 8px;">
           <div class="asset-price-box">
             <div class="asset-current-price">${formatPrice(item.current_price, item)}</div>
-            <span class="asset-drop-pill drop-positive" style="color: #b8b8b8;">+${sell.gain_from_low_pct.toFixed(1)}% desde mín</span>
+            <span class="asset-drop-pill drop-positive" style="color: #4ade80;">+${sell.gain_from_low_pct.toFixed(1)}% desde mín</span>
           </div>
           <button class="btn-card-delete" title="Dejar de seguir ${item.tab} (${item.ticker})">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
@@ -2077,8 +2072,8 @@ function createAssetCard(item) {
       ${intelPillsHtml}
 
       <!-- Banner de Señal de Venta -->
-      <div class="signal-banner" style="background: rgba(74, 74, 74, 0.15); border: 1px solid rgba(74, 74, 74, 0.35); color: #b8b8b8;">
-        <span>${monochromeLabel(sell.sell_signal)}</span>
+      <div class="signal-banner" style="background: rgba(225, 29, 72, 0.15); border: 1px solid rgba(225, 29, 72, 0.35); color: #fda4af;">
+        <span>${sell.sell_signal}</span>
         <span style="font-size: 0.75rem; opacity: 0.85;">${sell.dist_to_high_pct <= 2 ? 'En Resistencia Máxima' : `A ${sell.dist_to_high_pct.toFixed(1)}% del techo`}</span>
       </div>
 
@@ -2087,8 +2082,8 @@ function createAssetCard(item) {
         <div class="tech-metric-item">
           <span class="tech-metric-label">Presión de Venta</span>
           <div class="tech-metric-value">
-            <span class="tech-score-val" style="color: #909090;">${sell.sell_score}/100</span>
-            <span class="sell-badge ${sellBadgeClass}" style="font-size: 0.68rem;">${sell.sell_status_code === 'STRONG_SELL' ? '✦ Extrema' : (sell.sell_status_code === 'PARTIAL_SELL' ? '○ Alerta' : '○ Moderada')}</span>
+            <span class="tech-score-val" style="color: #fb7185;">${sell.sell_score}/100</span>
+            <span class="sell-badge ${sellBadgeClass}" style="font-size: 0.68rem;">${sell.sell_status_code === 'STRONG_SELL' ? '🔥 Extrema' : (sell.sell_status_code === 'PARTIAL_SELL' ? '🟠 Alerta' : '🟡 Moderada')}</span>
           </div>
         </div>
 
@@ -2105,7 +2100,7 @@ function createAssetCard(item) {
         <div class="tech-metric-item">
           <span class="tech-metric-label">Distancia Techo</span>
           <div class="tech-metric-value">
-            <span style="font-weight: 700; font-family: var(--font-mono); color: #efefef;">-${sell.dist_to_high_pct.toFixed(1)}%</span>
+            <span style="font-weight: 700; font-family: var(--font-mono); color: #f4efe6;">-${sell.dist_to_high_pct.toFixed(1)}%</span>
           </div>
         </div>
       </div>
@@ -2137,32 +2132,32 @@ function createAssetCard(item) {
         <div class="sell-levels-grid">
           <div class="sell-level-item">
             <span class="sell-level-label">Extensión 127.2%</span>
-            <span class="sell-level-price" style="color: #adadad;">${formatPrice(sell.ext_127, item)}</span>
+            <span class="sell-level-price" style="color: #e0a84e;">${formatPrice(sell.ext_127, item)}</span>
             <span class="sell-level-sub">a ${sell.dist_to_ext127_pct >= 0 ? '+' : ''}${sell.dist_to_ext127_pct.toFixed(1)}%</span>
           </div>
           <div class="sell-level-item">
             <span class="sell-level-label">Extensión 161.8%</span>
-            <span class="sell-level-price" style="color: #999999;">${formatPrice(sell.ext_161, item)}</span>
+            <span class="sell-level-price" style="color: #c084fc;">${formatPrice(sell.ext_161, item)}</span>
             <span class="sell-level-sub">a ${sell.dist_to_ext161_pct >= 0 ? '+' : ''}${sell.dist_to_ext161_pct.toFixed(1)}%</span>
           </div>
           <div class="sell-level-item">
             <span class="sell-level-label">Trailing Stop (-5.5%)</span>
-            <span class="sell-level-price" style="color: #909090;">${formatPrice(sell.trailing_stop, item)}</span>
+            <span class="sell-level-price" style="color: #fb7185;">${formatPrice(sell.trailing_stop, item)}</span>
             <span class="sell-level-sub">Protector ganancias</span>
           </div>
         </div>
 
         <div class="sell-action-note">
-          ✧ <strong>Estrategia recomendada:</strong> ${sell.sell_action}
+          💡 <strong>Estrategia recomendada:</strong> ${sell.sell_action}
         </div>
 
         <div class="risk-actions-row">
           <button class="btn-calc-sell" data-ticker="${item.ticker}" title="Simular venta parcial de beneficios">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V9"/></svg>
-            ▦ Simular Venta Parcial
+            🧮 Simular Venta Parcial
           </button>
           <button class="btn-card-portfolio" data-ticker="${item.ticker}" title="Gestionar ${item.tab} en Mi Cartera Real">
-            ▣ Cartera
+            💼 Cartera
           </button>
         </div>
       </div>
@@ -2175,7 +2170,7 @@ function createAssetCard(item) {
         </button>
         <button class="btn-fullscreen-trigger" data-ticker="${item.ticker}" data-tab="${item.tab}" title="Expandir gráfico en pantalla completa">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-          Expandir ◇
+          Expandir ⛶
         </button>
       </div>
 
@@ -2191,7 +2186,7 @@ function createAssetCard(item) {
           </button>
         </div>
         <div class="chart-widget-wrapper">
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #a0a0a0; font-size: 0.82rem;">
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #a89f91; font-size: 0.82rem;">
             Cargando gráfico interactivo de ${item.tab}...
           </div>
         </div>
@@ -2202,7 +2197,7 @@ function createAssetCard(item) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           TradingView Oficial
         </a>
-        <span style="font-size: 0.75rem; color: #a0a0a0;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
+        <span style="font-size: 0.75rem; color: #a89f91;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
       </div>
     `;
 
@@ -2259,7 +2254,7 @@ function attachCardCommonEvents(card, item) {
     });
   });
 
-  // Asignar evento al botón rápido "▣ Cartera"
+  // Asignar evento al botón rápido "💼 Cartera"
   const btnPortfolio = card.querySelector(".btn-card-portfolio");
   if (btnPortfolio) {
     btnPortfolio.addEventListener("click", (e) => {
@@ -2277,7 +2272,7 @@ function attachCardCommonEvents(card, item) {
       if (!rawPrice) return;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(rawPrice).then(() => {
-          showToast(`▤ Precio ${lvlName} de ${item.tab} copiado: ${rawPrice}`);
+          showToast(`📋 Precio ${lvlName} de ${item.tab} copiado: ${rawPrice}`);
         }).catch(() => {});
       }
     });
@@ -2425,7 +2420,7 @@ function renderFibRow(level, targetPrice, currentPrice, icon, isGolden = false, 
 
   let distLabel = "";
   if (isReached) {
-    distLabel = `<span style="color: #a7a7a7; font-weight: 600;">✓ Alcanzado (-${Math.abs(distPct)}%)</span>`;
+    distLabel = `<span style="color: #5cc092; font-weight: 600;">✓ Alcanzado (-${Math.abs(distPct)}%)</span>`;
   } else {
     distLabel = `<span>A +${distPct}%</span>`;
   }
@@ -2442,10 +2437,10 @@ function renderFibRow(level, targetPrice, currentPrice, icon, isGolden = false, 
     const tierCls = `tier-${(fibLiq.tier || "LOW").toLowerCase()}`;
     volBarHtml = `<div class="fib-vol-bar ${tierCls}" style="width: ${strength}%;"></div>`;
 
-    let shortBadge = `◇ ${strength}%`;
-    if (fibLiq.is_poc || fibLiq.tier === "POC_WALL") shortBadge = "▥ POC";
-    else if (fibLiq.tier === "HIGH") shortBadge = `▥ ${strength}%`;
-    else if (fibLiq.tier === "LOW") shortBadge = "○ LVN";
+    let shortBadge = `💧 ${strength}%`;
+    if (fibLiq.is_poc || fibLiq.tier === "POC_WALL") shortBadge = "🏦 POC";
+    else if (fibLiq.tier === "HIGH") shortBadge = `🏦 ${strength}%`;
+    else if (fibLiq.tier === "LOW") shortBadge = "🕳️ LVN";
 
     liqBadgeHtml = `<span class="fib-liq-badge ${tierCls}">${shortBadge}</span>`;
     liqTooltip = ` | Liquidez institucional: ${fibLiq.badge || shortBadge} (${strength}%)`;
@@ -2489,7 +2484,7 @@ function showToast(message) {
   }
 
   toast.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a7a7a7" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5cc092" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
     <span>${message}</span>
   `;
 
@@ -2513,7 +2508,7 @@ function resolveActiveCalcStop(item, risk) {
     return {
       sl: slVal,
       riskPct: Math.max(0.1, pct),
-      label: "⌁ Stop Bajo Piscina Liquidez (SSL)"
+      label: "🧲 Stop Bajo Piscina Liquidez (SSL)"
     };
   }
   if (currentCalcSlMode === "ATR" && risk.atr_stop_loss && risk.atr_stop_loss > 0) {
@@ -2522,7 +2517,7 @@ function resolveActiveCalcStop(item, risk) {
     return {
       sl: slVal,
       riskPct: Math.max(0.1, pct),
-      label: "≈ Stop Volatilidad (2x ATR)"
+      label: "🌊 Stop Volatilidad (2x ATR)"
     };
   }
   const slVal = risk.stop_loss || (entry * 0.95);
@@ -2530,7 +2525,7 @@ function resolveActiveCalcStop(item, risk) {
   return {
     sl: slVal,
     riskPct: Math.max(0.1, pct),
-    label: "◇ Stop Fibonacci (78.6%)"
+    label: "🛡️ Stop Fibonacci (78.6%)"
   };
 }
 
@@ -2548,7 +2543,7 @@ function openPositionCalculator(item) {
     take_profit_2: item.max,
     reward_2_pct: 20.0,
     rr_ratio_2: 2.5,
-    rr_rating: "● Favorable (R:R > 1:2)"
+    rr_rating: "🟢 Favorable (R:R > 1:2)"
   };
 
   // Si el activo tiene barrido de liquidez o absorción Smart Money, activar Stop SSL por defecto
@@ -2671,11 +2666,11 @@ function recalcPositionPlan() {
   const adviceEl = document.getElementById("calcAdviceText");
 
   const earnNote = (item.earnings && item.earnings.warning_level === "IMMINENT" && item.earnings.label)
-    ? `<br><span style="color:#c1c1c1;"><strong>${escapeHtml(monochromeLabel(item.earnings.label))}:</strong> Valora reducir lote a la mitad ante posible gap de resultados.</span>`
+    ? `<br><span style="color:#fbbf24;"><strong>${escapeHtml(item.earnings.label)}:</strong> Valora reducir lote a la mitad ante posible gap de resultados.</span>`
     : "";
 
   const sslNote = (currentCalcSlMode !== "SSL" && risk.ssl_pool_ref && risk.ssl_stop_loss && sl >= risk.ssl_pool_ref)
-    ? `<br><span style="color:#b3b3b3;"><strong>⌁ Aviso de Liquidez SMC:</strong> Hay una piscina de stops en <strong>${formatPrice(risk.ssl_pool_ref, item)}</strong>. Valora el método <em>Bajo Piscina Liquidez (${formatPrice(risk.ssl_stop_loss, item)})</em> para evitar barridos institucionales.</span>`
+    ? `<br><span style="color:#9bb8cc;"><strong>🧲 Aviso de Liquidez SMC:</strong> Hay una piscina de stops en <strong>${formatPrice(risk.ssl_pool_ref, item)}</strong>. Valora el método <em>Bajo Piscina Liquidez (${formatPrice(risk.ssl_stop_loss, item)})</em> para evitar barridos institucionales.</span>`
     : "";
 
   if (isFractionalOnly) {
@@ -2688,7 +2683,7 @@ function recalcPositionPlan() {
     if (elRatio) elRatio.textContent = `Ratio R:R 1:${effectiveRR}`;
 
     if (adviceBanner) adviceBanner.classList.add("calc-advice-warning");
-    if (adviceIcon) adviceIcon.textContent = "△";
+    if (adviceIcon) adviceIcon.textContent = "⚠️";
     if (adviceEl) {
       adviceEl.innerHTML = `<strong>Presupuesto inferior al riesgo de 1 título entero (-${formatPrice(riskPerShare, item)}):</strong> Para respetar estrictamente tu límite de <strong>-${sym}${formatCurrency(budget, 2)}</strong>, debes comprar <strong>${fracStr} títulos fraccionados</strong> (inversión: <strong>${sym}${formatCurrency(totalCapital, 2)}</strong>). Si tu broker no permite fracciones, comprar <strong>1 título entero</strong> requerirá invertir <strong>${formatPrice(entry, item)}</strong> y asumir un riesgo real de <strong>-${formatPrice(riskPerShare, item)}</strong>.${sslNote}${earnNote}`;
     }
@@ -2704,7 +2699,7 @@ function recalcPositionPlan() {
     if (elRatio) elRatio.textContent = `Ratio R:R 1:${effectiveRR}`;
 
     if (adviceBanner) adviceBanner.classList.remove("calc-advice-warning");
-    if (adviceIcon) adviceIcon.textContent = "✧";
+    if (adviceIcon) adviceIcon.textContent = "💡";
     if (adviceEl) {
       adviceEl.innerHTML = `Comprando <strong>${wholeShares} ${wholeShares === 1 ? 'acción' : 'acciones'}</strong> a <strong>${formatPrice(entry, item)}</strong>, tu pérdida máxima estará acotada exactamente a <strong>-${sym}${formatCurrency(actualLoss, 2)}</strong> si el precio toca tu Stop Loss en <strong>${formatPrice(sl, item)}</strong>. Si el activo alcanza tu objetivo principal (TP 2 en ${formatPrice(risk.take_profit_2, item)}), tu beneficio neto estimado será de <strong>+${sym}${formatCurrency(reward2, 2)}</strong>.${sslNote}${earnNote}`;
     }
@@ -2768,18 +2763,18 @@ function copyTradingPlanToClipboard() {
   const effectiveRR = ((effectiveShares * riskPerShare) > 0 ? (reward2 / (effectiveShares * riskPerShare)) : 2).toFixed(2);
 
   const text = 
-`▤ PLAN DE TRADING: ${item.tab} (${item.ticker})
+`📋 PLAN DE TRADING: ${item.tab} (${item.ticker})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-¤ Precio Entrada: ${formatPrice(entry, item)}
+💰 Precio Entrada: ${formatPrice(entry, item)}
 ${activeStop.label}: ${formatPrice(sl, item)} (-${activeStop.riskPct.toFixed(1)}%)
-◎ Take Profit 1 (38.2%): ${formatPrice(risk.take_profit_1 || 0, item)} (+${(risk.reward_1_pct || 0).toFixed(1)}%)
-↗ Take Profit 2 (Máx): ${formatPrice(risk.take_profit_2 || 0, item)} (+${(risk.reward_2_pct || 0).toFixed(1)}%)
-◇ Ratio Riesgo/Beneficio: 1:${effectiveRR}
+🎯 Take Profit 1 (38.2%): ${formatPrice(risk.take_profit_1 || 0, item)} (+${(risk.reward_1_pct || 0).toFixed(1)}%)
+🚀 Take Profit 2 (Máx): ${formatPrice(risk.take_profit_2 || 0, item)} (+${(risk.reward_2_pct || 0).toFixed(1)}%)
+⚖️ Ratio Riesgo/Beneficio: 1:${effectiveRR}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-□ Posición Recomendada: ${sharesLabel}
-◇ Capital Necesario: ${sym}${formatCurrency(totalCapital, 2)}
-◇ Pérdida Máxima Asumida: -${sym}${formatCurrency(effectiveShares * riskPerShare, 2)}
-◇ Ganancia Estimada (TP 2): +${sym}${formatCurrency(reward2, 2)}`;
+📦 Posición Recomendada: ${sharesLabel}
+💵 Capital Necesario: ${sym}${formatCurrency(totalCapital, 2)}
+🛑 Pérdida Máxima Asumida: -${sym}${formatCurrency(effectiveShares * riskPerShare, 2)}
+🏆 Ganancia Estimada (TP 2): +${sym}${formatCurrency(reward2, 2)}`;
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(() => {
@@ -2808,25 +2803,25 @@ function renderModeToolbarControls(mode) {
         </button>
         <button class="chip-btn chip-red ${currentFilter === 'SELL_STRONG' ? 'active' : ''}" data-filter="SELL_STRONG">
           <span class="chip-dot dot-red"></span>
-          ✦ Venta Fuerte (Score ≥ 70) <span class="chip-count" id="countSellStrong">0</span>
+          🔥 Venta Fuerte (Score ≥ 70) <span class="chip-count" id="countSellStrong">0</span>
         </button>
         <button class="chip-btn chip-orange ${currentFilter === 'SELL_ALERT' ? 'active' : ''}" data-filter="SELL_ALERT">
           <span class="chip-dot dot-orange"></span>
-          ○ Toma Parcial / Techo <span class="chip-count" id="countSellAlert">0</span>
+          🟠 Toma Parcial / Techo <span class="chip-count" id="countSellAlert">0</span>
         </button>
         <button class="chip-btn chip-gold ${currentFilter === 'OVERBOUGHT' ? 'active' : ''}" data-filter="OVERBOUGHT">
           <span class="chip-dot dot-gold"></span>
-          ↗ RSI Alto (≥ 62) <span class="chip-count" id="countOverbought">0</span>
+          📈 RSI Alto (≥ 62) <span class="chip-count" id="countOverbought">0</span>
         </button>
         <button class="chip-btn chip-green ${currentFilter === 'HOLD_ACCUM' ? 'active' : ''}" data-filter="HOLD_ACCUM">
           <span class="chip-dot dot-green"></span>
-          ● Sin Presión / Mantener <span class="chip-count" id="countHoldAccum">0</span>
+          🟢 Sin Presión / Mantener <span class="chip-count" id="countHoldAccum">0</span>
         </button>
       `;
     }
     if (sortSelect) {
       sortSelect.innerHTML = `
-        <option value="score_desc">✦ Mayor Presión de Venta (0-100)</option>
+        <option value="score_desc">🔥 Mayor Presión de Venta (0-100)</option>
         <option value="gain_desc">Mayor Subida desde Mín %</option>
         <option value="rsi_desc">RSI Más Alto (Sobrecompra)</option>
         <option value="high_dist_asc">Más Cerca del Techo (Máx)</option>
@@ -2844,7 +2839,7 @@ function renderModeToolbarControls(mode) {
         </button>
         <button class="chip-btn chip-fire ${currentFilter === 'CONFLUENCE' ? 'active' : ''}" data-filter="CONFLUENCE">
           <span class="chip-dot dot-fire"></span>
-          ✦ Alta Confluencia (Score ≥ 70) <span class="chip-count" id="countConfluence">0</span>
+          🔥 Alta Confluencia (Score ≥ 70) <span class="chip-count" id="countConfluence">0</span>
         </button>
         <button class="chip-btn chip-green ${currentFilter === 'BUY_ZONE' ? 'active' : ''}" data-filter="BUY_ZONE">
           <span class="chip-dot dot-green"></span>
@@ -2856,7 +2851,7 @@ function renderModeToolbarControls(mode) {
         </button>
         <button class="chip-btn chip-liquidity ${currentFilter === 'LIQUIDITY' ? 'active' : ''}" data-filter="LIQUIDITY">
           <span class="chip-dot dot-liquidity"></span>
-          ▥ Liquidez / Barrido <span class="chip-count" id="countLiquidity">0</span>
+          🏦 Liquidez / Barrido <span class="chip-count" id="countLiquidity">0</span>
         </button>
         <button class="chip-btn chip-yellow ${currentFilter === 'WATCH' ? 'active' : ''}" data-filter="WATCH">
           <span class="chip-dot dot-yellow"></span>
@@ -2866,9 +2861,9 @@ function renderModeToolbarControls(mode) {
     }
     if (sortSelect) {
       sortSelect.innerHTML = `
-        <option value="score_desc">✦ Mayor Score Técnico (0-100)</option>
-        <option value="liquidity_desc">▥ Mayor Liquidez Institucional (0-100)</option>
-        <option value="rvol_desc">◇ Mayor Volumen Relativo (RVOL)</option>
+        <option value="score_desc">🔥 Mayor Score Técnico (0-100)</option>
+        <option value="liquidity_desc">🏦 Mayor Liquidez Institucional (0-100)</option>
+        <option value="rvol_desc">🐋 Mayor Volumen Relativo (RVOL)</option>
         <option value="drop_desc">Mayor Caída %</option>
         <option value="rsi_asc">RSI Más Bajo (Sobreventa)</option>
         <option value="drop_asc">Menor Caída %</option>
@@ -3070,8 +3065,8 @@ async function loadAndRenderJournal() {
     if (entries.length === 0) {
       container.innerHTML = `
         <div class="journal-empty-box">
-          <p style="font-size: 1.1rem; font-weight: 600; color: #efefef; margin-bottom: 8px;">Aún no hay señales registradas en el diario.</p>
-          <p style="font-size: 0.85rem; color: #a0a0a0; margin: 0;">Cada vez que un activo entre en la <strong>Zona Áurea (61.8%)</strong> o su <strong>Score de Confluencia sea ≥ 70</strong>, se registrará aquí automáticamente para medir la rentabilidad alcanzada.</p>
+          <p style="font-size: 1.1rem; font-weight: 600; color: #f4efe6; margin-bottom: 8px;">Aún no hay señales registradas en el diario.</p>
+          <p style="font-size: 0.85rem; color: #a89f91; margin: 0;">Cada vez que un activo entre en la <strong>Zona Áurea (61.8%)</strong> o su <strong>Score de Confluencia sea ≥ 70</strong>, se registrará aquí automáticamente para medir la rentabilidad alcanzada.</p>
         </div>
       `;
       return;
@@ -3079,19 +3074,19 @@ async function loadAndRenderJournal() {
 
     container.innerHTML = entries.map(e => {
       let badgeClass = "j-badge-active";
-      let badgeLabel = "○ En Seguimiento";
+      let badgeLabel = "🔵 En Seguimiento";
       if (e.status === "TP2_ALCANZADO") {
         badgeClass = "j-badge-won";
-        badgeLabel = "● TP2 Alcanzado (Ganada)";
+        badgeLabel = "🟢 TP2 Alcanzado (Ganada)";
       } else if (e.status === "BREAKEVEN_EJECUTADO") {
         badgeClass = "j-badge-breakeven";
-        badgeLabel = "● Break-Even (TP1 Asegurado)";
+        badgeLabel = "🟢 Break-Even (TP1 Asegurado)";
       } else if (e.status === "TP1_ALCANZADO") {
         badgeClass = "j-badge-tp1";
-        badgeLabel = "○ TP1 Alcanzado (Stop en BE)";
+        badgeLabel = "🟡 TP1 Alcanzado (Stop en BE)";
       } else if (e.status === "STOP_EJECUTADO") {
         badgeClass = "j-badge-lost";
-        badgeLabel = "● Stop Ejecutado";
+        badgeLabel = "🔴 Stop Ejecutado";
       }
 
       const ret = (e.final_return_pct !== null && e.final_return_pct !== undefined)
@@ -3116,11 +3111,11 @@ async function loadAndRenderJournal() {
               <span class="j-asset-tab">${e.tab}</span>
               <span class="j-asset-ticker">${e.ticker}</span>
             </div>
-            <span class="j-asset-date">◇ ${e.signal_date}</span>
+            <span class="j-asset-date">📅 ${e.signal_date}</span>
           </div>
 
           <div class="j-signal-col">
-            <span class="j-signal-label">${monochromeLabel(e.signal_label)}</span>
+            <span class="j-signal-label">${e.signal_label}</span>
             <span class="j-signal-sub">Score inicial: <strong>${e.score}/100</strong> • RSI: ${e.rsi || '--'}</span>
           </div>
 
@@ -3142,12 +3137,12 @@ async function loadAndRenderJournal() {
           <div class="j-return-col">
             <span class="j-return-val ${retColor}">${retSign}${ret.toFixed(1)}%</span>
             <span class="j-status-badge ${badgeClass}">${badgeLabel}</span>
-            <span style="font-size: 0.68rem; color: #6d6d6d;">Máx: +${maxRet.toFixed(1)}%</span>
+            <span style="font-size: 0.68rem; color: #756c60;">Máx: +${maxRet.toFixed(1)}%</span>
           </div>
 
           <div>
             <a href="${tvUrl}" target="_blank" class="btn btn-secondary btn-sm" title="Abrir gráfico en TradingView">
-              ▥ Gráfico
+              📊 Gráfico
             </a>
           </div>
         </div>
@@ -3155,7 +3150,7 @@ async function loadAndRenderJournal() {
     }).join("");
 
   } catch (err) {
-    container.innerHTML = `<div class="journal-empty-box"><p style="color: #8e8e8e;">Error al cargar el diario: ${err.message}</p></div>`;
+    container.innerHTML = `<div class="journal-empty-box"><p style="color: #f87171;">Error al cargar el diario: ${err.message}</p></div>`;
   }
 }
 
@@ -3180,7 +3175,7 @@ function renderMarketSentiment(sentiment) {
 
   const score = typeof sentiment.score === "number" ? sentiment.score : (parseFloat(sentiment.score) || 50);
   const ratingEs = sentiment.rating_es || "Neutral";
-  const icon = "◇";
+  const icon = sentiment.icon || "😐";
 
   if (elScore) elScore.textContent = Math.round(score);
   if (elIcon) elIcon.textContent = icon;
@@ -3238,7 +3233,7 @@ function openSentimentModal() {
 
   const score = Math.round(sentiment.score || 50);
   const ratingEs = sentiment.rating_es || "Neutral";
-  const icon = "◇";
+  const icon = sentiment.icon || "😐";
 
   const modalIcon = document.getElementById("modalSentimentIcon");
   const modalScore = document.getElementById("modalSentimentScore");
@@ -3275,17 +3270,17 @@ function openSentimentModal() {
       const badgeText = item.rating_es || item.rating || "Neutral";
 
       // Gradiente de barra según nivel
-      let barGradient = "linear-gradient(90deg, #b3b3b3, #989898)";
+      let barGradient = "linear-gradient(90deg, #9bb8cc, #7f9db3)";
       if (val <= 25) {
-        barGradient = "linear-gradient(90deg, #7b7b7b, #666666)";
+        barGradient = "linear-gradient(90deg, #e5604f, #c94d3d)";
       } else if (val <= 45) {
-        barGradient = "linear-gradient(90deg, #adadad, #939393)";
+        barGradient = "linear-gradient(90deg, #e0a84e, #c48d3a)";
       } else if (val <= 55) {
-        barGradient = "linear-gradient(90deg, #b3b3b3, #989898)";
+        barGradient = "linear-gradient(90deg, #9bb8cc, #7f9db3)";
       } else if (val <= 75) {
-        barGradient = "linear-gradient(90deg, #a7a7a7, #878787)";
+        barGradient = "linear-gradient(90deg, #5cc092, #3f9e74)";
       } else {
-        barGradient = "linear-gradient(90deg, #717171, #535353)";
+        barGradient = "linear-gradient(90deg, #ec4899, #db2777)";
       }
 
       const factorEl = document.createElement("div");
@@ -3309,7 +3304,7 @@ function openSentimentModal() {
 }
 
 /* ==========================================================================
-   MÓDULO 4 (BLOQUE 3): CONTROLADOR DE "▣ MI CARTERA REAL"
+   MÓDULO 4 (BLOQUE 3): CONTROLADOR DE "💼 MI CARTERA REAL"
    ========================================================================== */
 
 function escapeHtml(val) {
@@ -3540,7 +3535,7 @@ async function submitPortfolioAction() {
     renderPortfolioView(data);
     const modal = document.getElementById("portfolioModal");
     if (modal) modal.style.display = "none";
-    showToast(`▣ Posición en ${ticker} guardada en Mi Cartera Real`);
+    showToast(`💼 Posición en ${ticker} guardada en Mi Cartera Real`);
     if (currentAppMode !== "PORTFOLIO") {
       setAppMode("PORTFOLIO");
     }
@@ -3599,7 +3594,7 @@ function updatePfClosePreview() {
   const pnlAbs = (exitP - pos.avg_price) * qty;
   const pnlPct = pos.avg_price > 0 ? ((exitP - pos.avg_price) / pos.avg_price) * 100 : 0;
   const sign = pnlAbs >= 0 ? "+" : "-";
-  const color = pnlAbs >= 0 ? "#a7a7a7" : "#909090";
+  const color = pnlAbs >= 0 ? "#5cc092" : "#fb7185";
   const remaining = Math.max(0, Number(pos.shares) - qty);
   const remText = remaining > 1e-6
     ? `Quedarán <strong>${Number.isInteger(remaining) ? remaining : formatFractionalUnits(remaining)} títulos</strong> abiertos en cartera.`
@@ -3648,7 +3643,7 @@ async function submitPortfolioCloseAction(rawDeleteOnly = false) {
     const modal = document.getElementById("portfolioCloseModal");
     if (modal) modal.style.display = "none";
     currentPortfolioClosePos = null;
-    showToast(rawDeleteOnly ? `Posición ${pos.ticker} eliminada.` : `¤ Venta de ${pos.ticker} registrada con éxito`);
+    showToast(rawDeleteOnly ? `Posición ${pos.ticker} eliminada.` : `💰 Venta de ${pos.ticker} registrada con éxito`);
   } catch (err) {
     if (errBox) {
       errBox.textContent = "Error de conexión: " + err.message;
@@ -3689,12 +3684,12 @@ function renderPortfolioView(pf) {
     if (count === 0) {
       navPill.textContent = "0 pos.";
       navPill.style.background = "rgba(255, 255, 255, 0.08)";
-      navPill.style.color = "#a0a0a0";
+      navPill.style.color = "#a89f91";
     } else {
       const pSign = pnlPct >= 0 ? "+" : "";
       navPill.textContent = `${count} pos. • ${pSign}${pnlPct.toFixed(1)}%`;
-      navPill.style.background = pnlAbs >= 0 ? "rgba(145, 145, 145, 0.22)" : "rgba(104, 104, 104, 0.25)";
-      navPill.style.color = pnlAbs >= 0 ? "#cacaca" : "#b8b8b8";
+      navPill.style.background = pnlAbs >= 0 ? "rgba(16, 185, 129, 0.22)" : "rgba(244, 63, 94, 0.25)";
+      navPill.style.color = pnlAbs >= 0 ? "#6ee7b7" : "#fda4af";
     }
   }
 
@@ -3728,7 +3723,7 @@ function renderPortfolioView(pf) {
   if (elPositions) elPositions.textContent = `${count}`;
   if (elAlertsSub) {
     const aCount = summary.alerts_count || 0;
-    elAlertsSub.textContent = aCount > 0 ? `♧ ${aCount} ${aCount === 1 ? "posición requiere atención" : "posiciones requieren atención"}` : "✓ Niveles SL/TP bajo control";
+    elAlertsSub.textContent = aCount > 0 ? `🔔 ${aCount} ${aCount === 1 ? "posición requiere atención" : "posiciones requieren atención"}` : "✅ Niveles SL/TP bajo control";
   }
 
   const realizedVal = summary.primary_realized_pnl || 0;
@@ -3746,9 +3741,9 @@ function renderPortfolioView(pf) {
   if (positions.length === 0) {
     container.innerHTML = `
       <div class="journal-empty-box" style="grid-column: 1 / -1;">
-        <div style="font-size: 2.2rem; margin-bottom: 8px;">▣</div>
-        <p style="font-size: 1.1rem; font-weight: 600; color: #efefef; margin-bottom: 8px;">Tu Cartera Real está vacía</p>
-        <p style="font-size: 0.86rem; color: #a0a0a0; max-width: 560px; margin: 0 auto 16px;">
+        <div style="font-size: 2.2rem; margin-bottom: 8px;">💼</div>
+        <p style="font-size: 1.1rem; font-weight: 600; color: #f4efe6; margin-bottom: 8px;">Tu Cartera Real está vacía</p>
+        <p style="font-size: 0.86rem; color: #a89f91; max-width: 560px; margin: 0 auto 16px;">
           Registra tus compras reales (acciones enteras o fracciones cripto) para vigilar en tiempo real tu <strong>precio medio ponderado</strong>, <strong>PnL abierto</strong>, distancia a <strong>Stop Loss / Take Profit</strong> y avisos de resultados.
         </p>
         <button type="button" class="btn btn-emerald btn-sm" id="btnEmptyPortfolioAdd">+ Registrar Primera Posición</button>
@@ -3773,11 +3768,11 @@ function renderPortfolioView(pf) {
       else if (pos.status_code === "DCA_ZONE") statusCls = "pf-badge-gold";
 
       const earnHtml = (pos.earnings && (pos.earnings.warning_level === "IMMINENT" || pos.earnings.warning_level === "UPCOMING") && pos.earnings.label)
-        ? `<span class="earnings-pill ${pos.earnings.warning_level === "IMMINENT" ? "earnings-imminent" : "earnings-upcoming"}">${escapeHtml(monochromeLabel(pos.earnings.label))}</span>`
+        ? `<span class="earnings-pill ${pos.earnings.warning_level === "IMMINENT" ? "earnings-imminent" : "earnings-upcoming"}">${escapeHtml(pos.earnings.label)}</span>`
         : "";
 
       const notesHtml = pos.notes
-        ? `<div class="pf-notes-line">◇ ${escapeHtml(pos.notes)}</div>`
+        ? `<div class="pf-notes-line">📝 ${escapeHtml(pos.notes)}</div>`
         : "";
 
       card.innerHTML = `
@@ -3816,9 +3811,9 @@ function renderPortfolioView(pf) {
 
         <div class="pf-gauge-box">
           <div class="pf-gauge-labels">
-            <span class="val-danger" title="Fuente: ${escapeHtml(pos.sl_source)}">◇ SL: ${formatPrice(pos.effective_sl, pos)} (${pos.dist_to_sl_pct >= 0 ? "-" : "+"}${Math.abs(pos.dist_to_sl_pct).toFixed(1)}%)</span>
-            <span style="color:#c7c7c7;">⌖ Entrada: ${formatPrice(pos.avg_price, pos)}</span>
-            <span class="val-success" title="Fuente: ${escapeHtml(pos.tp_source)}">◎ TP: ${formatPrice(pos.effective_tp, pos)} (+${pos.dist_to_tp_pct.toFixed(1)}%)</span>
+            <span class="val-danger" title="Fuente: ${escapeHtml(pos.sl_source)}">🛡️ SL: ${formatPrice(pos.effective_sl, pos)} (${pos.dist_to_sl_pct >= 0 ? "-" : "+"}${Math.abs(pos.dist_to_sl_pct).toFixed(1)}%)</span>
+            <span style="color:#cfc6b8;">📍 Entrada: ${formatPrice(pos.avg_price, pos)}</span>
+            <span class="val-success" title="Fuente: ${escapeHtml(pos.tp_source)}">🎯 TP: ${formatPrice(pos.effective_tp, pos)} (+${pos.dist_to_tp_pct.toFixed(1)}%)</span>
           </div>
           <div class="pf-progress-track">
             <div class="pf-progress-fill ${isProfit ? "fill-profit" : "fill-drawdown"}" style="width: ${pos.progress_pct}%;"></div>
@@ -3828,15 +3823,15 @@ function renderPortfolioView(pf) {
         </div>
 
         <div class="pf-advice-box">
-          <span>✧ ${escapeHtml(pos.advice)}</span>
+          <span>💡 ${escapeHtml(pos.advice)}</span>
           ${notesHtml}
         </div>
 
         <div class="pf-card-actions">
-          <button type="button" class="btn btn-secondary btn-sm btn-pf-dca" title="Añadir más títulos y recalcular precio medio (DCA)">◇ Promediar</button>
-          <button type="button" class="btn btn-secondary btn-sm btn-pf-edit" title="Editar Stop Loss, Take Profit, títulos o notas">◇ Editar SL/TP</button>
-          <button type="button" class="btn btn-emerald btn-sm btn-pf-sell" title="Registrar venta parcial o cierre total">¤ Vender / Cerrar</button>
-          <button type="button" class="btn btn-secondary btn-sm btn-pf-chart" title="Abrir gráfico avanzado">▥</button>
+          <button type="button" class="btn btn-secondary btn-sm btn-pf-dca" title="Añadir más títulos y recalcular precio medio (DCA)">➕ Promediar</button>
+          <button type="button" class="btn btn-secondary btn-sm btn-pf-edit" title="Editar Stop Loss, Take Profit, títulos o notas">✏️ Editar SL/TP</button>
+          <button type="button" class="btn btn-emerald btn-sm btn-pf-sell" title="Registrar venta parcial o cierre total">💰 Vender / Cerrar</button>
+          <button type="button" class="btn btn-secondary btn-sm btn-pf-chart" title="Abrir gráfico avanzado">📊</button>
         </div>
       `;
 
