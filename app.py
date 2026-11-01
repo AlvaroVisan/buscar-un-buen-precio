@@ -11,6 +11,7 @@ import portfolio_manager
 import telegram_notifier
 
 PORT = 5050
+HOST = "127.0.0.1"
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 MASK_PREFIX = "••••••••"
 last_auto_sync_time = time.time()
@@ -102,6 +103,37 @@ class ThreadingFibonacciServer(http.server.ThreadingHTTPServer):
 class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
+
+    def parse_request(self):
+        if not super().parse_request():
+            return False
+        # Solo aceptar los nombres locales previstos. También evita que un
+        # dominio externo resuelto a loopback acceda al panel (DNS rebinding).
+        port = self.server.server_address[1]
+        hosts = {f"localhost:{port}", f"127.0.0.1:{port}"}
+        host_headers = self.headers.get_all("Host", [])
+        if len(host_headers) != 1 or host_headers[0].lower() not in hosts:
+            self.send_error(403, "Host no permitido")
+            return False
+        origins = self.headers.get_all("Origin", [])
+        if origins and (len(origins) != 1 or origins[0].lower() != f"http://{host_headers[0].lower()}"):
+            self.send_error(403, "Origen no permitido")
+            return False
+        if self.headers.get("Sec-Fetch-Site", "").lower() in ("cross-site", "same-site"):
+            self.send_error(403, "Peticion desde otra pagina no permitida")
+            return False
+        return True
+
+    def end_headers(self):
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        super().end_headers()
+
+    def do_HEAD(self):
+        if _is_forbidden_static_path(self.path.split("?", 1)[0]):
+            self.send_error(403, "Acceso denegado a archivo interno")
+            return
+        super().do_HEAD()
 
     def do_GET(self):
         route = self.path.split("?", 1)[0]
@@ -212,6 +244,11 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         global last_auto_sync_time
+        # Rechazar formularios y peticiones simples de otras páginas antes
+        # de leer el cuerpo o ejecutar acciones. Se permite POST sin cuerpo.
+        if self.headers.get("Content-Length", "0") != "0" and self.headers.get_content_type() != "application/json":
+            self.send_error(415, "Se requiere application/json")
+            return
         route = self.path.split("?", 1)[0]
         content_len = int(self.headers.get('Content-Length', 0))
         post_data = {}
@@ -599,7 +636,7 @@ def run_server():
     # Iniciar hilo de escucha interactiva de Telegram (comandos bajo demanda)
     telegram_notifier.start_bot_listener_thread()
 
-    with ThreadingFibonacciServer(("", PORT), FibonacciHandler) as httpd:
+    with ThreadingFibonacciServer((HOST, PORT), FibonacciHandler) as httpd:
         print(f"\n=======================================================")
         print(f"  🌐 PANEL WEB 'BUSCAR UN BUEN PRECIO' ACTIVO")
         print(f"  Accede desde tu navegador en:")
