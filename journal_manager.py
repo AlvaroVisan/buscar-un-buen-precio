@@ -178,11 +178,12 @@ def update_journal_with_market_data(market_data_list, histories=None):
     now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
     today_day = now_dt.strftime("%Y-%m-%d")
 
-    # Mapear tickers activos en el diario
+    # Mantener referencias a las operaciones: insertar señales al principio
+    # de entries desplaza los índices, pero no cambia estos objetos.
     active_by_ticker = {}
-    for idx, e in enumerate(entries):
+    for e in entries:
         if e.get("status") in ("ACTIVA", "TP1_ALCANZADO"):
-            active_by_ticker[e.get("ticker")] = idx
+            active_by_ticker[e.get("ticker")] = e
 
     for item in market_data_list:
         ticker = item.get("ticker")
@@ -204,8 +205,7 @@ def update_journal_with_market_data(market_data_list, histories=None):
 
         # Caso A: El activo ya tiene una oportunidad abierta en seguimiento
         if ticker in active_by_ticker:
-            idx = active_by_ticker[ticker]
-            trade = entries[idx]
+            trade = active_by_ticker[ticker]
             trade.setdefault("currency", curr_sym)
             trade.setdefault("decimals", dec)
             t_dec = int(trade.get("decimals", dec))
@@ -243,7 +243,6 @@ def update_journal_with_market_data(market_data_list, histories=None):
                 curr_ret = round(((current_price - entry_p) / entry_p) * 100, 2) if entry_p > 0 else 0.0
                 trade["current_return_pct"] = curr_ret
             trade["last_check"] = now_str
-            entries[idx] = trade
 
         # Caso B: Nueva oportunidad detectada y no hay operación abierta actualmente para este ticker
         elif is_golden or is_high_score:
@@ -304,6 +303,7 @@ def update_journal_with_market_data(market_data_list, histories=None):
                 "last_check": now_str
             }
             entries.insert(0, new_entry)  # Más reciente primero
+            active_by_ticker[ticker] = new_entry
 
     journal["entries"] = entries
     journal["stats"] = calculate_journal_stats(entries)
