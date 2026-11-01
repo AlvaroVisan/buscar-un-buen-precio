@@ -386,159 +386,192 @@ def find_asset_item(query):
 
 def format_buy_advice(item, period="3mo"):
     """
-    Construye la tarjeta ejecutiva sintetizada de 'Consejo de Compra':
-    Veredicto, Cotización con descuento, Plan Operativo (Entrada, Stop Loss, TP1, TP2, R:R)
-    y Claves Sintéticas (Smart Money, Confluencia, RSI, Resultados).
+    Construye la narrativa de proyección de movimiento futuro para la compra:
+    1. Contexto: De dónde viene el precio, corrección y huella de las manos fuertes (Smart Money / Absorción).
+    2. Hoja de ruta: Trayectoria proyectada paso a paso (suelo, primer impulso TP1 y despegue a TP2).
+    3. Invalidación: Dónde y por qué se anula la tesis alcista (Stop Loss / Piscina SSL).
+    4. Veredicto táctico y avisos de Resultados (Earnings).
     """
     ticker = item.get("ticker", "")
     tab = escape_md(item.get("tab", ticker))
     price = item.get("current_price", 0)
-    drop_pct = item.get("drop_pct", 0)
+    drop = item.get("drop_pct", 0)
+    p_max = item.get("max", price)
+    p_min = item.get("min", price)
     score = item.get("score", 0)
     fibs = item.get("fib_levels", {})
-    golden_price = fibs.get("61.8%", 0)
-    buy_50 = fibs.get("50.0%", 0)
+    f50 = fibs.get("50.0%", 0)
+    f618 = fibs.get("61.8%", 0)
+    f786 = fibs.get("78.6%", 0)
     risk = item.get("risk_mgmt") or {}
     liq = item.get("liquidity") or {}
+    earnings = item.get("earnings") or {}
 
-    # Veredicto sintético
-    if score >= 80 or (golden_price > 0 and price <= golden_price):
-        verdict = "COMPRA ÓPTIMA" if score >= 80 else "ZONA ÁUREA"
-        icon_v = "🟢"
-    elif score >= 65 or (buy_50 > 0 and price <= buy_50):
-        verdict = "COMPRA FAVORABLE"
-        icon_v = "🟢"
-    elif score >= 45:
-        verdict = "OBSERVACIÓN / ESPERAR"
-        icon_v = "🟡"
-    else:
-        verdict = "NEUTRAL / PRECIO ELEVADO"
-        icon_v = "⚪"
-
-    # Plan operativo
-    entry = risk.get("entry_price", price)
-    entry_lbl = escape_md(risk.get("entry_label", "Mercado"))
+    poc_p = liq.get("poc_price", 0)
     sl = risk.get("ssl_stop_loss") or risk.get("stop_loss") or (price * 0.95)
-    sl_pct = risk.get("ssl_risk_pct") if risk.get("ssl_stop_loss") else risk.get("risk_pct", 5.0)
-    sl_tag = "Piscina SSL" if risk.get("ssl_stop_loss") else "Fibo 78.6%"
-    tp1 = risk.get("take_profit_1", entry * 1.05)
-    tp1_pct = risk.get("reward_1_pct", 5.0)
-    tp2 = risk.get("take_profit_2", entry * 1.15)
-    tp2_pct = risk.get("reward_2_pct", 15.0)
+    tp1 = risk.get("take_profit_1", f50 if f50 > price else price * 1.05)
+    tp2 = risk.get("take_profit_2", p_max)
     rr2 = risk.get("ssl_rr_ratio_2") if risk.get("ssl_stop_loss") else risk.get("rr_ratio_2", 2.0)
+    gain_tp2 = risk.get("reward_2_pct", ((tp2 - price) / price * 100) if price > 0 else 0)
 
-    # Claves sintéticas
-    points = []
-    if liq.get("poc_price"):
-        poc_d = liq.get("poc_dist_pct", 0.0)
-        d_str = f" ({'+' if poc_d >= 0 else ''}{poc_d:.1f}%)" if abs(poc_d) > 0.1 else ""
-        points.append(f"• 🏦 *Muro POC*: `{_fmt_price(liq['poc_price'], item)}`{d_str}")
+    # 1. PÁRRAFO DE CONTEXTO: ¿De dónde viene y dónde está parada?
+    p1 = []
+    if drop >= 12.0:
+        p1.append(f"*{tab}* cotiza en `{_fmt_price(price, item)}`, tras una corrección del *-{drop:.1f}%* desde sus máximos de `{_fmt_price(p_max, item)}`.")
+    elif drop >= 5.0:
+        p1.append(f"*{tab}* cotiza en `{_fmt_price(price, item)}`, en pleno retroceso ordenado (-{drop:.1f}% desde techo de `{_fmt_price(p_max, item)}`).")
+    else:
+        p1.append(f"*{tab}* cotiza en `{_fmt_price(price, item)}`, manteniéndose muy cerca de sus máximos de `{_fmt_price(p_max, item)}` (-{drop:.1f}%).")
 
+    # Dónde está apoyándose
+    if f618 > 0 and price <= f618:
+        p1.append(f"El precio ha perforado de lleno la *Zona Áurea de Fibonacci ({_fmt_price(f618, item)})*, una zona de alta probabilidad histórica donde suele secarse la oferta.")
+    elif f50 > 0 and price <= f50:
+        p1.append(f"Se encuentra testeando el retroceso del *50% ({_fmt_price(f50, item)})*, el primer escalón natural de compra institucional.")
+    else:
+        p1.append(f"Por ahora cotiza por encima del nivel del 50%, sin descuento técnico profundo.")
+
+    # Actividad de las manos fuertes
     if liq.get("has_sweep") and liq.get("sweep_label"):
-        rvol_val = liq.get("rvol", 1.0)
-        points.append(f"• 🧲 *Smart Money*: `{escape_md(liq['sweep_label'])}` (Vol {rvol_val:.1f}x)")
+        p1.append(f"🧲 *Huella institucional*: El algoritmo detectó un *{escape_md(liq.get('sweep_label'))}*; las ballenas fueron a buscar los stops minoristas abajo y han reabsorbido el precio.")
     elif liq.get("has_absorption") and liq.get("absorption_label"):
-        points.append(f"• 🐋 *Ballenas*: `{escape_md(liq['absorption_label'])}`")
+        rvol = liq.get("rvol", 1.0)
+        p1.append(f"🐋 *Huella institucional*: Hay *{escape_md(liq.get('absorption_label'))}* con un volumen relativo de `{rvol:.1f}x`, lo que evidencia que las manos fuertes están frenando la caída.")
+    elif poc_p > 0:
+        p1.append(f"El gran *Muro de Volumen (POC)* negociado en este ciclo se sitúa en `{_fmt_price(poc_p, item)}`.")
 
     best_cluster = item.get("best_cluster")
     if isinstance(best_cluster, dict) and best_cluster.get("label"):
-        points.append(f"• 🧬 *Cluster MTF*: `{escape_md(best_cluster['label'])}`")
+        p1.append(f"🧬 Confluye con un soporte clave multi-temporal: `{escape_md(best_cluster['label'])}`.")
 
-    rsi = item.get("rsi")
-    rsi_str = f"{rsi:.1f}" if isinstance(rsi, (int, float)) else "--"
-    sma_trend = "🐂 Alcista" if item.get("is_above_sma") else "🐻 Bajista"
-    points.append(f"• 📈 *Técnico*: RSI `{rsi_str}` | SMA 200 {sma_trend}")
+    # 2. PÁRRAFO DE HOJA DE RUTA: El camino que trazará el precio
+    p2 = ["📈 *Hoja de ruta más probable (Rebote)*:"]
+    step1_txt = f"Si este suelo en torno a `{_fmt_price(price, item)}` aguanta, el movimiento proyectado buscaría un **primer impulso hacia `{_fmt_price(tp1, item)}`**"
+    if poc_p > 0 and abs((poc_p - tp1) / tp1) < 0.05:
+        step1_txt += " (coincidente con el Muro POC de mayor negociación)."
+    else:
+        step1_txt += "."
+    p2.append(step1_txt)
 
-    earnings = item.get("earnings") or {}
+    step2_txt = f"Superada esa barrera con volumen, el recorrido alcista se abriría para volver a testear el techo anterior en **`{_fmt_price(tp2, item)}` (+{gain_tp2:.1f}%)**, completando la estructura de recuperación."
+    p2.append(step2_txt)
+
+    # 3. ESCENARIO DE INVALIDACIÓN
+    p3 = ["🛑 *Escenario de invalidación (Riesgo)*:"]
+    inv_reason = "piscina de liquidez SSL" if risk.get("ssl_stop_loss") else "soporte extremo del 78.6%"
+    p3.append(f"La hipótesis alcista se anula si pierde los **`{_fmt_price(sl, item)}`** ({inv_reason}). Si rompe ese nivel, es señal de que la caída no ha terminado y conviene estar fuera.")
+
+    # 4. VEREDICTO FINAL Y AVISOS
+    p4 = []
+    if score >= 80:
+        verdict = f"🟢 **Veredicto: Compra con alta probabilidad técnica (Score {score}/100)**. La ecuación riesgo/beneficio es muy favorable (`1:{rr2}`)."
+    elif score >= 65:
+        verdict = f"🟢 **Veredicto: Buena oportunidad de entrada (Score {score}/100)**. Buen punto para compras escalonadas o iniciar posición."
+    elif score >= 45:
+        verdict = f"🟡 **Veredicto: En observación (Score {score}/100)**. Esperar confirmación de giro antes de entrar."
+    else:
+        verdict = f"⚪ **Veredicto: Precio elevado / Sin descuento suficiente (Score {score}/100)**. Dejar correr y no precipitarse."
+    p4.append(verdict)
+
     if earnings.get("has_earnings") and earnings.get("label"):
-        points.append(f"• 📅 *Resultados*: `{escape_md(earnings['label'])}`")
+        warn_icon = "⚠️" if earnings.get("warning_level") == "IMMINENT" else "📅"
+        p4.append(f"{warn_icon} *Aviso*: {escape_md(earnings.get('label'))}. Considera operar con lote prudente ante el riesgo de gap.")
 
-    pts_block = "\n".join(points)
-    tv_url = get_tradingview_url(ticker)
+    p1_str = " ".join(p1)
+    p2_str = " ".join(p2)
+    p3_str = " ".join(p3)
+    p4_str = "\n".join(p4)
 
     msg = (
-        f"🟢 *CONSEJO DE COMPRA: {tab} ({ticker})*\n"
+        f"🔮 *PROYECCIÓN DE MOVIMIENTO: {tab} ({ticker})*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{icon_v} *Veredicto*: *{verdict}* (Score `{score}/100`)\n"
-        f"💰 *Cotización*: `{_fmt_price(price, item)}` (-{drop_pct:.1f}% descuento)\n"
-        f"🎯 *Zona Áurea*: `{_fmt_price(golden_price, item)}` (Fib 61.8%)\n\n"
-        f"📋 *PLAN OPERATIVO SUGERIDO:*\n"
-        f"• 📍 Entrada: `{_fmt_price(entry, item)}` ({entry_lbl})\n"
-        f"• 🛑 Stop Loss: `{_fmt_price(sl, item)}` (-{sl_pct:.1f}%) [{sl_tag}]\n"
-        f"• 🎯 Take Profit 1: `{_fmt_price(tp1, item)}` (+{tp1_pct:.1f}%)\n"
-        f"• 🚀 Take Profit 2 (Máx): `{_fmt_price(tp2, item)}` (+{tp2_pct:.1f}%)\n"
-        f"• ⚖️ Ratio R:R: *1:{rr2}*\n\n"
-        f"💡 *PUNTOS CLAVE:*\n"
-        f"{pts_block}\n\n"
-        f"[📊 Ver en TradingView]({tv_url})"
+        f"{p1_str}\n\n"
+        f"{p2_str}\n\n"
+        f"{p3_str}\n\n"
+        f"{p4_str}"
     )
     return msg
 
 
 def format_sell_advice(item, period="3mo"):
     """
-    Construye la tarjeta ejecutiva sintetizada de 'Consejo de Venta':
-    Veredicto, Cotización vs Techo, Plan de Salida (Trailing Stop, Extensión 127.2%, Extensión 161.8%)
-    y Recomendación Táctica.
+    Construye la narrativa de proyección de salida y toma de beneficios:
+    1. Contexto: Ganancia acumulada desde mínimos, cercanía a máximos y nivel de RSI.
+    2. Hoja de ruta: Agotamiento/resistencia o continuidad alcista.
+    3. Plan táctico de salida: Venta parcial, Trailing Stop protector y extensiones de Fibonacci.
+    4. Veredicto de presión vendedora.
     """
     ticker = item.get("ticker", "")
     tab = escape_md(item.get("tab", ticker))
     price = item.get("current_price", 0)
+    p_max = item.get("max", price)
+    p_min = item.get("min", price)
     sm = item.get("sell_mgmt") or {}
     score = sm.get("sell_score", 0)
     gain_low = sm.get("gain_from_low_pct", 0)
     dist_hi = sm.get("dist_to_high_pct", 0)
     ext127 = sm.get("ext_127", price * 1.05)
-    ext161 = sm.get("ext_161", price * 1.15)
-    dist_ext127 = sm.get("dist_to_ext127_pct", 5.0)
-    dist_ext161 = sm.get("dist_to_ext161_pct", 15.0)
     t_stop = sm.get("trailing_stop", price * 0.945)
-    t_stop_pct = sm.get("trailing_stop_pct", 5.5)
-    action = escape_md(sm.get("sell_action", "Revisar posición"))
     rsi = item.get("rsi")
     rsi_str = f"{rsi:.1f}" if isinstance(rsi, (int, float)) else "--"
-    tv_url = get_tradingview_url(ticker)
 
-    if score >= 60 or sm.get("sell_status_code") == "STRONG_SELL":
-        icon = "🔴"
-        verdict = "VENTA FUERTE / SALIDA"
-    elif score >= 35 or sm.get("sell_status_code") == "PARTIAL_SELL" or dist_hi <= 3.0:
-        icon = "🟠"
-        verdict = "TOMA DE BENEFICIOS PARCIAL"
-    elif score >= 20 or (isinstance(rsi, (int, float)) and rsi >= 58):
-        icon = "🟡"
-        verdict = "MANTENER CON TRAILING STOP"
-    else:
-        icon = "🟢"
-        verdict = "SIN PRESIÓN DE VENTA (Mantener)"
+    p1 = [
+        f"*{tab}* cotiza en `{_fmt_price(price, item)}`, tras acumular un alza del *+{gain_low:.1f}%* desde sus mínimos de `{_fmt_price(p_min, item)}`."
+    ]
 
-    if score >= 35 or dist_hi <= 4.0:
-        msg = (
-            f"{icon} *CONSEJO DE VENTA: {tab} ({ticker})*\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{icon} *Veredicto*: *{verdict}* (Presión `{score}/100`)\n"
-            f"💰 *Cotización*: `{_fmt_price(price, item)}` (+{gain_low:.1f}% desde mín | -{dist_hi:.1f}% techo)\n\n"
-            f"📋 *PLAN DE SALIDA & PROTECCIÓN:*\n"
-            f"• 🛡️ Trailing Stop: `{_fmt_price(t_stop, item)}` (-{t_stop_pct:.1f}% protector)\n"
-            f"• 🎯 Extensión 127.2%: `{_fmt_price(ext127, item)}` (+{dist_ext127:.1f}%)\n"
-            f"• 🚀 Extensión 161.8%: `{_fmt_price(ext161, item)}` (+{dist_ext161:.1f}%)\n\n"
-            f"💡 *RECOMENDACIÓN TÁCTICA:*\n"
-            f"• {action}\n"
-            f"• 📈 RSI: `{rsi_str}` | Techo a `{dist_hi:.1f}%` de distancia\n\n"
-            f"[📊 Ver en TradingView]({tv_url})"
+    if score >= 60 or dist_hi <= 2.5:
+        p1.append(
+            f"Está a solo un *{dist_hi:.1f}%* de su resistencia máxima de `{_fmt_price(p_max, item)}`. Con el RSI en `{rsi_str}`, el impulso muestra signos de sobrecalentamiento y la presión compradora empieza a flaquear."
         )
+        p2 = [
+            "📉 *Hoja de ruta esperada (Agotamiento)*:",
+            "El precio se encuentra en una zona de alta resistencia donde los fondos suelen tomar beneficios. El escenario natural es un **frenazo o retroceso técnico hacia la zona de soporte**.",
+            f"Aunque por inercia pudiera estirarse hasta la extensión de Fibonacci del 127.2% en **`{_fmt_price(ext127, item)}`**, el riesgo de entrar o no proteger aquí es muy alto."
+        ]
+        p3 = [
+            "🛡️ *Plan de acción recomendado*:",
+            f"Es momento de **asegurar ganancias**: considera vender una parte de la posición (30%–50%) y colocar un **Trailing Stop protector en `{_fmt_price(t_stop, item)}`** (-5.5%). De esta forma, si el precio se gira te vas con el beneficio en el bolsillo."
+        ]
+        verdict = f"🔴 **Veredicto: Toma de Beneficios / Zona de Techo (Presión {score}/100)**."
+    elif score >= 35 or dist_hi <= 4.5:
+        p1.append(
+            f"Se aproxima a la zona alta (a un *{dist_hi:.1f}%* de máximos de `{_fmt_price(p_max, item)}`) con un RSI de `{rsi_str}`."
+        )
+        p2 = [
+            "⚠️ *Hoja de ruta esperada (Zona de Decisión)*:",
+            "El impulso alcista sigue vivo pero se acerca a zonas donde la oferta suele reactivarse. Si no supera el techo con volumen contundente, podríamos ver una consolidación lateral o retroceso."
+        ]
+        p3 = [
+            "🛡️ *Plan de acción recomendado*:",
+            f"Ajustar un **Trailing Stop dinámico en `{_fmt_price(t_stop, item)}`** para blindar beneficios si ya vas dentro, o abstenerse de comprar nuevo capital en esta cota."
+        ]
+        verdict = f"🟠 **Veredicto: Alerta de Techo / Ajustar Stop (Presión {score}/100)**."
     else:
-        msg = (
-            f"🟢 *CONSEJO DE VENTA: {tab} ({ticker})*\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"✅ *Veredicto*: *SIN PRESIÓN DE VENTA* (Presión `{score}/100`)\n"
-            f"💰 *Cotización*: `{_fmt_price(price, item)}` (-{dist_hi:.1f}% de máximos)\n\n"
-            f"💡 *RECOMENDACIÓN TÁCTICA:*\n"
-            f"• No vender. El activo está en fase de acumulación o retroceso sano.\n"
-            f"• 🛡️ Trailing Stop preventivo: `{_fmt_price(t_stop, item)}` (-{t_stop_pct:.1f}%)\n"
-            f"• 📈 RSI: `{rsi_str}` (Sin sobrecompra) | Deja correr la posición.\n\n"
-            f"[📊 Ver en TradingView]({tv_url})"
+        p1.append(
+            f"Actualmente cotiza a un *-{dist_hi:.1f}%* de sus máximos. No presenta sobrecompra extrema (RSI `{rsi_str}`) ni presión de venta peligrosa."
         )
+        p2 = [
+            "📈 *Hoja de ruta esperada (Continuidad)*:",
+            "El activo no está en zona de distribución institucional. El escenario más probable es que continúe construyendo su estructura sin riesgo inminente de giro bajista brusco."
+        ]
+        p3 = [
+            "💡 *Recomendación táctica*:",
+            f"**No vender**. Deja correr los beneficios y mantén un Trailing Stop preventivo de referencia en **`{_fmt_price(t_stop, item)}`** para acompañar la tendencia."
+        ]
+        verdict = f"🟢 **Veredicto: Sin presión de venta (Presión {score}/100)**. Mantener posición."
+
+    p1_str = " ".join(p1)
+    p2_str = " ".join(p2)
+    p3_str = " ".join(p3)
+
+    msg = (
+        f"🔮 *HOJA DE RUTA DE SALIDA: {tab} ({ticker})*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{p1_str}\n\n"
+        f"{p2_str}\n\n"
+        f"{p3_str}\n\n"
+        f"{verdict}"
+    )
     return msg
 
 
