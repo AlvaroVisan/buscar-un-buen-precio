@@ -4532,6 +4532,45 @@ input, select, textarea { accent-color: #ddd; }
   .alerts-dropdown { position: fixed; top: 150px; right: 20px; width: min(380px, calc(100vw - 40px)); max-height: calc(100dvh - 170px); overflow-y: auto; }
 }
 @media (max-width: 420px) { .header-right { gap: 5px; } .header-right .btn { padding: 9px 11px; font-size: .65rem; } .status-pill { width: 100%; padding: 0 0 8px; } .app-title { font-size: .9rem; } .mode-tabs-wrapper { justify-content: space-between; gap: 10px; } .mode-tab-title { font-size: .68rem; } .kpi-badge { font-size: .55rem; } .sort-selector-wrapper { flex-wrap: wrap; } }
+/* Text must fit its component, including long names and high asset prices. */
+.asset-card { container-type: inline-size; }
+:where(.asset-card, .kpi-card, .portfolio-pos-card, .modal-card) :where(div, span, p, h3, button, a) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.card-header-row { gap: 12px; flex-wrap: wrap; }
+.asset-identity { flex: 1 1 140px; }
+.asset-price-box { flex: 0 1 auto; max-width: 100%; margin-left: auto; }
+.asset-ticker-row, .signal-banner, .risk-header-row, .liq-header-row { flex-wrap: wrap; gap: 8px; }
+.asset-ticker { flex-shrink: 0; }
+.asset-company { flex: 1 1 100px; }
+.tech-metrics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tech-metric-label, .tech-metric-value, .rsi-pill, .sma-pill { flex-wrap: wrap; }
+.tech-metric-label svg, .risk-title svg { flex-shrink: 0; }
+.sma-pill, .tech-score-badge, .rr-badge, .cluster-pill, .earnings-pill, .liq-pill { max-width: 100%; white-space: normal; }
+.risk-metrics-row, .liq-metrics-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.liq-label, .liq-val, .liq-sub { white-space: normal; overflow: visible; text-overflow: clip; }
+.fib-row { flex-wrap: wrap; gap: 6px 12px; }
+.fib-level-tag { flex-wrap: wrap; }
+.fib-distance { margin-left: auto; text-align: right; }
+.range-label-row, .swing-row { flex-wrap: wrap; gap: 6px; }
+.card-actions > *, .filter-chips > *, .legend-items > * { max-width: 100%; white-space: normal; }
+.kpi-sub, .kpi-label, .kpi-badge { max-width: 100%; white-space: normal; }
+.sentiment-header-row { flex-wrap: wrap; }
+.sentiment-gauge-ticks { gap: 6px; }
+.sentiment-gauge-ticks > span { flex: 1; }
+.sentiment-gauge-ticks > span:last-child { text-align: right; }
+.mode-tab-title { white-space: normal; }
+.pf-card-header, .pf-closed-header { flex-wrap: wrap; }
+.pf-status-badge { white-space: normal; max-width: 100%; }
+@container (max-width: 360px) {
+  .tech-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tech-metric-item:last-child { grid-column: 1 / -1; }
+}
+@container (max-width: 280px) {
+  .risk-metrics-row, .liq-metrics-row { grid-template-columns: 1fr; }
+  .risk-col.stop-loss-col, .risk-col.tp1-col, .liq-col:not(:last-child) { border-right: 0; padding-right: 0; }
+}
 /* Keep the risk calculator inside the viewport; only its content scrolls. */
 #positionCalcModal { padding: 24px; }
 #positionCalcModal .modal-card {
