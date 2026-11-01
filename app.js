@@ -1113,7 +1113,7 @@ function renderDashboard(data) {
   if (elSellPill) {
     elSellPill.textContent = `${sellAlerts} ${sellAlerts === 1 ? 'alerta' : 'alertas'}`;
     elSellPill.style.background = sellAlerts > 0 ? 'rgba(244, 63, 94, 0.3)' : 'rgba(255, 255, 255, 0.08)';
-    elSellPill.style.color = sellAlerts > 0 ? '#fda4af' : '#94a3b8';
+    elSellPill.style.color = sellAlerts > 0 ? '#fda4af' : '#a89f91';
   }
 
   // 3c. Cargar métricas del diario y de Mi Cartera Real en segundo plano
@@ -1332,11 +1332,11 @@ function updateAlertsCenter(items) {
     let liqAlertHtml = "";
     if (liq) {
       if (liq.has_sweep && liq.sweep_label) {
-        liqAlertHtml = `<div style="margin-top:3px; color:#38bdf8; font-size:0.73rem; font-weight:600;">${escapeHtml(liq.sweep_label)}</div>`;
+        liqAlertHtml = `<div style="margin-top:3px; color:#9bb8cc; font-size:0.73rem; font-weight:600;">${escapeHtml(liq.sweep_label)}</div>`;
       } else if (liq.has_absorption && liq.absorption_label) {
-        liqAlertHtml = `<div style="margin-top:3px; color:#34d399; font-size:0.73rem; font-weight:600;">${escapeHtml(liq.absorption_label)}</div>`;
+        liqAlertHtml = `<div style="margin-top:3px; color:#5cc092; font-size:0.73rem; font-weight:600;">${escapeHtml(liq.absorption_label)}</div>`;
       } else if (liq.poc_price) {
-        liqAlertHtml = `<div style="margin-top:3px; color:#94a3b8; font-size:0.72rem;">🏦 Muro POC: <strong>${formatPrice(liq.poc_price, item)}</strong> • RVOL ${(liq.rvol || 1).toFixed(2)}x</div>`;
+        liqAlertHtml = `<div style="margin-top:3px; color:#a89f91; font-size:0.72rem;">🏦 Muro POC: <strong>${formatPrice(liq.poc_price, item)}</strong> • RVOL ${(liq.rvol || 1).toFixed(2)}x</div>`;
       }
     }
 
@@ -1930,7 +1930,7 @@ function createAssetCard(item) {
         ${pocPinHtml}
         <div class="range-pin" style="left: ${pctPos}%;" title="Precio actual: ${formatPrice(item.current_price, item)}"></div>
       </div>
-      <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #64748b; margin-top: 4px;">
+      <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #756c60; margin-top: 4px;">
         <span>Descuento Máximo</span>
         <span>${liq && liq.poc_price ? `🏦 POC: ${formatPrice(liq.poc_price, item)}` : `Rango: ${formatPrice(item.range, item)}`}</span>
         <span>Resistencia</span>
@@ -2012,7 +2012,7 @@ function createAssetCard(item) {
         </button>
       </div>
       <div class="chart-widget-wrapper">
-        <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #94a3b8; font-size: 0.82rem;">
+        <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #a89f91; font-size: 0.82rem;">
           Cargando gráfico interactivo de ${item.tab}...
         </div>
       </div>
@@ -2023,7 +2023,7 @@ function createAssetCard(item) {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         TradingView Oficial
       </a>
-      <span style="font-size: 0.75rem; color: #94a3b8;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
+      <span style="font-size: 0.75rem; color: #a89f91;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
     </div>
   `;
 
@@ -2100,7 +2100,7 @@ function createAssetCard(item) {
         <div class="tech-metric-item">
           <span class="tech-metric-label">Distancia Techo</span>
           <div class="tech-metric-value">
-            <span style="font-weight: 700; font-family: var(--font-mono); color: #f8fafc;">-${sell.dist_to_high_pct.toFixed(1)}%</span>
+            <span style="font-weight: 700; font-family: var(--font-mono); color: #f4efe6;">-${sell.dist_to_high_pct.toFixed(1)}%</span>
           </div>
         </div>
       </div>
@@ -2132,7 +2132,7 @@ function createAssetCard(item) {
         <div class="sell-levels-grid">
           <div class="sell-level-item">
             <span class="sell-level-label">Extensión 127.2%</span>
-            <span class="sell-level-price" style="color: #67e8f9;">${formatPrice(sell.ext_127, item)}</span>
+            <span class="sell-level-price" style="color: #e0a84e;">${formatPrice(sell.ext_127, item)}</span>
             <span class="sell-level-sub">a ${sell.dist_to_ext127_pct >= 0 ? '+' : ''}${sell.dist_to_ext127_pct.toFixed(1)}%</span>
           </div>
           <div class="sell-level-item">
@@ -2186,7 +2186,7 @@ function createAssetCard(item) {
           </button>
         </div>
         <div class="chart-widget-wrapper">
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #94a3b8; font-size: 0.82rem;">
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; min-height: 200px; color: #a89f91; font-size: 0.82rem;">
             Cargando gráfico interactivo de ${item.tab}...
           </div>
         </div>
@@ -2197,7 +2197,7 @@ function createAssetCard(item) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           TradingView Oficial
         </a>
-        <span style="font-size: 0.75rem; color: #94a3b8;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
+        <span style="font-size: 0.75rem; color: #a89f91;">Ref: Pestaña <strong>"${item.tab}"</strong></span>
       </div>
     `;
 
@@ -2420,7 +2420,7 @@ function renderFibRow(level, targetPrice, currentPrice, icon, isGolden = false, 
 
   let distLabel = "";
   if (isReached) {
-    distLabel = `<span style="color: #34d399; font-weight: 600;">✓ Alcanzado (-${Math.abs(distPct)}%)</span>`;
+    distLabel = `<span style="color: #5cc092; font-weight: 600;">✓ Alcanzado (-${Math.abs(distPct)}%)</span>`;
   } else {
     distLabel = `<span>A +${distPct}%</span>`;
   }
@@ -2484,7 +2484,7 @@ function showToast(message) {
   }
 
   toast.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5cc092" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
     <span>${message}</span>
   `;
 
@@ -2663,7 +2663,7 @@ function recalcPositionPlan() {
     : "";
 
   const sslNote = (currentCalcSlMode !== "SSL" && risk.ssl_pool_ref && risk.ssl_stop_loss && sl >= risk.ssl_pool_ref)
-    ? `<br><span style="color:#38bdf8;"><strong>🧲 Aviso de Liquidez SMC:</strong> Hay una piscina de stops en <strong>${formatPrice(risk.ssl_pool_ref, item)}</strong>. Valora el método <em>Bajo Piscina Liquidez (${formatPrice(risk.ssl_stop_loss, item)})</em> para evitar barridos institucionales.</span>`
+    ? `<br><span style="color:#9bb8cc;"><strong>🧲 Aviso de Liquidez SMC:</strong> Hay una piscina de stops en <strong>${formatPrice(risk.ssl_pool_ref, item)}</strong>. Valora el método <em>Bajo Piscina Liquidez (${formatPrice(risk.ssl_stop_loss, item)})</em> para evitar barridos institucionales.</span>`
     : "";
 
   if (isFractionalOnly) {
@@ -3058,8 +3058,8 @@ async function loadAndRenderJournal() {
     if (entries.length === 0) {
       container.innerHTML = `
         <div class="journal-empty-box">
-          <p style="font-size: 1.1rem; font-weight: 600; color: #f8fafc; margin-bottom: 8px;">Aún no hay señales registradas en el diario.</p>
-          <p style="font-size: 0.85rem; color: #94a3b8; margin: 0;">Cada vez que un activo entre en la <strong>Zona Áurea (61.8%)</strong> o su <strong>Score de Confluencia sea ≥ 70</strong>, se registrará aquí automáticamente para medir la rentabilidad alcanzada.</p>
+          <p style="font-size: 1.1rem; font-weight: 600; color: #f4efe6; margin-bottom: 8px;">Aún no hay señales registradas en el diario.</p>
+          <p style="font-size: 0.85rem; color: #a89f91; margin: 0;">Cada vez que un activo entre en la <strong>Zona Áurea (61.8%)</strong> o su <strong>Score de Confluencia sea ≥ 70</strong>, se registrará aquí automáticamente para medir la rentabilidad alcanzada.</p>
         </div>
       `;
       return;
@@ -3130,7 +3130,7 @@ async function loadAndRenderJournal() {
           <div class="j-return-col">
             <span class="j-return-val ${retColor}">${retSign}${ret.toFixed(1)}%</span>
             <span class="j-status-badge ${badgeClass}">${badgeLabel}</span>
-            <span style="font-size: 0.68rem; color: #64748b;">Máx: +${maxRet.toFixed(1)}%</span>
+            <span style="font-size: 0.68rem; color: #756c60;">Máx: +${maxRet.toFixed(1)}%</span>
           </div>
 
           <div>
@@ -3263,15 +3263,15 @@ function openSentimentModal() {
       const badgeText = item.rating_es || item.rating || "Neutral";
 
       // Gradiente de barra según nivel
-      let barGradient = "linear-gradient(90deg, #38bdf8, #0284c7)";
+      let barGradient = "linear-gradient(90deg, #9bb8cc, #7f9db3)";
       if (val <= 25) {
-        barGradient = "linear-gradient(90deg, #ef4444, #dc2626)";
+        barGradient = "linear-gradient(90deg, #e5604f, #c94d3d)";
       } else if (val <= 45) {
-        barGradient = "linear-gradient(90deg, #f59e0b, #d97706)";
+        barGradient = "linear-gradient(90deg, #e0a84e, #c48d3a)";
       } else if (val <= 55) {
-        barGradient = "linear-gradient(90deg, #38bdf8, #0284c7)";
+        barGradient = "linear-gradient(90deg, #9bb8cc, #7f9db3)";
       } else if (val <= 75) {
-        barGradient = "linear-gradient(90deg, #10b981, #059669)";
+        barGradient = "linear-gradient(90deg, #5cc092, #3f9e74)";
       } else {
         barGradient = "linear-gradient(90deg, #ec4899, #db2777)";
       }
@@ -3587,7 +3587,7 @@ function updatePfClosePreview() {
   const pnlAbs = (exitP - pos.avg_price) * qty;
   const pnlPct = pos.avg_price > 0 ? ((exitP - pos.avg_price) / pos.avg_price) * 100 : 0;
   const sign = pnlAbs >= 0 ? "+" : "-";
-  const color = pnlAbs >= 0 ? "#34d399" : "#fb7185";
+  const color = pnlAbs >= 0 ? "#5cc092" : "#fb7185";
   const remaining = Math.max(0, Number(pos.shares) - qty);
   const remText = remaining > 1e-6
     ? `Quedarán <strong>${Number.isInteger(remaining) ? remaining : formatFractionalUnits(remaining)} títulos</strong> abiertos en cartera.`
@@ -3677,7 +3677,7 @@ function renderPortfolioView(pf) {
     if (count === 0) {
       navPill.textContent = "0 pos.";
       navPill.style.background = "rgba(255, 255, 255, 0.08)";
-      navPill.style.color = "#94a3b8";
+      navPill.style.color = "#a89f91";
     } else {
       const pSign = pnlPct >= 0 ? "+" : "";
       navPill.textContent = `${count} pos. • ${pSign}${pnlPct.toFixed(1)}%`;
@@ -3735,8 +3735,8 @@ function renderPortfolioView(pf) {
     container.innerHTML = `
       <div class="journal-empty-box" style="grid-column: 1 / -1;">
         <div style="font-size: 2.2rem; margin-bottom: 8px;">💼</div>
-        <p style="font-size: 1.1rem; font-weight: 600; color: #f8fafc; margin-bottom: 8px;">Tu Cartera Real está vacía</p>
-        <p style="font-size: 0.86rem; color: #94a3b8; max-width: 560px; margin: 0 auto 16px;">
+        <p style="font-size: 1.1rem; font-weight: 600; color: #f4efe6; margin-bottom: 8px;">Tu Cartera Real está vacía</p>
+        <p style="font-size: 0.86rem; color: #a89f91; max-width: 560px; margin: 0 auto 16px;">
           Registra tus compras reales (acciones enteras o fracciones cripto) para vigilar en tiempo real tu <strong>precio medio ponderado</strong>, <strong>PnL abierto</strong>, distancia a <strong>Stop Loss / Take Profit</strong> y avisos de resultados.
         </p>
         <button type="button" class="btn btn-emerald btn-sm" id="btnEmptyPortfolioAdd">+ Registrar Primera Posición</button>
@@ -3805,7 +3805,7 @@ function renderPortfolioView(pf) {
         <div class="pf-gauge-box">
           <div class="pf-gauge-labels">
             <span class="val-danger" title="Fuente: ${escapeHtml(pos.sl_source)}">🛡️ SL: ${formatPrice(pos.effective_sl, pos)} (${pos.dist_to_sl_pct >= 0 ? "-" : "+"}${Math.abs(pos.dist_to_sl_pct).toFixed(1)}%)</span>
-            <span style="color:#cbd5e1;">📍 Entrada: ${formatPrice(pos.avg_price, pos)}</span>
+            <span style="color:#cfc6b8;">📍 Entrada: ${formatPrice(pos.avg_price, pos)}</span>
             <span class="val-success" title="Fuente: ${escapeHtml(pos.tp_source)}">🎯 TP: ${formatPrice(pos.effective_tp, pos)} (+${pos.dist_to_tp_pct.toFixed(1)}%)</span>
           </div>
           <div class="pf-progress-track">
