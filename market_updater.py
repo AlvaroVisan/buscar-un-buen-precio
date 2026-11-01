@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import sys
 import time
@@ -1618,6 +1619,16 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
 
         now = datetime.datetime.now()
         timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+        previous = {}
+        previous_timestamp = None
+        if os.path.exists(LATEST_DATA_PATH):
+            try:
+                with open(LATEST_DATA_PATH, encoding="utf-8") as f:
+                    cached = json.load(f)
+                previous_timestamp = cached.get("timestamp")
+                previous = {it["ticker"]: it for it in cached.get("data", [])}
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
 
         print(f"\n🚀 Iniciando sincronización paralela de {len(assets_list)} activos (Periodo: {period})...")
 
@@ -1625,6 +1636,10 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
             idx, asset_item = idx_and_asset
             try:
                 data, hist = fetch_asset_data(asset_item, period=period, return_history=True, quiet=True)
+                price = float(data.get("current_price", 0)) if data else 0
+                if not math.isfinite(price) or price <= 0:
+                    raise ValueError("Cotización no válida")
+                data.update(is_stale=False, last_success_at=timestamp)
                 return idx, data, hist
             except Exception as err:
                 print(f"  ❌ Error consultando {asset_item.get('ticker')}: {err}")
@@ -1639,12 +1654,22 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
             asset_futures = [executor.submit(_fetch_worker, (i, a)) for i, a in enumerate(assets_list)]
 
             collected = []
+            failed_tickers = []
             for fut in concurrent.futures.as_completed(asset_futures):
                 idx, data, hist = fut.result()
                 if data:
                     collected.append((idx, data))
                     if hist is not None and not hist.empty:
                         histories_by_ticker[data["ticker"]] = hist
+                else:
+                    ticker = assets_list[idx]["ticker"]
+                    failed_tickers.append(ticker)
+                    old = previous.get(ticker)
+                    if old and isinstance(old.get("current_price"), (int, float)) and math.isfinite(old["current_price"]) and old["current_price"] > 0:
+                        fallback = dict(old)
+                        fallback.update(old.get("timeframes", {}).get(period, {}))
+                        fallback.update(is_stale=True, last_success_at=old.get("last_success_at") or previous_timestamp)
+                        collected.append((idx, fallback))
 
             sentiment = sentiment_future.result()
 
@@ -1662,6 +1687,7 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
             "period": period,
             "market_sentiment": sentiment,
             "market_hours": evaluate_market_hours(assets_list, now),
+            "failed_tickers": failed_tickers,
             "data": results
         }
         _atomic_write_json(LATEST_DATA_PATH, payload)
@@ -1677,7 +1703,7 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
             try:
                 resp = requests.post(
                     webhook_url,
-                    data=json.dumps(payload),
+                    data=json.dumps({**payload, "data": [it for it in results if not it.get("is_stale")]}),
                     headers={"Content-Type": "application/json"},
                     timeout=25
                 )
@@ -1694,14 +1720,14 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
         # Enviar alertas a Telegram si está configurado
         try:
             import telegram_notifier
-            telegram_notifier.dispatch_telegram_alerts(payload, config)
+            telegram_notifier.dispatch_telegram_alerts({**payload, "data": [it for it in results if not it.get("is_stale")]}, config)
         except Exception as e:
             print(f"⚠️ [Telegram] Error procesando alertas: {e}")
 
         # Sincronizar Historial de Oportunidades y Diario de Trading (Módulo 3)
         try:
             import journal_manager
-            journal_manager.update_journal_with_market_data(results, histories=histories_by_ticker)
+            journal_manager.update_journal_with_market_data([it for it in results if not it.get("is_stale")], histories=histories_by_ticker)
         except Exception as e:
             print(f"⚠️ [Journal] Error actualizando diario de trading: {e}")
 

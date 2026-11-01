@@ -7,6 +7,7 @@ y registrar ventas parciales o cierres con historial de beneficio realizado.
 """
 
 import json
+import math
 import os
 import threading
 import time
@@ -253,6 +254,8 @@ def get_enriched_portfolio(market_items=None):
     winners_count = 0
     losers_count = 0
     alerts_count = 0
+    missing_quotes = 0
+    stale_quotes = 0
 
     for pos in positions:
         t = str(pos.get("ticker", "")).upper()
@@ -262,16 +265,26 @@ def get_enriched_portfolio(market_items=None):
         dec = int(live.get("decimals") if live.get("decimals") is not None else pos.get("decimals", 2))
         shares = float(pos.get("shares", 0))
         avg_price = float(pos.get("avg_price", 0))
-        current_price = float(live.get("current_price", avg_price))
+        try:
+            quote = float(live.get("current_price"))
+            has_quote = math.isfinite(quote) and quote > 0
+        except (TypeError, ValueError):
+            has_quote = False
+        is_stale = bool(live.get("is_stale"))
+        missing_quotes += int(not has_quote)
+        stale_quotes += int(has_quote and is_stale)
+        # El valor de entrada solo permite construir los niveles; nunca se publica
+        # como cotización ni se incluye en la valoración si falta el precio.
+        current_price = quote if has_quote else avg_price
 
         invested_val = round(shares * avg_price, 2)
         market_val = round(shares * current_price, 2)
         pnl_abs = round(market_val - invested_val, 2)
         pnl_pct = round(((current_price - avg_price) / avg_price) * 100, 2) if avg_price > 0 else 0.0
 
-        if pnl_abs >= 0:
+        if has_quote and pnl_abs >= 0:
             winners_count += 1
-        else:
+        elif has_quote:
             losers_count += 1
 
         risk = live.get("risk_mgmt", {})
@@ -362,6 +375,12 @@ def get_enriched_portfolio(market_items=None):
             has_action_alert = True
             advice = f"{earnings.get('label', '⚠️ Resultados próximos')} — {advice}"
 
+        if not has_quote or is_stale:
+            status_code = "STALE_QUOTE" if has_quote else "NO_QUOTE"
+            status_badge = "⚠️ Cotización desactualizada" if has_quote else "⚠️ Sin cotización"
+            advice = "Último precio válido; valoración provisional. Actualiza los datos." if has_quote else "Sin precio disponible. Esta posición no se incluye en la valoración ni en el PnL agregado."
+            has_action_alert = False
+
         if has_action_alert:
             alerts_count += 1
 
@@ -373,10 +392,11 @@ def get_enriched_portfolio(market_items=None):
             "pnl_pct": 0.0,
             "positions": 0
         })
-        bucket["invested"] = round(bucket["invested"] + invested_val, 2)
-        bucket["market_val"] = round(bucket["market_val"] + market_val, 2)
-        bucket["pnl_abs"] = round(bucket["pnl_abs"] + pnl_abs, 2)
-        bucket["positions"] += 1
+        if has_quote:
+            bucket["invested"] = round(bucket["invested"] + invested_val, 2)
+            bucket["market_val"] = round(bucket["market_val"] + market_val, 2)
+            bucket["pnl_abs"] = round(bucket["pnl_abs"] + pnl_abs, 2)
+            bucket["positions"] += 1
 
         enriched_positions.append({
             **pos,
@@ -385,11 +405,14 @@ def get_enriched_portfolio(market_items=None):
             "currency": curr_sym,
             "decimals": dec,
             "is_tracked": bool(live),
-            "current_price": round(current_price, dec),
+            "has_quote": has_quote,
+            "is_stale": is_stale,
+            "last_success_at": live.get("last_success_at"),
+            "current_price": round(current_price, dec) if has_quote else None,
             "invested_val": invested_val,
-            "market_val": market_val,
-            "pnl_abs": pnl_abs,
-            "pnl_pct": pnl_pct,
+            "market_val": market_val if has_quote else None,
+            "pnl_abs": pnl_abs if has_quote else None,
+            "pnl_pct": pnl_pct if has_quote else None,
             "effective_sl": effective_sl,
             "sl_source": sl_source,
             "dist_to_sl_pct": dist_to_sl_pct,
@@ -429,6 +452,9 @@ def get_enriched_portfolio(market_items=None):
     primary_curr = primary_bucket["currency"]
     summary = {
         "positions_count": len(enriched_positions),
+        "missing_quotes_count": missing_quotes,
+        "stale_quotes_count": stale_quotes,
+        "valuation_incomplete": bool(missing_quotes or stale_quotes),
         "winners_count": winners_count,
         "losers_count": losers_count,
         "alerts_count": alerts_count,

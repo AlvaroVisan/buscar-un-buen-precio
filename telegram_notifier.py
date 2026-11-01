@@ -491,7 +491,7 @@ def format_buy_advice(item, period="3mo"):
         f"{p3_str}\n\n"
         f"{p4_str}"
     )
-    return msg
+    return (f"⚠️ Cotización desactualizada. Último dato válido: {escape_md(item.get('last_success_at') or 'fecha desconocida')}\n\n" if item.get("is_stale") else "") + msg
 
 
 def format_sell_advice(item, period="3mo"):
@@ -573,7 +573,7 @@ def format_sell_advice(item, period="3mo"):
         f"{p3_str}\n\n"
         f"{verdict}"
     )
-    return msg
+    return (f"⚠️ Cotización desactualizada. Último dato válido: {escape_md(item.get('last_success_at') or 'fecha desconocida')}\n\n" if item.get("is_stale") else "") + msg
 
 
 def format_detailed_fibonacci(item, period="3mo"):
@@ -621,7 +621,7 @@ def format_detailed_fibonacci(item, period="3mo"):
         f"🏦 *Muro POC*: `{_fmt_price(poc_p, item)}` | *Área Valor 70%*: `{_fmt_price(val_p, item)}` – `{_fmt_price(vah_p, item)}`\n\n"
         f"[📊 Abrir Gráfico en TradingView]({tv_url})"
     )
-    return msg
+    return (f"⚠️ Cotización desactualizada. Último dato válido: {escape_md(item.get('last_success_at') or 'fecha desconocida')}\n\n" if item.get("is_stale") else "") + msg
 
 
 def format_telegram_alert(item, period="3mo"):
@@ -787,7 +787,7 @@ def handle_resumen(bot_token, chat_id):
 
         for it in items:
             ticker = it.get("ticker", "")
-            tab = it.get("tab", ticker)
+            tab = it.get("tab", ticker) + (" ⚠️ desactualizado" if it.get("is_stale") else "")
             price = it.get("current_price", 0)
             drop = it.get("drop_pct", 0)
             score = it.get("score", 0)
@@ -1400,7 +1400,11 @@ def handle_cartera(bot_token, chat_id):
         ]
 
         totals_by_curr = summary.get("totals_by_currency", {})
+        if summary.get("valuation_incomplete"):
+            lines.append("⚠️ Valoración provisional. Totales solo de posiciones con precio; pueden incluir cotizaciones desactualizadas.")
         for c_sym, b in totals_by_curr.items():
+            if not b.get("positions"):
+                continue
             pnl_abs = b.get("pnl_abs", 0.0)
             pnl_pct = b.get("pnl_pct", 0.0)
             sign = "+" if pnl_abs >= 0 else ""
@@ -1418,6 +1422,9 @@ def handle_cartera(bot_token, chat_id):
         lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         for p in positions:
+            if p.get("has_quote") is False:
+                lines.append(f"• *{escape_md(p.get('ticker', ''))}* — ⚠️ Sin cotización. PnL no disponible; excluida de los totales.")
+                continue
             t = p.get("ticker", "")
             tab = escape_md(p.get("tab", t))
             c = p.get("currency", "$")
@@ -1429,6 +1436,8 @@ def handle_cartera(bot_token, chat_id):
             sl = p.get("effective_sl", 0)
             tp = p.get("effective_tp", 0)
             badge = escape_md(p.get("status_badge", ""))
+            if p.get("is_stale"):
+                badge += f" (último dato: {escape_md(p.get('last_success_at') or 'fecha desconocida')})"
             sign = "+" if pnl_abs >= 0 else ""
             shares_str = f"{int(shares)}" if abs(shares - round(shares)) < 1e-6 else _format_fractional_units(shares)
 

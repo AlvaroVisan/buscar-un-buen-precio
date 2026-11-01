@@ -1052,7 +1052,7 @@ function renderDashboard(data) {
       elTotalNames.textContent = `${items.slice(0, 7).map(i => i.tab).join(", ")} +${items.length - 7} más`;
     }
   }
-  document.getElementById("kpiLastUpdate").textContent = data.timestamp ? data.timestamp.split(" ")[1] : "--:--:--";
+  document.getElementById("kpiLastUpdate").textContent = (data.timestamp || "--:--:--") + ((data.failed_tickers || []).length ? ` ⚠️ Sin actualizar: ${data.failed_tickers.join(", ")}` : "");
   document.getElementById("kpiPeriod").textContent = `Ventana de cálculo: ${formatPeriodLabel(data.period || currentPeriod)}`;
 
   let buyCount = 0;
@@ -1198,6 +1198,7 @@ function updateFilterBadges(items) {
 }
 
 function updateAlertsCenter(items) {
+  items = items.filter(item => !item.is_stale);
   const alertsBadge = document.getElementById("alertsBadge");
   const alertsSummaryCount = document.getElementById("alertsSummaryCount");
   const alertsList = document.getElementById("alertsList");
@@ -1862,7 +1863,7 @@ function createAssetCard(item) {
       </div>
       <div style="display: flex; align-items: flex-start; gap: 8px;">
         <div class="asset-price-box">
-          <div class="asset-current-price">${formatPrice(item.current_price, item)}</div>
+          <div class="asset-current-price">${formatPrice(item.current_price, item)}</div>${item.is_stale ? `<div class="earnings-pill">⚠️ Último precio válido: ${escapeHtml(item.last_success_at || "fecha desconocida")}</div>` : ""}
           <span class="asset-drop-pill drop-negative">-${item.drop_pct.toFixed(1)}% desde máx</span>
         </div>
         <button class="btn-card-delete" title="Dejar de seguir ${item.tab} (${item.ticker})">
@@ -2060,7 +2061,7 @@ function createAssetCard(item) {
         </div>
         <div style="display: flex; align-items: flex-start; gap: 8px;">
           <div class="asset-price-box">
-            <div class="asset-current-price">${formatPrice(item.current_price, item)}</div>
+            <div class="asset-current-price">${formatPrice(item.current_price, item)}</div>${item.is_stale ? `<div class="earnings-pill">⚠️ Último precio válido: ${escapeHtml(item.last_success_at || "fecha desconocida")}</div>` : ""}
             <span class="asset-drop-pill drop-positive" style="color: #4ade80;">+${sell.gain_from_low_pct.toFixed(1)}% desde mín</span>
           </div>
           <button class="btn-card-delete" title="Dejar de seguir ${item.tab} (${item.ticker})">
@@ -2464,6 +2465,7 @@ function renderFibRow(level, targetPrice, currentPrice, icon, isGolden = false, 
 }
 
 function formatCurrency(val, decimals = 2) {
+  if (val === null || val === undefined) return "—";
   if (typeof val !== "number") val = parseFloat(val) || 0;
   const d = (typeof decimals === "number" && decimals >= 0) ? decimals : 2;
   return val.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -3687,7 +3689,7 @@ function renderPortfolioView(pf) {
       navPill.style.color = "#a89f91";
     } else {
       const pSign = pnlPct >= 0 ? "+" : "";
-      navPill.textContent = `${count} pos. • ${pSign}${pnlPct.toFixed(1)}%`;
+      navPill.textContent = `${count} pos. • ${summary.valuation_incomplete ? "⚠️ Valoración provisional" : pSign + pnlPct.toFixed(1) + "%"}`;
       navPill.style.background = pnlAbs >= 0 ? "rgba(16, 185, 129, 0.22)" : "rgba(244, 63, 94, 0.25)";
       navPill.style.color = pnlAbs >= 0 ? "#6ee7b7" : "#fda4af";
     }
@@ -3724,6 +3726,7 @@ function renderPortfolioView(pf) {
   if (elAlertsSub) {
     const aCount = summary.alerts_count || 0;
     elAlertsSub.textContent = aCount > 0 ? `🔔 ${aCount} ${aCount === 1 ? "posición requiere atención" : "posiciones requieren atención"}` : "✅ Niveles SL/TP bajo control";
+    if (summary.valuation_incomplete) elAlertsSub.textContent = `⚠️ Valoración provisional: ${summary.missing_quotes_count || 0} sin precio, ${summary.stale_quotes_count || 0} desactualizadas. Totales solo de posiciones con precio.`;
   }
 
   const realizedVal = summary.primary_realized_pnl || 0;
@@ -3733,6 +3736,12 @@ function renderPortfolioView(pf) {
     elRealized.className = `j-kpi-val ${realizedVal >= 0 ? "text-green" : "text-red"}`;
   }
   if (elRealizedSub) elRealizedSub.textContent = `${closed.length} ${closed.length === 1 ? "operación cerrada" : "operaciones cerradas"}`;
+
+  if (count > 0 && summary.missing_quotes_count === count) {
+    if (elMarketVal) elMarketVal.textContent = "No disponible";
+    if (elOpenPnl) elOpenPnl.textContent = "No disponible";
+    if (elOpenPnlPct) elOpenPnlPct.textContent = "Sin cotizaciones para valorar la cartera";
+  }
 
   // Renderizar tarjetas de posiciones abiertas
   const container = document.getElementById("portfolioPositionsContainer");
@@ -3804,12 +3813,12 @@ function renderPortfolioView(pf) {
           </div>
           <div class="pf-metric-box ${isProfit ? "pf-box-profit" : "pf-box-loss"}">
             <span class="pf-m-label">PnL Abierto (Latente)</span>
-            <span class="pf-m-val ${isProfit ? "text-green" : "text-red"}">${pSign}${sym}${formatCurrency(Math.abs(pos.pnl_abs), 2)}</span>
-            <span class="pf-m-sub ${isProfit ? "text-green" : "text-red"}">${pos.pnl_pct >= 0 ? "+" : ""}${pos.pnl_pct.toFixed(2)}%</span>
+            <span class="pf-m-val ${pos.pnl_abs == null ? "" : isProfit ? "text-green" : "text-red"}">${pos.pnl_abs == null ? "No disponible" : pSign + sym + formatCurrency(Math.abs(pos.pnl_abs), 2)}</span>
+            <span class="pf-m-sub">${pos.pnl_pct == null ? "Sin cotización" : (pos.pnl_pct >= 0 ? "+" : "") + pos.pnl_pct.toFixed(2) + "%"}</span>
           </div>
         </div>
 
-        <div class="pf-gauge-box">
+        <div class="pf-gauge-box" ${pos.has_quote === false ? 'hidden' : ''}>
           <div class="pf-gauge-labels">
             <span class="val-danger" title="Fuente: ${escapeHtml(pos.sl_source)}">🛡️ SL: ${formatPrice(pos.effective_sl, pos)} (${pos.dist_to_sl_pct >= 0 ? "-" : "+"}${Math.abs(pos.dist_to_sl_pct).toFixed(1)}%)</span>
             <span style="color:#cfc6b8;">📍 Entrada: ${formatPrice(pos.avg_price, pos)}</span>
