@@ -2,8 +2,8 @@
 function addBusinessButton(card, item) {
   const ticker = String(item.ticker || "");
   if (!ticker || ticker.startsWith("^") || ticker.includes("=") || /-(USD|EUR|USDT)$/i.test(ticker)) return;
-  const footer = card.querySelector(".card-actions");
-  if (!footer) return;
+  const identity = card.querySelector(".asset-identity");
+  if (!identity) return;
   const button = document.createElement("button");
   button.type = "button";
   button.className = "business-open-btn";
@@ -11,7 +11,7 @@ function addBusinessButton(card, item) {
   button.dataset.businessName = item.name || item.tab || ticker;
   button.textContent = "Ver negocio";
   button.setAttribute("aria-haspopup", "dialog");
-  footer.prepend(button);
+  identity.append(button);
 }
 
 (() => {

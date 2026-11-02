@@ -4635,7 +4635,7 @@ input, select, textarea { accent-color: #ddd; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
 /* Contexto del negocio: resumen primero, evidencia desplegable. */
-.card-actions:has(.business-open-btn) { flex-wrap: wrap; gap: 12px; }
+.asset-identity .business-open-btn { margin-top: 10px; }
 .business-open-btn {
   border: 1px solid var(--card-border); border-radius: var(--radius-sm);
   background: var(--bg-secondary); color: var(--text-primary);
