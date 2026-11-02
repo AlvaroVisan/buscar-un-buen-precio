@@ -1,4 +1,7 @@
 :root {
+  --business-positive: #a8d4ba;
+  --business-caution: #d9c08d;
+  --business-negative: #dfa6a6;
   color-scheme: dark;
   --bg-primary: #08090b;
   --bg-secondary: #111317;
@@ -4630,3 +4633,56 @@ input, select, textarea { accent-color: #ddd; }
   #positionCalcModal .calc-kpi-val { font-size: 1.1rem; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* Contexto del negocio: resumen primero, evidencia desplegable. */
+.card-actions:has(.business-open-btn) { flex-wrap: wrap; gap: 12px; }
+.business-open-btn {
+  border: 1px solid var(--card-border); border-radius: var(--radius-sm);
+  background: var(--bg-secondary); color: var(--text-primary);
+  padding: 8px 12px; font: inherit; font-size: .78rem; cursor: pointer;
+}
+.business-open-btn:hover { border-color: var(--text-secondary); background: var(--card-hover-bg); }
+.business-open-btn:focus-visible, .business-details summary:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+#businessModal { padding: 20px; }
+#businessModal .business-modal { width: 100%; max-width: 760px; max-height: calc(100dvh - 40px); display: flex; flex-direction: column; }
+#businessModal .modal-header { flex-shrink: 0; align-items: flex-start; gap: 16px; }
+#businessModal .modal-body { overflow-y: auto; min-height: 0; padding: 24px; }
+.business-eyebrow { display: block; font-size: .65rem; font-weight: 600; letter-spacing: .13em; color: var(--text-muted); margin-bottom: 8px; }
+.business-verdict { border: 1px solid var(--card-border); border-radius: var(--radius-md); padding: 22px; background: var(--bg-primary); }
+.business-verdict h4 { font-size: 1.55rem; margin-bottom: 10px; }
+.business-favorable h4 { color: var(--business-positive); }
+.business-mixed h4 { color: var(--business-caution); }
+.business-weak h4 { color: var(--business-negative); }
+.business-verdict p, .business-valuation p { color: var(--text-secondary); line-height: 1.75; font-size: .9rem; }
+.business-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding: 24px 0; }
+.business-columns h4, .business-valuation h4, .business-details h4 { font-size: .9rem; margin-bottom: 10px; }
+.business-columns ul, .business-details ul { padding-left: 18px; color: var(--text-secondary); font-size: .83rem; }
+.business-columns li, .business-details li { margin-bottom: 8px; }
+.business-muted, .business-scope { font-size: .8rem; color: var(--text-muted); }
+.business-valuation { padding: 18px 0; border-block: 1px solid var(--card-border); }
+.business-scope { margin: 16px 0 22px; }
+.business-details { border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 15px; }
+.business-details summary { cursor: pointer; font-size: .85rem; color: var(--text-primary); }
+.business-details p { font-size: .8rem; color: var(--text-secondary); margin: 14px 0; }
+.business-data-group h5 { font-size: .82rem; margin: 18px 0 10px; }
+.business-year { padding: 12px 0; border-top: 1px solid var(--card-border); font-size: .78rem; }
+.business-year strong { font-weight: 500; color: var(--text-secondary); }
+.business-year dl > div { display: flex; justify-content: space-between; gap: 14px; padding-top: 7px; }
+.business-year dt { color: var(--text-muted); }
+.business-year dd { text-align: right; flex-shrink: 0; }
+.business-provenance { margin-top: 20px; font-size: .72rem; color: var(--text-muted); }
+.business-provenance p { margin-bottom: 7px; }
+.business-sources { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; }
+.business-sources a { color: var(--text-secondary); text-underline-offset: 3px; }
+.business-loading { padding: 35px 10px; color: var(--text-secondary); text-align: center; }
+.business-loading p { margin: 12px 0; font-size: .85rem; }
+.business-notice { padding: 12px; margin-bottom: 16px; border: 1px solid var(--business-caution); border-radius: var(--radius-sm); color: var(--business-caution); font-size: .8rem; }
+@media (max-width: 600px) {
+  #businessModal { padding: 10px; }
+  #businessModal .business-modal { max-height: calc(100dvh - 20px); }
+  #businessModal .modal-header, #businessModal .modal-body { padding: 16px; }
+  #businessModal .modal-title { font-size: 1.05rem; }
+  .business-columns { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .business-verdict { padding: 16px; }
+  .business-verdict h4 { font-size: 1.3rem; }
+}

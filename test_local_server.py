@@ -1,6 +1,7 @@
 """Pruebas HTTP locales sin arrancar scheduler, bot ni acceder a datos privados."""
 
 import http.client
+import json
 from pathlib import Path
 import tempfile
 import threading
@@ -85,6 +86,21 @@ class LocalServerTests(unittest.TestCase):
         for method in ("GET", "HEAD"):
             with self.subTest(method=method):
                 self.assertEqual(self.request(method, "/secrets.json")[0], 403)
+
+    def test_business_only_queries_tracked_companies(self):
+        config = {"assets": [{"ticker": "AMD"}, {"ticker": "^GSPC"}]}
+        with patch.object(app.market_updater, "load_config", return_value=config), \
+                patch.object(app.business_context, "get_business_context", return_value={"label": "Mixta"}) as read:
+            for ticker in ("UNKNOWN", "^GSPC", ""):
+                self.assertEqual(self.request(path=f"/api/business?ticker={ticker}")[0], 400)
+            read.assert_not_called()
+            status, _, body = self.request(path="/api/business?ticker=AMD")
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body), {"label": "Mixta"})
+            read.assert_called_once_with("AMD")
+
+    def test_business_cache_is_private(self):
+        self.assertEqual(self.request(path="/.business_cache.json")[0], 403)
 
 
 if __name__ == "__main__":

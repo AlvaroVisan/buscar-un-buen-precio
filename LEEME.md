@@ -26,6 +26,16 @@ Las credenciales privadas (`bot_token`, `chat_id` y `webhook_url`) se almacenan 
   * 📔 **Diario de Oportunidades**: Historial automático con tasa de acierto (*Win Rate*), movimiento automático de Stop a *Break-Even* tras `TP1` y seguimiento de velas diarias.
   * 💼 **Mi Cartera Real**: Seguimiento local (`portfolio.json`) de tus compras reales, precio medio ponderado (*DCA*), PnL abierto en vivo, termómetro `Stop Loss ↔ Entrada ↔ Take Profit` y ventas parciales/totales con beneficio realizado.
 
+### Ver negocio: contexto de las empresas
+
+Las tarjetas de empresas, en Compra y Venta, incluyen **Ver negocio**. Abre un resumen de solidez **favorable, mixta, débil o información insuficiente**, con puntos a favor, aspectos a vigilar y una lectura separada del precio. No altera el score técnico ni las señales del diario.
+
+La lectura aplica reglas visibles a tres ejercicios de beneficios y caja libre, la evolución anual de ingresos y margen neto, y la deuda neta frente a caja operativa. Requiere datos completos, sector identificado, cierres alineados y estados recientes para emitir una conclusión. Las empresas financieras e inmobiliarias se marcan como información insuficiente porque requieren métricas específicas. Los índices, futuros y criptomonedas no muestran este botón.
+
+Los estados se obtienen de Yahoo Finance mediante yfinance al abrir la ficha y se conservan **24 horas** en `.business_cache.json`, ignorado por Git y bloqueado por HTTP. No intervienen en la actualización de precios de 30 minutos. Si falla una renovación, se identifica la lectura anterior y se conserva su fecha; sin datos previos se informa de que no hay información suficiente. Los fallos se reintentan después de cinco minutos.
+
+La ficha muestra fecha de consulta, cierre anual, fuentes y un desplegable con los datos y criterios. La valoración usa el PER de los últimos doce meses, sin presentarlo como una comparación sectorial o histórica. Esta lectura contable no evalúa por sí sola ventajas competitivas, gestión, litigios o concentración del negocio.
+
 ### 2. Bot Interactivo de Telegram (24/7)
 * Configúralo en 1 minuto desde el icono de campana 🔔 del panel web (`Alertas Móvil`).
 * Botones **Inline** interactivos bajo cada alerta y ficha técnica (`[1M] [3M] [6M] [1A]`, `[🛡️ Lote 50/100/250]`, `[📈 TradingView ↗]`).

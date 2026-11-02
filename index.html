@@ -1069,6 +1069,21 @@
     </div>
   </div>
 
+  <div id="businessModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card business-modal" role="dialog" aria-modal="true" aria-labelledby="businessTitle" aria-describedby="businessSubtitle">
+      <div class="modal-header">
+        <div>
+          <p class="business-eyebrow">CONTEXTO DEL NEGOCIO</p>
+          <h3 class="modal-title" id="businessTitle">Ver negocio</h3>
+          <p class="modal-subtitle" id="businessSubtitle">Solidez de la empresa y contexto del precio</p>
+        </div>
+        <button id="closeBusinessModal" class="modal-close-btn" type="button" aria-label="Cerrar contexto del negocio">&times;</button>
+      </div>
+      <div class="modal-body" id="businessContent" aria-live="polite"></div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
+  <script src="business.js"></script>
 </body>
 </html>

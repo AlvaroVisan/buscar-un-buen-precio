@@ -7,6 +7,7 @@ secrets.json
 portfolio.json
 .alerts_cache.json
 .earnings_cache.json
+.business_cache.json
 *.local.json
 *.tmp
 .vscode/

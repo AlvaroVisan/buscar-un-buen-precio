@@ -9,6 +9,7 @@ import time
 import market_updater
 import portfolio_manager
 import telegram_notifier
+import business_context
 
 PORT = 5050
 HOST = "127.0.0.1"
@@ -140,6 +141,22 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = self.path.split("?", 1)[0]
+
+        if route == "/api/business":
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            ticker = query.get("ticker", [""])[0].strip().upper()
+            assets = market_updater.load_config().get("assets", [])
+            known = any(str(asset.get("ticker", "")).upper() == ticker for asset in assets)
+            if not known or not business_context.is_company_candidate(ticker):
+                self.send_error(400, "Selecciona una empresa de seguimiento")
+                return
+            payload = business_context.get_business_context(ticker)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8"))
+            return
 
         if route == "/api/data":
             self.send_response(200)

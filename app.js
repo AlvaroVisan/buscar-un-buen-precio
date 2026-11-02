@@ -2228,6 +2228,7 @@ function createAssetCard(item) {
 }
 
 function attachCardCommonEvents(card, item) {
+  addBusinessButton(card, item);
   // Asignar evento al botón eliminar
   const btnDelete = card.querySelector(".btn-card-delete");
   if (btnDelete) {
