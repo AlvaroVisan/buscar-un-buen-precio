@@ -102,15 +102,13 @@ class LocalServerTests(unittest.TestCase):
     def test_business_cache_is_private(self):
         self.assertEqual(self.request(path="/.business_cache.json")[0], 403)
 
-    def test_followed_plans_are_separate_from_automatic_journal(self):
-        import trade_plan_manager
-        with patch("journal_manager.load_journal", return_value={"entries": [], "stats": {"win_rate_pct": 50}}), \
-                patch.object(trade_plan_manager, "get_plans", return_value={"plans": [], "stats": {"win_rate_pct": 25}}):
+    def test_journal_is_the_only_tracking_source_and_old_archive_is_private(self):
+        with patch("journal_manager.load_journal", return_value={"entries": [], "stats": {"win_rate_pct": 50}}):
             status, _, body = self.request(path="/api/journal")
             result = json.loads(body)
             self.assertEqual(status, 200)
             self.assertEqual(result["stats"]["win_rate_pct"], 50)
-            self.assertEqual(result["followed_plans"]["stats"]["win_rate_pct"], 25)
+            self.assertNotIn("followed_plans", result)
         for method in ("GET", "HEAD"):
             self.assertEqual(self.request(method, "/.trade_plans.json")[0], 403)
 

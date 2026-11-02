@@ -1719,12 +1719,6 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
 
         # Enviar alertas a Telegram si está configurado
         try:
-            import trade_plan_manager
-            trade_plan_manager.update_followed_plans(results)
-        except Exception as e:
-            print(f"[Planes] No se pudo completar el seguimiento: {e}")
-
-        try:
             import telegram_notifier
             telegram_notifier.dispatch_telegram_alerts({**payload, "data": [it for it in results if not it.get("is_stale")]}, config)
         except Exception as e:

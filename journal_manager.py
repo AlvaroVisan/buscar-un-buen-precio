@@ -44,6 +44,25 @@ def load_journal():
         print(f"[Journal Manager] Error al leer journal.json: {e}")
         return {"version": "1.0", "stats": {}, "entries": []}
 
+def get_tracking_signal(ticker):
+    """Consulta sin modificar el historial; una señal abierta tiene prioridad."""
+    if not os.path.exists(JOURNAL_PATH):
+        return {"entry": None, "is_active": False}
+    try:
+        with open(JOURNAL_PATH, encoding="utf-8") as handle:
+            journal = json.load(handle)
+        entries = journal["entries"]
+        if not isinstance(entries, list):
+            raise ValueError("Historial incorrecto")
+        matches = [entry for entry in entries if isinstance(entry, dict)
+                   and str(entry.get("ticker", "")).upper() == str(ticker).upper()]
+    except (OSError, ValueError, KeyError, TypeError):
+        raise ValueError("No se puede consultar el seguimiento del Diario. El historial se conserva sin modificar.") from None
+    active = [entry for entry in matches if entry.get("status") in ("ACTIVA", "TP1_ALCANZADO")]
+    selected = max(active or matches, key=lambda entry: str(entry.get("signal_date", "")), default=None)
+    return {"entry": selected, "is_active": bool(active)}
+
+
 def save_journal(data):
     """
     Guarda el historial de oportunidades en journal.json de manera atómica.
@@ -288,6 +307,8 @@ def update_journal_with_market_data(market_data_list, histories=None):
                 "signal_date": now_str,
                 "signal_type": signal_type,
                 "signal_label": signal_label,
+                "period": item.get("period"),
+                "stop_method": "ESTRUCTURAL",
                 "score": score,
                 "rsi": item.get("rsi"),
                 "entry_price": entry_p,

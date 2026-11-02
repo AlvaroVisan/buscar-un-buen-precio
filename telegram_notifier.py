@@ -11,7 +11,7 @@ import json
 import time
 import threading
 import requests
-import trade_plan_manager as trade_plans
+import journal_manager
 
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 LATEST_DATA_PATH = os.path.join(DIRECTORY, "latest_data.json")
@@ -201,142 +201,48 @@ def build_buy_advice_inline_keyboard(ticker, active_period="3mo"):
     }
 
 
-def build_followable_keyboard(item, chat_id, period=None):
-    period = period or item.get("period", "3mo")
-    keyboard = build_buy_advice_inline_keyboard(item.get("ticker"), period)
+def journal_tracking_context(item, _chat_id=None):
+    """Niveles y estado del único seguimiento: la señal registrada en el Diario."""
+    ticker = str(item.get("ticker", ""))
     try:
-        offer = trade_plans.create_offer(item, chat_id, period)
-    except (ValueError, OSError) as error:
-        print(f"[Planes] No se pudo preparar el seguimiento: {error}")
-    else:
-        keyboard["inline_keyboard"].insert(0, [
-            {"text": "📌 Seguir este plan", "callback_data": f"planfollow:{offer['id']}"}
-        ])
-    return keyboard
-
-
-def plan_status_label(plan):
-    return {
-        "ACTIVA": "En seguimiento", "PENDIENTE_ENTRADA": "Esperando entrada",
-        "TP1_ALCANZADO": "TP1 alcanzado; resto protegido en la entrada",
+        tracking = journal_manager.get_tracking_signal(ticker)
+    except ValueError as error:
+        return f"⚠️ {escape_md(error)}\nEsta lectura actual no confirma el estado de una señal previa.\n\n"
+    entry = tracking["entry"]
+    if not entry:
+        return (f"📔 *Sin seguimiento activo en el Diario para {escape_md(ticker)}*.\n"
+                "No hay una señal registrada. Consultar el bot no crea operaciones; "
+                "las señales se registran automáticamente al actualizar el mercado si cumplen los criterios.\n\n"
+                "*Lectura actual del mercado:*\n\n")
+    statuses = {
+        "ACTIVA": "En seguimiento", "TP1_ALCANZADO": "TP1 alcanzado; resto protegido en la entrada",
         "TP2_ALCANZADO": "TP2 alcanzado; ganada", "STOP_EJECUTADO": "Stop alcanzado; perdida",
-        "BREAKEVEN_EJECUTADO": "Cerrada con beneficio parcial de TP1",
-        "CANCELADA": "Cancelada; sin acierto ni fallo",
-        "INVALIDADA_SIN_ENTRADA": "Invalidada sin entrada; excluida del acierto",
-    }.get(plan["status"], plan["status"])
-
-
-def saved_plan_context(item, chat_id):
-    try:
-        plans = trade_plans.get_plans(chat_id)["plans"]
-    except (ValueError, OSError):
-        return "⚠️ No se ha podido consultar tu seguimiento guardado. Este mensaje es un análisis nuevo, no una revisión de tu plan.\n\n"
-    plan = next((p for p in plans if p["ticker"] == item.get("ticker")), None)
-    if not plan:
-        return ""
-    level = plan["levels"]
-    return (
-        f"📌 *Plan guardado*: {escape_md(plan_status_label(plan))}. "
-        f"Entrada `{_fmt_price(level['entry'], plan)}` · Stop original `{_fmt_price(level['stop'], plan)}`.\n"
-        f"TP1 guardado `{_fmt_price(level['tp1'], plan)}` · TP2 guardado `{_fmt_price(level['tp2'], plan)}`.\n"
-        f"Consulta `/plan {plan['ticker']}`. Los niveles guardados no cambian.\n\n"
-        "*Lectura actual del mercado (distinta del plan guardado):*\n\n"
-    )
-
-
-def format_followed_plan(plan):
-    levels = plan["levels"]
-    ret = plan.get("final_return_pct")
+        "BREAKEVEN_EJECUTADO": "Cerrada con beneficio parcial de TP1", "CERRADA_MANUAL": "Cerrada manualmente",
+    }
+    state = statuses.get(entry.get("status"), entry.get("status", "No registrado"))
+    original_stop = entry.get("initial_stop_loss")
+    if original_stop is None and entry.get("status") in ("ACTIVA", "STOP_EJECUTADO"):
+        original_stop = entry.get("stop_loss")
+    def price(value):
+        return f"`{_fmt_price(value, entry)}`" if isinstance(value, (int, float)) else "No registrado"
+    ret = entry.get("final_return_pct")
     if ret is None:
-        ret = plan.get("current_return_pct", 0)
+        ret = entry.get("current_return_pct", 0)
+    header = (f"📔 *SEGUIMIENTO ACTIVO DEL DIARIO: {escape_md(ticker)}*" if tracking["is_active"]
+              else f"📔 *Sin seguimiento activo para {escape_md(ticker)}*. Última señal registrada:")
     return (
-        f"📌 *PLAN GUARDADO: {escape_md(plan['tab'])}*\n"
-        f"Estado: *{escape_md(plan_status_label(plan))}* · Periodo: `{escape_md(plan['period'])}`\n"
-        f"Propuesto: {escape_md(plan['proposed_at'][:19])} UTC\n"
-        f"Guardado: {escape_md(plan['saved_at'][:19])} UTC\n"
-        f"Entrada propuesta: `{_fmt_price(levels['entry'], plan)}`\n"
-        f"Stop original ({plan['stop_method']}): `{_fmt_price(levels['stop'], plan)}`\n"
-        f"TP1: `{_fmt_price(levels['tp1'], plan)}` · TP2: `{_fmt_price(levels['tp2'], plan)}`\n"
-        f"Stop de seguimiento: `{_fmt_price(plan['stop_loss'], plan)}`\n"
-        f"Último precio observado: `{_fmt_price(plan['current_price'], plan)}`\n"
-        f"Retorno simulado: `{ret:+.2f}%`\n"
-        f"Última revisión: {escape_md(plan.get('last_check') or 'Pendiente')}\n\n"
-        "TP1: salida simulada del 50% y stop del resto en la entrada. "
-        "TP2: cierre del resto. Cancelar no cuenta como acierto ni fallo.\n"
-        f"{escape_md(plan.get('coverage_note', ''))}\n"
-        + (f"⚠️ {escape_md(plan['ambiguity_note'])}\n" if plan.get("ambiguity_note") else "")
-        + ("⚠️ No hay cotización reciente para evaluar este plan.\n" if plan.get("quote_stale") else "")
-        + "Este seguimiento no registra compras ni ejecuta órdenes en tu cartera."
+        f"{header}\nEstado: *{escape_md(state)}*\n"
+        f"Registrada: {escape_md(entry.get('signal_date') or 'No registrado')}\n"
+        f"Periodo original: {escape_md(entry.get('period') or 'No registrado')} · Score inicial: {entry.get('score', 'No registrado')}\n"
+        f"Entrada registrada: {price(entry.get('entry_price'))}\n"
+        f"Stop original: {price(original_stop)} · Stop de seguimiento: {price(entry.get('stop_loss'))}\n"
+        f"TP1 registrado: {price(entry.get('tp1'))} · TP2 registrado: {price(entry.get('tp2'))}\n"
+        f"Último precio evaluado: {price(entry.get('current_price'))} · Retorno simulado: `{ret:+.2f}%`\n"
+        f"Última revisión: {escape_md(entry.get('last_check') or 'No registrada')}\n"
+        "Estos son los niveles del Diario; una consulta no los sustituye. "
+        "Tras TP1 solo se protege el stop del resto en la entrada. No son compras reales.\n\n"
+        "*Lectura actual del mercado (no modifica la señal registrada):*\n\n"
     )
-
-
-def plan_keyboard(plan):
-    rows = [[{"text": "📌 Revisar plan", "callback_data": f"planver:{plan['id']}"},
-             {"text": "📊 Análisis actual", "callback_data": f"ver:{plan['ticker']}"}]]
-    if plan["status"] in trade_plans.ACTIVE:
-        rows.append([{"text": "Cancelar seguimiento", "callback_data": f"plancancel:{plan['id']}"}])
-    return {"inline_keyboard": rows}
-
-
-def handle_plans(bot_token, chat_id, query=""):
-    try:
-        data = trade_plans.get_plans(chat_id)
-        plans = data["plans"]
-        if query:
-            item = find_asset_item(query)
-            ticker = item["ticker"] if item else query.strip().upper()
-            plan = next((p for p in plans if p["ticker"].upper() == ticker.upper()), None)
-            if not plan:
-                raise ValueError("No hay un plan guardado para ese activo. Abre su análisis y pulsa Seguir este plan.")
-            send_telegram_message(bot_token, chat_id, format_followed_plan(plan), reply_markup=plan_keyboard(plan))
-            return
-        stats = data["stats"]
-        lines = ["📌 *TUS PLANES GUARDADOS*", "Seguimiento simulado, separado del diario automático y la cartera.",
-                 f"Activos: {stats['active']} · Cerrados evaluados: {stats['closed']} · Acierto: {stats['win_rate_pct']}%"]
-        rows = []
-        for plan in plans[:15]:
-            lines.append(f"• {escape_md(plan['ticker'])}: {escape_md(plan_status_label(plan))}")
-            rows.append([{"text": f"{plan['ticker']} · {plan['saved_at'][:10]}", "callback_data": f"planver:{plan['id']}"}])
-        if not plans:
-            lines.append("Todavía no sigues ningún plan. Pulsa Seguir este plan debajo de un análisis de compra.")
-        else:
-            lines.append("Se muestran los 15 más recientes. `/plan AMD` abre el último de ese activo; el historial completo está en el Diario web.")
-        send_telegram_message(bot_token, chat_id, "\n".join(lines), reply_markup={"inline_keyboard": rows} if rows else TELEGRAM_MAIN_KEYBOARD)
-    except (ValueError, OSError) as error:
-        send_telegram_message(bot_token, chat_id, escape_md(error))
-
-
-def handle_plan_callback(bot_token, chat_id, action, plan_id):
-    try:
-        if action == "planfollow":
-            # Solo la cotización actual se consulta de nuevo; los niveles salen de la oferta.
-            items = []
-            if os.path.exists(LATEST_DATA_PATH):
-                with open(LATEST_DATA_PATH, encoding="utf-8") as handle:
-                    items = json.load(handle).get("data", [])
-            plan, created = trade_plans.follow_offer(plan_id, chat_id, items)
-            if created:
-                # La evaluación periódica comienza en el próximo ciclo, sin recuperar
-                # máximos/mínimos previos al momento en que se pulsó el botón.
-                prefix = "Plan guardado con los niveles de este mensaje.\n\n"
-            else:
-                prefix = "Ya existe este plan o uno abierto para el activo; se conserva sin sustituirlo.\n\n"
-            send_telegram_message(bot_token, chat_id, prefix + format_followed_plan(plan), reply_markup=plan_keyboard(plan))
-            return
-        plan = next((p for p in trade_plans.get_plans(chat_id)["plans"] if p["id"] == plan_id), None)
-        if not plan:
-            raise ValueError("Este plan no pertenece a tu seguimiento.")
-        if action == "plancancel":
-            send_telegram_message(bot_token, chat_id, "¿Cancelar este seguimiento? Se conservará en el historial y no contará como acierto o fallo.", reply_markup={"inline_keyboard": [[
-                {"text": "Sí, cancelar", "callback_data": f"planconfirm:{plan_id}"},
-                {"text": "Conservar", "callback_data": f"planver:{plan_id}"}
-            ]]})
-            return
-        if action == "planconfirm":
-            plan = trade_plans.cancel_plan(plan_id, chat_id)
-        send_telegram_message(bot_token, chat_id, format_followed_plan(plan), reply_markup=plan_keyboard(plan))
-    except (ValueError, OSError) as error:
-        send_telegram_message(bot_token, chat_id, escape_md(error))
 
 
 def build_sell_advice_inline_keyboard(ticker, active_period="3mo"):
@@ -440,7 +346,6 @@ def setup_bot_commands(bot_token):
             {"command": "ver", "description": "🔍 Analizar un activo (ej: /ver AMD)"},
             {"command": "cartera", "description": "💼 Mi Cartera Real, PnL abierto y alertas SL/TP"},
             {"command": "historial", "description": "📔 Diario de trading y tasa de acierto"},
-            {"command": "planes", "description": "📌 Planes que has elegido seguir y sus resultados"},
             {"command": "actualizar", "description": "🔄 Actualizar mercado y Google Sheets"},
             {"command": "herramientas", "description": "🧰 Análisis técnico y gestión de activos"},
             {"command": "ayuda", "description": "ℹ️ Ayuda y lista de comandos"}
@@ -614,11 +519,7 @@ def format_buy_advice(item, period="3mo"):
     else:
         verdict = f"⚪ **Veredicto: Precio elevado / Sin descuento suficiente (Score {score}/100)**. Dejar correr y no precipitarse."
     p4.append(verdict)
-    try:
-        levels = trade_plans.proposal(item, period)["levels"]
-        p4.append(f"📌 *Niveles del plan*: entrada `{_fmt_price(levels['entry'], item)}` · stop `{_fmt_price(levels['stop'], item)}` · TP1 `{_fmt_price(levels['tp1'], item)}` · TP2 `{_fmt_price(levels['tp2'], item)}`. Pulsa Seguir este plan para conservarlos; consultar no los guarda.")
-    except ValueError as error:
-        p4.append(f"Seguimiento no disponible: {escape_md(error)}")
+    p4.append("Esta es una lectura actual. Si hay una señal abierta, su seguimiento usa exclusivamente los niveles registrados en el Diario, mostrados al principio del mensaje.")
 
     if earnings.get("has_earnings") and earnings.get("label"):
         warn_icon = "⚠️" if earnings.get("warning_level") == "IMMINENT" else "📅"
@@ -833,8 +734,8 @@ def dispatch_telegram_alerts(market_payload, config):
         alert_text = format_telegram_alert(item, period=period)
         delivered_to_any = False
         for cid in chat_ids:
-            inline_kb = build_followable_keyboard(item, cid, period)
-            ok, res = send_telegram_message(bot_token, cid, saved_plan_context(item, cid) + alert_text, reply_markup=inline_kb)
+            inline_kb = build_buy_advice_inline_keyboard(ticker, period)
+            ok, res = send_telegram_message(bot_token, cid, journal_tracking_context(item, cid) + alert_text, reply_markup=inline_kb)
             if ok:
                 delivered_to_any = True
                 print(f"[Telegram Notifier] 📲 Alerta enviada para {ticker} ({item.get('tab')}) al chat {cid}")
@@ -871,7 +772,7 @@ def handle_start_or_help(bot_token, chat_id):
         "Desde su ficha puedes abrir Compra, Venta, Fibonacci y Riesgo.\n\n"
         "💼 /cartera — Tus posiciones y PnL abierto.\n"
         "📔 /historial — Resultados de las señales del diario.\n"
-        "📌 /planes — Planes elegidos y su tasa de acierto. `/plan AMD` revisa el plan fijo.\n"
+        "📔 `/ver AMD` muestra primero si hay seguimiento activo y sus niveles originales.\n"
         "🔄 /actualizar — Actualizar mercado y Google Sheets.\n\n"
         "🧰 /herramientas — Análisis especializado y gestión de activos.\n"
         "Los comandos anteriores siguen disponibles."
@@ -1040,8 +941,8 @@ def handle_compra(bot_token, chat_id, query=""):
                     others = [f"`/compra {it.get('ticker')}`" for it in top[1:] if it.get("ticker")]
                     others_txt = f"\n\n📌 *Otras oportunidades destacadas:* {' | '.join(others)}" if others else ""
                     period = best.get("period") or payload.get("period", "3mo")
-                    text = saved_plan_context(best, chat_id) + f"🏆 *OPORTUNIDAD DESTACADA #1 DEL MERCADO:*\n\n{format_buy_advice(best, period)}{others_txt}"
-                    kb = build_followable_keyboard(best, chat_id, period)
+                    text = journal_tracking_context(best, chat_id) + f"🏆 *OPORTUNIDAD DESTACADA #1 DEL MERCADO:*\n\n{format_buy_advice(best, period)}{others_txt}"
+                    kb = build_buy_advice_inline_keyboard(best_t, period)
                     send_telegram_message(bot_token, chat_id, text, reply_markup=kb)
                     return
             except Exception:
@@ -1066,8 +967,8 @@ def handle_compra(bot_token, chat_id, query=""):
         return
 
     period = item.get("period", "3mo")
-    text = saved_plan_context(item, chat_id) + format_buy_advice(item, period)
-    kb = build_followable_keyboard(item, chat_id, period)
+    text = journal_tracking_context(item, chat_id) + format_buy_advice(item, period)
+    kb = build_buy_advice_inline_keyboard(item.get("ticker", clean_q), period)
     send_telegram_message(bot_token, chat_id, text, reply_markup=kb)
 
 
@@ -1100,7 +1001,7 @@ def handle_fibonacci_detail(bot_token, chat_id, query, forced_period=None):
 
     text = format_detailed_fibonacci(view_item, period=period)
     kb = build_fib_inline_keyboard(item.get("ticker", clean_q), active_period=period)
-    send_telegram_message(bot_token, chat_id, saved_plan_context(view_item, chat_id) + text, reply_markup=kb)
+    send_telegram_message(bot_token, chat_id, journal_tracking_context(view_item, chat_id) + text, reply_markup=kb)
 
 
 def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
@@ -1112,6 +1013,16 @@ def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
     clean_q = (query or "").strip()
     item = find_asset_item(clean_q)
     if not item:
+        # Una señal histórica sigue siendo consultable aunque se retire el activo.
+        try:
+            tracking = journal_manager.get_tracking_signal(clean_q)
+        except ValueError:
+            tracking = {"entry": None}
+        if tracking["entry"]:
+            send_telegram_message(bot_token, chat_id,
+                                  journal_tracking_context(tracking["entry"]) + "Este activo ya no está en la lista de seguimiento de precios; no hay una lectura actual disponible.",
+                                  reply_markup=TELEGRAM_MAIN_KEYBOARD)
+            return
         send_telegram_message(
             bot_token, chat_id,
             f"🔍 *Activo no encontrado: '{escape_md(clean_q)}'*\n"
@@ -1136,9 +1047,9 @@ def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
         kb = build_sell_advice_inline_keyboard(view_item.get("ticker", clean_q), active_period=period)
     else:
         text = format_buy_advice(view_item, period=period)
-        kb = build_followable_keyboard(view_item, chat_id, period)
+        kb = build_buy_advice_inline_keyboard(view_item.get("ticker", clean_q), period)
 
-    send_telegram_message(bot_token, chat_id, saved_plan_context(view_item, chat_id) + text, reply_markup=kb)
+    send_telegram_message(bot_token, chat_id, journal_tracking_context(view_item, chat_id) + text, reply_markup=kb)
 
 def handle_riesgo(bot_token, chat_id, raw_args):
     """
@@ -1283,7 +1194,7 @@ def handle_riesgo(bot_token, chat_id, raw_args):
         f"💡 _Regla de oro: No aumentes tu posición sin desplazar antes el Stop Loss a precio de entrada (Break-Even)._\n\n"
         f"[📊 Abrir Gráfico en TradingView]({tv_url})"
     )
-    send_telegram_message(bot_token, chat_id, saved_plan_context(matched_item, chat_id) + msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+    send_telegram_message(bot_token, chat_id, journal_tracking_context(matched_item, chat_id) + msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
 def handle_venta(bot_token, chat_id, query=""):
     """
@@ -1304,7 +1215,7 @@ def handle_venta(bot_token, chat_id, query=""):
             return
 
         period = item.get("period", "3mo")
-        text = saved_plan_context(item, chat_id) + format_sell_advice(item, period)
+        text = journal_tracking_context(item, chat_id) + format_sell_advice(item, period)
         kb = build_sell_advice_inline_keyboard(item.get("ticker", clean_q), period)
         send_telegram_message(bot_token, chat_id, text, reply_markup=kb)
         return
@@ -1398,7 +1309,7 @@ def handle_historial(bot_token, chat_id):
 
         lines = [
             "📔 *DIARIO DE TRADING & HISTORIAL*",
-            "Señales automáticas. Tus planes elegidos y su acierto se consultan en /planes.",
+            "Seguimiento automático único. `/ver TICKER` muestra la señal registrada antes de la lectura actual.",
             "━━━━━━━━━━━━━━━━━━━━━━━━━━",
             f"🎯 *Tasa de Acierto (Win Rate)*: `{win_rate:.1f}%`",
             f"📊 *Operaciones Totales*: `{total}` ({active} activas, {closed} cerradas)",
@@ -1759,8 +1670,8 @@ def process_callback_query(bot_token, chat_id, callback_id, data_str):
     action = parts[0].lower() if parts else ""
 
     if action in ("planfollow", "planver", "plancancel", "planconfirm") and len(parts) == 2:
-        answer_callback_query(bot_token, callback_id, "Revisando tu seguimiento…")
-        handle_plan_callback(bot_token, chat_id, action, parts[1])
+        answer_callback_query(bot_token, callback_id, "El seguimiento ahora está integrado en el Diario.")
+        send_telegram_message(bot_token, chat_id, "El seguimiento es automático en el Diario. Usa `/ver AMD` para revisar la señal de un activo o /historial para ver sus resultados. Los botones de planes anteriores ya no crean ni cancelan seguimientos.")
     elif action == "compra" and len(parts) >= 2:
         t = parts[1]
         answer_callback_query(bot_token, callback_id, f"🟢 Consejo Compra {t}")
@@ -1869,7 +1780,10 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
 
     if command in ("/planes", "/plan"):
         query = text.split(maxsplit=1)[1] if len(text.split(maxsplit=1)) > 1 else ""
-        handle_plans(bot_token, chat_id, query)
+        if query:
+            handle_ver_ticker(bot_token, chat_id, query)
+        else:
+            handle_historial(bot_token, chat_id)
         return
 
     if cmd in ("/start", "/help", "/ayuda", "ℹ️ ayuda", "ayuda"):

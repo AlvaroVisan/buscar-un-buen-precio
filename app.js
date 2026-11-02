@@ -103,7 +103,7 @@ function setupEventListeners() {
   const btnResetJournal = document.getElementById("btnResetJournal");
   if (btnResetJournal) {
     btnResetJournal.addEventListener("click", async () => {
-      if (confirm("¿Borrar las señales automáticas del Diario? Los planes que has elegido seguir se conservarán.")) {
+      if (confirm("¿Borrar las señales del Diario y sus estadísticas? Esta acción no modifica tu cartera real.")) {
         try {
           await fetch("/api/journal/reset", { method: "POST" });
           await loadAndRenderJournal();
@@ -933,7 +933,7 @@ function startLivePolling() {
           }
           renderDashboard(marketData);
         } else if (currentAppMode === "JOURNAL") {
-          // Guardar/cancelar un plan en Telegram no cambia el timestamp de mercado.
+          // El Diario puede terminar de actualizarse después de publicar los precios.
           await loadAndRenderJournal();
         }
       }
@@ -3037,45 +3037,6 @@ function recalcPartialSell() {
   }
 }
 
-function renderFollowedPlans(data = {}) {
-  const plans = data.plans || [];
-  const stats = data.stats || {};
-  const labels = {
-    ACTIVA: "En seguimiento", PENDIENTE_ENTRADA: "Esperando entrada",
-    TP1_ALCANZADO: "TP1 alcanzado · resto protegido en la entrada",
-    TP2_ALCANZADO: "TP2 alcanzado · ganada", STOP_EJECUTADO: "Stop alcanzado · perdida",
-    BREAKEVEN_EJECUTADO: "Cerrada con beneficio parcial de TP1",
-    CANCELADA: "Cancelada · excluida de la tasa de acierto",
-    INVALIDADA_SIN_ENTRADA: "Invalidada antes de entrar · sin operación"
-  };
-  return `<section class="followed-plans-section">
-    <div class="followed-plans-heading"><h3>Planes que has elegido seguir</h3>
-      <span>${Number(stats.active || 0)} abiertos · ${Number(stats.closed || 0)} cerrados evaluados · Acierto ${Number(stats.win_rate_pct || 0).toFixed(1)}%</span>
-    </div>
-    <p class="followed-plans-intro">Niveles fijados desde el botón de Telegram. Seguimiento simulado, independiente de las compras reales y las señales automáticas de abajo. Gestiona tus planes con /planes en el bot.</p>
-    ${data.error ? `<p role="alert">${escapeHtml(data.error)}</p>` : ""}
-    ${plans.length ? plans.map(plan => {
-      const levels = plan.levels;
-      const ret = plan.final_return_pct ?? plan.current_return_pct ?? 0;
-      return `<article class="followed-plan-card">
-        <div class="followed-plan-title"><strong>${escapeHtml(plan.tab)} · ${escapeHtml(plan.period)}</strong><span>${escapeHtml(labels[plan.status] || plan.status)}</span></div>
-        <p class="followed-plan-date">Guardado: ${escapeHtml(new Date(plan.saved_at).toLocaleString("es-ES"))} · Precio de referencia del mensaje: ${formatPrice(plan.quoted_price, plan)}</p>
-        <div class="followed-plan-levels">
-          <div><span>Entrada propuesta</span><strong>${formatPrice(levels.entry, plan)}</strong></div>
-          <div><span>Stop original (${escapeHtml(plan.stop_method)})</span><strong>${formatPrice(levels.stop, plan)}</strong></div>
-          <div><span>TP1 · salida del 50%</span><strong>${formatPrice(levels.tp1, plan)}</strong></div>
-          <div><span>TP2 · salida del resto</span><strong>${formatPrice(levels.tp2, plan)}</strong></div>
-        </div>
-        <p>Último precio: ${formatPrice(plan.current_price, plan)} · Stop de seguimiento: ${formatPrice(plan.stop_loss, plan)} · Retorno simulado: ${ret >= 0 ? "+" : ""}${Number(ret).toFixed(2)}%</p>
-        <p class="followed-plan-date">Última revisión: ${escapeHtml(plan.last_check ? new Date(plan.last_check).toLocaleString("es-ES") : "Pendiente")}${plan.quote_stale ? " · Sin cotización reciente" : ""}</p>
-        <p class="followed-plan-note">${escapeHtml(plan.coverage_note || "")}${plan.ambiguity_note ? ` ${escapeHtml(plan.ambiguity_note)}` : ""}</p>
-      </article>`;
-    }).join("") : '<p class="followed-plan-note">Todavía no sigues ningún plan. Consulta /compra AMD en Telegram y pulsa «Seguir este plan».</p>'}
-    <h3 class="automatic-journal-heading">Señales automáticas del Diario</h3>
-    <p class="followed-plans-intro">Los indicadores generales del Diario corresponden a estas señales automáticas.</p>
-  </section>`;
-}
-
 async function loadAndRenderJournal() {
   const container = document.getElementById("journalEntriesContainer");
   if (!container) return;
@@ -3087,7 +3048,7 @@ async function loadAndRenderJournal() {
 
     const stats = jData.stats || {};
     const entries = jData.entries || [];
-    const followedHTML = renderFollowedPlans(jData.followed_plans);
+
 
     const elWinRate = document.getElementById("jStatWinRate");
     const elWinRateSub = document.getElementById("jStatWinRateSub");
@@ -3109,7 +3070,7 @@ async function loadAndRenderJournal() {
     if (journalBadge) journalBadge.textContent = `Win Rate: ${(stats.win_rate_pct || 0).toFixed(1)}%`;
 
     if (entries.length === 0) {
-      container.innerHTML = followedHTML + `
+      container.innerHTML = `
         <div class="journal-empty-box">
           <p style="font-size: 1.1rem; font-weight: 600; color: #f4efe6; margin-bottom: 8px;">Aún no hay señales registradas en el diario.</p>
           <p style="font-size: 0.85rem; color: #a89f91; margin: 0;">Cada vez que un activo entre en la <strong>Zona Áurea (61.8%)</strong> o su <strong>Score de Confluencia sea ≥ 70</strong>, se registrará aquí automáticamente para medir la rentabilidad alcanzada.</p>
@@ -3118,7 +3079,7 @@ async function loadAndRenderJournal() {
       return;
     }
 
-    container.innerHTML = followedHTML + entries.map(e => {
+    container.innerHTML = entries.map(e => {
       let badgeClass = "j-badge-active";
       let badgeLabel = "🔵 En Seguimiento";
       if (e.status === "TP2_ALCANZADO") {
@@ -3149,6 +3110,7 @@ async function loadAndRenderJournal() {
         currency: e.currency || (matchedLive && matchedLive.currency) || "$",
         decimals: (typeof e.decimals === "number") ? e.decimals : ((matchedLive && matchedLive.decimals) || 2)
       };
+      const originalStop = e.initial_stop_loss ?? (["ACTIVA", "STOP_EJECUTADO"].includes(e.status) ? e.stop_loss : null);
 
       return `
         <div class="journal-entry-card">
@@ -3163,6 +3125,7 @@ async function loadAndRenderJournal() {
           <div class="j-signal-col">
             <span class="j-signal-label">${e.signal_label}</span>
             <span class="j-signal-sub">Score inicial: <strong>${e.score}/100</strong> • RSI: ${e.rsi || '--'}</span>
+            <span class="j-signal-sub">Periodo registrado: ${escapeHtml(e.period || "No registrado")}</span>
           </div>
 
           <div class="j-prices-col">
@@ -3171,8 +3134,16 @@ async function loadAndRenderJournal() {
               <span>${formatPrice(e.entry_price, fmtRef)}</span>
             </div>
             <div class="j-prices-row">
-              <span class="j-prices-label">Stop / TP2:</span>
-              <span>${formatPrice(e.stop_loss, fmtRef)} / ${formatPrice(e.tp2, fmtRef)}</span>
+              <span class="j-prices-label">Stop original:</span>
+              <span>${originalStop !== null ? formatPrice(originalStop, fmtRef) : "No registrado"}</span>
+            </div>
+            <div class="j-prices-row">
+              <span class="j-prices-label">Stop actual:</span>
+              <span>${formatPrice(e.stop_loss, fmtRef)}</span>
+            </div>
+            <div class="j-prices-row">
+              <span class="j-prices-label">TP1 / TP2:</span>
+              <span>${formatPrice(e.tp1, fmtRef)} / ${formatPrice(e.tp2, fmtRef)}</span>
             </div>
             <div class="j-prices-row">
               <span class="j-prices-label">Actual:</span>
