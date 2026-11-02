@@ -1,7 +1,7 @@
 {
   "webhook_url": "",
   "google_sheet_url": "https://docs.google.com/spreadsheets/d/1_R_z-hBe1q0HGY2-co8U6MDROldoyhfwhwJwQaE3D9o/edit#gid=0",
-  "period": "3mo",
+  "period": "1mo",
   "telegram": {
     "enabled": true,
     "bot_token": "",
