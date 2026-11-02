@@ -426,12 +426,11 @@ def find_asset_item(query):
 
 def format_buy_advice(item, period="3mo"):
     """
-    Construye una narrativa clara, fluida y resumida para la compra:
-    1. Precio actual y corrección.
-    2. Suelo o volumen cercano que frena la caída.
-    3. A dónde queremos llegar (primer objetivo y máximos).
-    4. Dónde perdemos dinero (nivel de salida / stop para no asumir más pérdidas).
-    5. Pines de aviso relevante (Resultados / Earnings).
+    Construye un pronóstico directo y plan de ejecución táctico (se moja):
+    1. Pronóstico: ¿Sube, baja, o baja primero para luego rebotar?
+    2. Contexto de inercia y suelo.
+    3. Plan táctico de ejecución (entrada en 2 tramos, objetivos y stop).
+    4. Pines de aviso relevante (Resultados / Earnings).
     """
     ticker = item.get("ticker", "")
     tab = escape_md(item.get("tab", ticker))
@@ -439,6 +438,8 @@ def format_buy_advice(item, period="3mo"):
     drop = item.get("drop_pct", 0)
     p_max = item.get("max", price)
     p_min = item.get("min", price)
+    score = item.get("score", 0)
+    swing_type = item.get("swing_type", "")
 
     risk = item.get("risk_mgmt") or {}
     liq = item.get("liquidity") or {}
@@ -456,35 +457,52 @@ def format_buy_advice(item, period="3mo"):
     gain_tp2 = risk.get("reward_2_pct", ((tp2 - price) / price * 100) if price > 0 else 0)
     loss_pct = ((price - sl) / price * 100) if price > 0 else 0
 
-    # 1 y 2. Narrativa de Precio actual y Suelo / Volumen
-    if drop >= 10.0:
-        drop_phrase = f", tras una corrección del *-{drop:.1f}%* desde sus máximos de `{_fmt_price(p_max, item)}`"
-    elif drop >= 4.0:
-        drop_phrase = f", con un retroceso del *-{drop:.1f}%* desde máximos de `{_fmt_price(p_max, item)}`"
+    has_imminent_earnings = earnings.get("has_earnings") and (earnings.get("days_until") is not None and earnings.get("days_until") <= 2)
+
+    # 1. PRONÓSTICO DIRECTO Y TRAYECTORIA
+    if drop >= 10.0 or swing_type == "FALLING_KNIFE" or has_imminent_earnings:
+        forecast_title = "🔮 *PRONÓSTICO: Baja primero, sube después.*"
+        earn_clause = " y la tensión previa de resultados" if has_imminent_earnings else ""
+        vol_clause = f" (muro de compras institucional en `{_fmt_price(poc_p, item)}`)" if poc_p > 0 else ""
+        explanation = (
+            f"Tras una corrección del *-{drop:.1f}%* desde sus máximos de `{_fmt_price(p_max, item)}`{earn_clause}, "
+            f"la inercia presiona a testear el suelo en torno a `{_fmt_price(floor_p, item)}`{vol_clause}. "
+            f"Desde esa zona de soporte, la proyección estadística apunta a un *rebote potente hacia `{_fmt_price(tp1, item)}` (+{gain_tp1:.1f}%)*."
+        )
+        plan_bullets = (
+            f"🎯 *Plan de ejecución (Cómo se juega esto):*\n"
+            f"• *Entrada en 2 tramos*: 50% de tu posición ahora en `{_fmt_price(price, item)}`, y guardas el otro 50% por si visita `{_fmt_price(floor_p, item)}` para cargar más barato.\n"
+            f"• *Objetivo de beneficio*: Salida en `{_fmt_price(tp1, item)}` *(+{gain_tp1:.1f}%)*, con margen hacia `{_fmt_price(tp2, item)}` *(+{gain_tp2:.1f}%)*.\n"
+            f"• *Dónde nos salimos si sale mal*: Si perfora los `{_fmt_price(sl, item)}` *(-{loss_pct:.1f}%)*, el pronóstico se anula y cerramos la posición sin dudar."
+        )
+        header_icon = "🟢"
+    elif score >= 65 and drop >= 4.0:
+        forecast_title = "🔮 *PRONÓSTICO: SUBE.*"
+        explanation = (
+            f"*{tab}* ha conseguido frenar en el soporte de `{_fmt_price(floor_p, item)}` tras retroceder un *-{drop:.1f}%*. "
+            f"El volumen vendedor se ha secado y la proyección apunta a un rebote directo hacia `{_fmt_price(tp1, item)}` *(+{gain_tp1:.1f}%)*."
+        )
+        plan_bullets = (
+            f"🎯 *Plan de ejecución:*\n"
+            f"• *Entrada directa*: Compra aquí en `{_fmt_price(price, item)}`.\n"
+            f"• *Objetivo*: `{_fmt_price(tp1, item)}` *(+{gain_tp1:.1f}%)*, y segundo impulso a `{_fmt_price(tp2, item)}` *(+{gain_tp2:.1f}%)*.\n"
+            f"• *Dónde nos salimos si sale mal*: Si pierde los `{_fmt_price(sl, item)}` *(-{loss_pct:.1f}%)*, cortamos para proteger capital."
+        )
+        header_icon = "🟢"
     else:
-        drop_phrase = ""
+        forecast_title = "🔮 *PRONÓSTICO: AÚN NO ENTRAR.*"
+        explanation = (
+            f"*{tab}* cotiza en `{_fmt_price(price, item)}` sin descuento técnico suficiente o sin suelo confirmado. "
+            f"Entrar ahora tiene un riesgo innecesario. Lo sensato es esperar a que caiga hacia la zona de `{_fmt_price(floor_p, item)}` antes de arriesgar dinero."
+        )
+        plan_bullets = (
+            f"🎯 *Plan de acción:*\n"
+            f"• *No compres todavía*: Mantente al margen hasta que el precio visite `{_fmt_price(floor_p, item)}`.\n"
+            f"• *Vigilar*: Si frena en ese suelo, se abrirá la ventana de rebote hacia `{_fmt_price(tp1, item)}`."
+        )
+        header_icon = "🟡"
 
-    if poc_p > 0 and abs(poc_p - price) / price < 0.20:
-        vol_phrase = f", donde las compras institucionales han dejado un fuerte muro de volumen en torno a `{_fmt_price(poc_p, item)}`"
-    elif liq.get("has_absorption"):
-        vol_phrase = ", donde las compras fuertes están absorbiendo la presión de venta"
-    else:
-        vol_phrase = ""
-
-    p1 = (
-        f"*{tab}* cotiza ahora en `{_fmt_price(price, item)}`{drop_phrase}, "
-        f"intentando frenar la caída cerca de su suelo en `{_fmt_price(floor_p, item)}`{vol_phrase}."
-    )
-
-    # 3 y 4. A dónde queremos llegar y dónde perdemos dinero
-    p2 = (
-        f"La idea aquí es aprovechar este freno para buscar un rebote hacia los `{_fmt_price(tp1, item)}` *(+{gain_tp1:.1f}%)* como primera meta, "
-        f"con margen de volver a máximos en `{_fmt_price(tp2, item)}` *(+{gain_tp2:.1f}%)*. "
-        f"Si la cosa se tuerce y rompe el soporte de los `{_fmt_price(sl, item)}` *(-{loss_pct:.1f}%)*, "
-        f"cortamos la posición para no asumir más pérdidas."
-    )
-
-    # 5. Pines con información relevante adicional (Resultados / Catalizadores)
+    # Pines con información relevante adicional (Resultados)
     pins = []
     if earnings.get("has_earnings") and earnings.get("short_date"):
         ed = earnings.get("short_date")
@@ -499,16 +517,16 @@ def format_buy_advice(item, period="3mo"):
             when = f"en {du} días ({ed})"
         else:
             when = f"el {ed}"
-        pins.append(f"📌 *Resultados*: Presenta cuentas *{when}*{eps_txt}. Atención a la volatilidad.")
+        pins.append(f"📌 *Resultados*: Presenta cuentas *{when}*{eps_txt}. Atención a la volatilidad extrema.")
 
     pins_str = ("\n\n" + "\n".join(pins)) if pins else ""
-    header_icon = "🟢" if drop >= 8.0 else "🔵"
 
     msg = (
         f"{header_icon} *{tab}* · `{_fmt_price(price, item)}`\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{p1}\n\n"
-        f"{p2}"
+        f"{forecast_title}\n\n"
+        f"{explanation}\n\n"
+        f"{plan_bullets}"
         f"{pins_str}"
     )
     stale_warn = f"⚠️ *Cotización desactualizada* ({escape_md(item.get('last_success_at') or '')})\n\n" if item.get("is_stale") else ""
@@ -517,12 +535,11 @@ def format_buy_advice(item, period="3mo"):
 
 def format_sell_advice(item, period="3mo"):
     """
-    Construye una narrativa clara, fluida y resumida para la toma de beneficios y modo venta:
-    1. Precio actual y subida acumulada.
-    2. Suelo de protección o soporte inferior.
-    3. Dónde queremos llegar / Agotamiento del recorrido.
-    4. Dónde asegurar para no perder ganancias.
-    5. Pines de aviso relevante (Resultados).
+    Construye un pronóstico directo de salida y toma de beneficios:
+    1. Pronóstico: BAJA (agotamiento alcista).
+    2. Contexto de techo y cercanía a máximos.
+    3. Plan táctico de aseguramiento de ganancias.
+    4. Pines de aviso relevante.
     """
     ticker = item.get("ticker", "")
     tab = escape_md(item.get("tab", ticker))
@@ -539,15 +556,15 @@ def format_sell_advice(item, period="3mo"):
     f50 = fibs.get("50.0%", p_min)
     prot_pct = ((price - t_stop) / price * 100) if price > 0 else 0
 
-    p1 = (
-        f"*{tab}* cotiza ahora en `{_fmt_price(price, item)}`, tras acumular un alza del *+{gain_low:.1f}%* desde mínimos "
-        f"y situarse a solo un *{dist_hi:.1f}%* de su techo en `{_fmt_price(p_max, item)}`."
+    forecast_title = "🔮 *PRONÓSTICO: BAJA (Toca recoger).* "
+    explanation = (
+        f"*{tab}* acumula un alza del *+{gain_low:.1f}%* desde mínimos y está a solo un *{dist_hi:.1f}%* de su techo en `{_fmt_price(p_max, item)}`. "
+        f"El impulso comprador está agotado y el escenario más probable es un retroceso hacia el soporte de `{_fmt_price(f50, item)}`."
     )
-
-    p2 = (
-        f"El recorrido de subida está prácticamente completado y el volumen comprador empieza a agotarse. "
-        f"Para no devolver lo ganado, el plan sensato es asegurar beneficios o colocar un stop de protección en "
-        f"`{_fmt_price(t_stop, item)}` *(-{prot_pct:.1f}%)*, vigilando el soporte inferior en `{_fmt_price(f50, item)}` por si el precio se gira."
+    plan_bullets = (
+        f"🎯 *Plan de acción:*\n"
+        f"• *No comprar*: El tren de subida ya ha salido y el riesgo aquí es máximo.\n"
+        f"• *Asegurar ganancias*: Toma beneficios parciales o pon un stop de protección en `{_fmt_price(t_stop, item)}` *(-{prot_pct:.1f}%)* para blindar lo ganado si el precio se gira."
     )
 
     pins = []
@@ -564,15 +581,16 @@ def format_sell_advice(item, period="3mo"):
             when = f"en {du} días ({ed})"
         else:
             when = f"el {ed}"
-        pins.append(f"📌 *Resultados*: Presenta cuentas *{when}*{eps_txt}. Atención a la volatilidad.")
+        pins.append(f"📌 *Resultados*: Presenta cuentas *{when}*{eps_txt}. Atención a la volatilidad extrema.")
 
     pins_str = ("\n\n" + "\n".join(pins)) if pins else ""
 
     msg = (
         f"🔴 *{tab}* · `{_fmt_price(price, item)}` (Zona de Venta)\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{p1}\n\n"
-        f"{p2}"
+        f"{forecast_title}\n\n"
+        f"{explanation}\n\n"
+        f"{plan_bullets}"
         f"{pins_str}"
     )
     stale_warn = f"⚠️ *Cotización desactualizada* ({escape_md(item.get('last_success_at') or '')})\n\n" if item.get("is_stale") else ""
