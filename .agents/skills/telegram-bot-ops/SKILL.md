@@ -1,67 +1,51 @@
 ---
 name: telegram-bot-ops
 description: >-
-  Use this skill when the user asks to configure, test, extend, or troubleshoot the Telegram
-  alert system, interactive bot commands (/precios, /compras, /activos, /cartera, /actualizar),
-  anti-spam cache, or credentials in secrets.json in "Buscar un buen precio".
+  Configurar, mantener o diagnosticar Telegram en Buscar un buen precio: comandos,
+  narrativa de análisis, seguimiento del Diario, alertas, mensajes fijados y credenciales.
 ---
 
-# Sistema de Alertas y Bot Interactivo de Telegram
+# Bot de Telegram
 
-Esta skill detalla la arquitectura de notificaciones push y los comandos interactivos del bot de Telegram en [telegram_notifier.py](file:///e:/Proyectos/Buscar%20un%20buen%20precio/telegram_notifier.py).
+## Código y estado actual
 
-## 1. Gestión Segura de Credenciales (`secrets.json`)
+[telegram_notifier.py](../../../telegram_notifier.py) contiene router, formatters, envío y escucha. `app.run_server()` inicia `start_bot_listener_thread()`; no hace falta otra consola del bot. Para reinicios o versiones antiguas usa [app-launcher](../app-launcher/SKILL.md).
 
-- **Nunca** guardes `bot_token`, `chat_id` ni `webhook_url` en [config.json](file:///e:/Proyectos/Buscar%20un%20buen%20precio/config.json).
-- Todas las credenciales viven en `secrets.json` (archivo local ignorado por [`.gitignore`](file:///e:/Proyectos/Buscar%20un%20buen%20precio/.gitignore)):
-  ```json
-  {
-    "webhook_url": "https://script.google.com/macros/s/.../exec",
-    "telegram": {
-      "enabled": true,
-      "bot_token": "123456:ABC-DEF...",
-      "chat_id": "123456789",
-      "alert_on_levels": ["78.6%", "61.8%"]
-    }
-  }
-  ```
-- [market_updater.py](file:///e:/Proyectos/Buscar%20un%20buen%20precio/market_updater.py) fusiona automáticamente `secrets.json` sobre `config.json` en memoria mediante `load_config()`.
+Lee `format_buy_advice`, `format_sell_advice`, `journal_tracking_context` y el router antes de editar mensajes. La versión actual usa un pronóstico narrativo integrado, plan de ejecución y avisos compactos; según el escenario, incluye entrada en dos tramos. No restaures el antiguo bloque largo de contexto por basarte en una conversación anterior.
 
-## 2. Alertas Automáticas y Caché Anti-Spam (`.alerts_cache.json`)
+`format_current_market_context()` permanece como stub que devuelve texto vacío y `/ver` no lo concatena: soporte y volumen se integran en los formatters principales. `journal_tracking_context()` muestra un pin compacto solo cuando hay señal activa, con entrada, P&L y salida/stop del Diario. Esto es presentación; el Diario sigue conservando sus niveles originales. Cambiar el formato no autoriza a modificar sus registros.
 
-- Durante cada ejecución de `market_updater.py`, se llama a `process_telegram_alerts(config, assets_data)`.
-- **Reglas de disparo**:
-  - Activos cuyo `signal_level` coincide con `alert_on_levels` (por defecto `"78.6%"` y `"61.8%"`).
-  - Activos que presentan una **Confluencia Multi-Timeframe (`has_cluster: true`)** a menos de `1.8%` del precio actual.
-- **Anti-Spam e Histeresis**:
-  - Se guarda en `.alerts_cache.json` el nivel notificado y el timestamp (`cooldown` de 24h para el mismo nivel).
-  - Si un activo sube y sale de zona de compra (`signal_level not in alert_levels` y recuperó un margen `> 1.5%` por encima de `fib_618`), se limpia de `.alerts_cache.json` para que vuelva a alertar si cae de nuevo.
+## Rutas de consulta
 
-## 3. Comandos Interactivos del Bot (`--listen`)
+| Consulta | Handler y propósito |
+|---|---|
+| `/ver AMD`, `/analizar AMD` o ticker directo | `handle_ver_ticker`: Compra o Venta según situación, con pin del Diario |
+| `/compra AMD`, `/venta AMD` | Lectura actual y propuesta de ejecución; no registran una compra real |
+| `/fibo AMD` | Detalle Fibonacci y botones de periodo |
+| `/riesgo AMD 100` | Dimensionamiento según presupuesto de riesgo |
+| `/resumen`, `/precios` | Cotizaciones y puntuaciones guardadas |
+| `/alertas`, `/oportunidades` | Filtro de zona áurea o score alto |
+| `/historial`, `/diario`, `/seguimiento`, `/seguimientos` | Diario automático y resultados |
+| `/cartera` | Posiciones reales y P&L |
+| `/actualizar`, `/sync` | `run_updater()` en un hilo del mismo proceso |
+| `/add`, `/del`, `/periodo` | Gestión de activos y ventana global |
 
-El bot soporta polling ligero (`getUpdates`) ejecutando:
-```powershell
-python telegram_notifier.py --listen
-```
-Comandos disponibles (restringidos exclusivamente al `chat_id` autorizado):
-- `/compra <TICKER>`: **🟢 Consejo de Compra Sintetizado**: Veredicto inmediato, Plan Operativo (Entrada, Stop Loss SSL/Fibo 78.6%, TP1, TP2 y ratio R:R) y Claves Técnicas (Muro POC, Smart Money, Confluencia, RSI y Resultados).
-- `/venta [TICKER]`: **🔴 Consejo de Venta / Modo Venta**: Radar de sobrecalentamiento o Consejo individual con Trailing Stop protector, extensiones 127.2% / 161.8% y recomendación táctica de salida.
-- `/fibo <TICKER>`: **📐 Escalera de Fibonacci Detallada**: Niveles Fibo enriquecidos con densidad de volumen (`🏦 Muro POC`, `% de volumen`, `🕳️ LVN`) y botones Multi-Timeframe instantáneos (1M, 3M, 6M, 1A).
-- `/ver <TICKER>`: Radiografía ejecutiva inteligente (enruta automáticamente a Consejo de Venta si está en resistencia/sobrecompra o Consejo de Compra si está en descuento).
-- `/riesgo <TICKER> [capital]`: Calculadora de dimensionamiento de posición y gestión de riesgo según capital a arriesgar (ej: `/riesgo NVDA 100`).
-- `/precios` o `/resumen`: Lista todos los activos con su precio actual, caída y score de confluencia.
-- `/alertas` u `/oportunidades`: Filtra activos en zona áurea (`<= 61.8%`) o con Score de confluencia `>= 70`.
-- `/liquidez`, `/poc` o `/smc`: Radar institucional con Muro POC (Volume Profile), Volumen Relativo (`RVOL`), Absorción de Ballenas, Barridos de Stops (Spring SMC) y Piscinas de Liquidez (`SSL`).
-- `/cartera`: Consulta en vivo `portfolio_manager.py` y responde con el P&L latente, valor total y desglose de posiciones abiertas.
-- `/add <TICKER> [Nombre]` y `/del <TICKER>`: Gestión de activos directamente desde el chat de Telegram.
-- `/sync` o `/actualizar`: Lanza `python market_updater.py` en segundo plano y responde al terminar con las oportunidades detectadas.
-- `/ayuda` o `/start`: Muestra el menú de comandos y teclado rápido persistente.
+Los alias antiguos `/plan` y `/planes` redirigen al Diario. Sus callbacks retirados explican el cambio; no deben crear o cancelar seguimientos. No reintroduzcas un segundo sistema de planes sin petición del usuario.
 
-## 4. Comandos de Prueba y Diagnóstico
+## Mensajes y alertas
 
-- **Enviar mensaje de prueba**:
-  ```powershell
-  python telegram_notifier.py --test
-  ```
-- **Desde el Panel Web**: Botón de campana `🔔` en la cabecera (`POST /api/telegram/test`).
+- `find_asset_item()` lee `latest_data.json`; pedir análisis no descarga precios. Los mensajes antiguos del chat no se reescriben al reiniciar: pide una nueva consulta para comprobar el formato.
+- Los niveles actuales pueden diferir de los de la señal registrada, incluido el stop SSL preferido por el análisis. Mantén clara esa distinción. El POC aproxima volumen histórico con velas diarias; TPO no equivale a volumen real y ninguno es un libro de órdenes. Un score no es una probabilidad calibrada; revisa cualquier afirmación de certeza o estadística al modificar la narrativa.
+- `send_telegram_message()` devuelve `(ok, result_dict)` cuando Telegram acepta el envío; el resultado contiene `message_id`. En fallo devuelve el error. Conserva el fallback a texto plano ante errores de entidades Markdown, `escape_md()` y el límite de 4096 caracteres. Comprueba el resultado al diagnosticar envíos fallidos.
+- `dispatch_telegram_alerts()` filtra zona áurea/score según `config.telegram`, respeta `scheduler.smart_hours_only` y aplica `ALERT_COOLDOWN_SECONDS` de cuatro horas por ticker. El estado se guarda en `.alerts_cache.json` al entregarse a algún destinatario; no hay cooldown de 24 horas ni borrado automático por histéresis en la implementación actual.
+- Las alertas entregadas pueden fijarse con `pin_telegram_message()` usando `message_id`; un fallo de fijación no equivale a fallo del envío. Comprueba permisos de Telegram antes de insistir en fijar.
 
+## Credenciales, pruebas y diagnóstico
+
+Los secretos van en `secrets.json`; `load_config()` los fusiona en memoria y `save_config()` los separa de la configuración pública. Conserva la restricción de chats autorizados tanto para mensajes como callbacks. No imprimas tokens, URLs privadas ni IDs de chat en diagnósticos compartidos.
+
+Prueba formatters y handlers con `unittest.mock.patch` de `send_telegram_message`, `answer_callback_query`, `requests` y, si procede, `pin_telegram_message`. Usa un Diario temporal. No envíes ni fijes mensajes reales como prueba sin una petición que lo autorice. `--test` y `/api/telegram/test` sí envían mensajes; no son comprobaciones inocuas.
+
+`test_telegram_tracking.py` incluye expectativas de formatos anteriores: revisa sus fallos contra el contrato vigente y la petición. No reviertas la narrativa actual para satisfacer texto obsoleto ni ocultes una regresión real. Cuando cambies comportamiento, actualiza las expectativas afectadas y verifica que las consultas no escriben señales y que todos los activos generan mensajes válidos de longitud aceptable.
+
+Si no llegan mensajes nuevos, comprueba primero proceso/versión, salud del panel, recepción del comando y retorno del envío. Distingue errores 400 de Markdown/longitud, 409 por escuchas concurrentes, credenciales/chats y cooldown. Los logs pueden contener datos privados: resume resultados sin volcarlos completos. Finaliza con [git-auto-sync](../git-auto-sync/SKILL.md).

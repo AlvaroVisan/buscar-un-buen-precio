@@ -1,42 +1,39 @@
 ---
 name: portfolio-journal
 description: >-
-  Use this skill when the user asks to manage their real portfolio (buy, DCA, close, or delete
-  positions), review P&L or portfolio weights, inspect or repair the signal effectiveness journal,
-  or troubleshoot portfolio_manager.py and journal_manager.py in "Buscar un buen precio".
+  Gestionar compras, DCA, ventas y resultados reales de Cartera, o investigar señales,
+  niveles fijos y tasa de acierto del Diario automático en Buscar un buen precio.
 ---
 
-# Gestión de Cartera Real y Diario de Señales (Backtesting)
+# Cartera real y Diario automático
 
-Esta skill documenta el funcionamiento de la cartera real (`portfolio_manager.py`) y del diario histórico de señales (`journal_manager.py`).
+## Separar los dos registros
 
-## 1. Archivos Clave
+- [portfolio_manager.py](../../../portfolio_manager.py) administra `portfolio.json`, privado e ignorado por Git. Solo una operación explícita de cartera registra compras o ventas reales.
+- [journal_manager.py](../../../journal_manager.py) administra `journal.json`: simulaciones automáticas, independientes de la cartera y de las consultas al bot.
+- El Diario es el único seguimiento de señales. El sistema de planes elegidos por botón fue retirado. `.trade_plans.json`, si existe, se conserva como archivo privado; no se importa ni se mezcla automáticamente con el Diario.
 
-- [portfolio_manager.py](file:///e:/Proyectos/Buscar%20un%20buen%20precio/portfolio_manager.py): Motor CRUD de posiciones reales, cálculo de DCA (precio medio ponderado), P&L en vivo, Stop Loss sugerido (`2x ATR(14)`) y peso porcentual de cada activo en cartera.
-- `portfolio.json`: Base de datos local de posiciones abiertas y cerradas (**ignorado en Git** por privacidad financiera).
-- [journal_manager.py](file:///e:/Proyectos/Buscar%20un%20buen%20precio/journal_manager.py): Registro automático de señales de compra (`<= 61.8%` de retroceso), evaluación retroactiva a `+7d`, `+15d` y `+30d` con barra `High` y `Close`, y estadísticas de Win-Rate.
-- [journal.json](file:///e:/Proyectos/Buscar%20un%20buen%20precio/journal.json): Historial persistente de señales detectadas y su rendimiento real.
+## Cartera
 
-## 2. Operaciones sobre "💼 Mi Cartera Real"
+`upsert_position(..., merge=True)` acumula unidades y recalcula el precio medio ponderado del ticker. `merge=False` edita/sobrescribe la posición; no es otro DCA.
 
-### Endpoints REST en [app.py](file:///e:/Proyectos/Buscar%20un%20buen%20precio/app.py)
-- `GET /api/portfolio`: Devuelve las posiciones enriquecidas con el último precio de `latest_data.json` (`positions`, `closed_positions`, `summary`).
-- `POST /api/portfolio/buy`: Registra una compra o amplía una posición abierta calculando el nuevo precio medio ponderado (DCA).
-  - Payload JSON: `{"ticker": "NVDA", "tab": "NVIDIA", "name": "NVIDIA Corp", "price": 175.50, "shares": 5, "notes": "Entrada en 61.8%"}`
-- `POST /api/portfolio/close`: Cierra total o parcialmente una posición abierta y registra la ganancia/pérdida realizada en `closed_positions`.
-  - Payload JSON: `{"id": "<pos_id>", "close_price": 195.00}`
-- `DELETE /api/portfolio/<pos_id>`: Elimina una posición por completo.
+`remove_or_reduce_position(ticker, sell_shares=None, sell_price=None)` diferencia una eliminación sin venta de una salida con precio. Cuando hay venta, conserva el resultado en `closed_history`, también en salidas parciales. No trunques ese historial para simplificar la UI o calcular el beneficio acumulado.
 
-### Reglas de Cálculo en `enrich_portfolio(assets_data)`
-1. **DCA automático**: Si ya existe una posición abierta para el mismo `ticker`, `add_or_dca_position` suma las acciones y recalcula `avg_price = ((old_price * old_shares) + (new_price * new_shares)) / total_shares`.
-2. **Stop Loss ATR**: Se calcula como `round(avg_price - 2 * atr_14, decimals)` usando el `atr_14` del activo en `latest_data.json`.
-3. **Pesos de cartera (`weight_pct`)**: Solo se suman e integran en el capital total las posiciones que usan la misma divisa o se calcula el porcentaje sobre el valor de mercado total invertido.
+`get_enriched_portfolio()` añade cotización, riesgos y P&L. Conserva los indicadores de datos ausentes/obsoletos y `valuation_incomplete`: una cotización ausente no equivale a valor de mercado cero. Los totales y resultados realizados se agrupan por divisa; no sumes monedas distintas como si hubiera conversión de cambio.
 
-## 3. Diario de Efectividad de Señales (`journal_manager.py`)
+Rutas reales: `GET /api/portfolio`, `POST /api/portfolio/upsert`, `POST /api/portfolio/remove`. Consulta sus campos en [app.py](../../../app.py) antes de operar. No fabriques posiciones de prueba en el archivo privado del usuario.
 
-1. **Claves de señal deterministas**: El ID de cada entrada usa la fecha ISO (`YYYY-MM-DD`) de `updated_at[:10]` (ej: `"NVDA_2026-10-31"`), evitando duplicados por zona horaria.
-2. **Evaluación de retornos (`+7d`, `+15d`, `+30d`)**:
-   - Excluye el mismo día de entrada (`hist.index.date > signal_dt.date()`) para evitar contaminar el retorno con el máximo intradía previo a la señal.
-   - Guarda tanto el retorno al cierre (`return_7d_close`) como la excursión máxima favorable (`max_return_7d` usando `High`).
-3. **Win-Rate honesto**: Una señal se considera ganadora (`is_winner = True`) si el retorno al cierre más reciente disponible es `>= +1.5%` o si el pico máximo intradía en ventana fue `>= +3.5%`.
+## Diario: registro y evaluación
 
+- `update_journal_with_market_data()` registra señales cuando el precio está en/bajo 61,8% o el score es al menos 70, sin abrir otra señal para un ticker que ya sigue activo. Los IDs actuales usan ticker y tiempo; no son claves diarias por `updated_at`.
+- Entrada, objetivos, `initial_stop_loss`, score y periodo se conservan al crear la señal. Los cambios de ventana o cotización no sustituyen esos niveles. Las nuevas entradas guardan `period` y `stop_method`; en registros antiguos lo desconocido se muestra como No registrado.
+- `get_tracking_signal()` es una consulta sin escrituras: prioriza una señal abierta y, si no existe, devuelve la última registrada. No crea operaciones ni borra un archivo corrupto.
+- `_evaluate_price_point()` aplica el modelo de salida del 50% en TP1 y el resto en TP2 o entrada. Antes de TP1 el stop termina en `STOP_EJECUTADO/PERDIDA`; TP1 pasa a `TP1_ALCANZADO` y mueve el stop del resto a la entrada; TP2 termina en `TP2_ALCANZADO/GANADA`; la vuelta a la entrada después de TP1 termina en `BREAKEVEN_EJECUTADO/GANADA` con el beneficio parcial ponderado.
+- `calculate_journal_stats()` calcula ganadas / operaciones cerradas, excluyendo las abiertas. Se recalcula durante las actualizaciones de mercado, no al cierre del día. No hay evaluación vigente a +7/+15/+30 días ni una regla de ganador basada en un pico porcentual.
+- En el día de registro no se usan máximos/mínimos anteriores a la señal; después se revisan rangos diarios y precios puntuales. Ante un rango ambiguo el código comprueba primero el stop. No presentes la simulación como ejecución real ni como cobertura de todos los toques intradía.
+
+## Investigar discrepancias
+
+Compara ticker, fecha, periodo, score inicial, entrada, stop y objetivos registrados con los de la lectura actual. Un score o stop nuevo del motor no demuestra que haya fallado la evaluación del registro antiguo. Tampoco cierres retrospectivamente una señal usando el stop de otra propuesta. Conserva los datos antes de una reparación y prueba la causa con fixtures temporales.
+
+Pruebas relevantes: `python -m unittest test_journal_manager test_portfolio_history test_quote_failures`. Para consumo del Diario en el bot, consulta [telegram-bot-ops](../telegram-bot-ops/SKILL.md) y revisa las expectativas actuales de `test_telegram_tracking.py`. Completa [git-auto-sync](../git-auto-sync/SKILL.md) sin subir datos privados de cartera.

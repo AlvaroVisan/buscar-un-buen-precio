@@ -1,52 +1,33 @@
 ---
 name: manage-assets
 description: >-
-  Use this skill when the user asks to add, remove, or modify financial assets, tickers,
-  or stocks in the "Buscar un buen precio" project. It guides ticker validation, config.json
-  updates, and data verification.
+  Añadir, retirar o renombrar activos y validar tickers de Yahoo Finance en Buscar un buen precio.
+  Usar para cambios en config.assets y su reflejo en el panel, Telegram o Sheets.
 ---
 
-# Procedimiento para Gestión de Activos y Tickers
+# Activos y tickers
 
-Esta skill detalla el procedimiento estándar para añadir, modificar o eliminar activos en el proyecto.
+## Código y contrato
 
-## 1. Estructura de un Activo en `config.json`
+- [config.json](../../../config.json): `assets` contiene objetos con `ticker`, `tab` y `name`. `tab` es el nombre corto de tarjeta y pestaña de Sheets; `ticker` identifica el activo.
+- [app.py](../../../app.py): `POST /api/assets/validate`, `/api/assets/add`, `/api/assets/remove`. Todos usan JSON; no hay endpoint DELETE de activos.
+- [telegram_notifier.py](../../../telegram_notifier.py): `handle_add_asset`, `handle_del_asset`, `find_asset_item` y `get_tradingview_url`.
+- [market_updater.py](../../../market_updater.py): `load_config`, `save_config`, `detect_asset_format`, `fetch_asset_data`, `run_updater`.
 
-Cada activo en [config.json](file:///e:/Proyectos/Buscar%20un%20buen%20precio/config.json) debe incluir exactamente:
-- `tab`: Nombre corto que se usa para la pestaña de Google Sheets y el título de la tarjeta en el panel web (ej: `"AMD"`, `"Gold"`).
-- `ticker`: Símbolo reconocido por Yahoo Finance (`yfinance`):
-  - Acciones USA: `"NVDA"`, `"AAPL"`, `"TSLA"`, `"MSFT"`.
-  - Materias Primas / Futuros: `"GC=F"` (Oro), `"CL=F"` (Petróleo), `"SI=F"` (Plata).
-  - Criptomonedas: `"BTC-USD"`, `"ETH-USD"`.
-  - Índices: `"^GSPC"` (S&P 500), `"^NDX"` (Nasdaq 100), `"^DJI"` (Dow Jones).
-  - Acciones Europeas: `"ITX.MC"` (Inditex), `"SAN.MC"` (Santander).
-- `name`: Nombre descriptivo completo para mostrar en la interfaz (ej: `"NVIDIA Corp"`, `"Bitcoin USD"`).
+## Cambiar un activo
 
-## 2. Pasos para Añadir un Nuevo Activo
+1. Identifica el ticker y comprueba duplicados sin distinguir mayúsculas. Conserva los demás activos y la preferencia de periodo del usuario.
+2. Valida datos con Yahoo antes de guardar un ticker nuevo. Los endpoints existentes consultan `Ticker.history(period="5d")`; vacío o un error de red no demuestra que otro ticker parecido sea correcto. No sustituyas el activo por una conjetura.
+3. Guarda únicamente la configuración pública. Si usas `load_config()`, el resultado incluye credenciales: persiste mediante `save_config()`, nunca con un `json.dump` directo de ese objeto.
+4. Actualiza la caché cuando forme parte de la petición. `run_updater()` también puede escribir en Sheets, enviar alertas y actualizar el Diario; no lo ejecutes para una simple inspección.
+5. Comprueba la presencia o ausencia del ticker en `latest_data.json`, precio finito y positivo, divisa, decimales, `timeframes` y enlace de TradingView. `is_stale=true` significa cotización conservada, no descarga nueva satisfactoria.
 
-1. **Editar [config.json](file:///e:/Proyectos/Buscar%20un%20buen%20precio/config.json)**:
-   Añade el nuevo objeto a la lista `"assets"`:
-   ```json
-   {
-     "tab": "Apple",
-     "ticker": "AAPL",
-     "name": "Apple Inc."
-   }
-   ```
+Símbolos como `GC=F`, `^GSPC`, `BTC-USD` o `ITX.MC` requieren tratamiento distinto en formato y enlaces. No apliques métricas empresariales a índices, futuros o criptomonedas. Revisa las conversiones existentes antes de añadir excepciones.
 
-2. **Validar la obtención de datos**:
-   Ejecuta en consola una prueba de actualización para comprobar que el ticker descarga datos correctamente:
-   ```powershell
-   python market_updater.py
-   ```
+Retirar un ticker de `assets` no autoriza a borrar posiciones reales, ventas ni señales históricas. El Diario mantiene sus registros aunque el activo ya no esté en la lista de precios.
 
-3. **Verificar el archivo de caché**:
-   Asegúrate de que [latest_data.json](file:///e:/Proyectos/Buscar%20un%20buen%20precio/latest_data.json) contiene la nueva entrada con precios, mínimo, máximo y niveles de Fibonacci.
+## Verificación y entrega
 
-4. **Comprobar en el Panel Web**:
-   Abre o refresca `http://localhost:5050` (o usa [Abrir_Panel_Web.bat](file:///e:/Proyectos/Buscar%20un%20buen%20precio/Abrir_Panel_Web.bat)) para confirmar que la tarjeta del nuevo activo aparece con su enlace directo a TradingView y su termómetro de Fibonacci.
-
-## 3. Eliminación o Modificación de Activos
-
-- Para eliminar, remueve el objeto correspondiente de `"assets"` en [config.json](file:///e:/Proyectos/Buscar%20un%20buen%20precio/config.json) y ejecuta `python market_updater.py`.
-- Para cambiar el nombre visible o el ticker, modifica los campos en [config.json](file:///e:/Proyectos/Buscar%20un%20buen%20precio/config.json).
+- Para cambios de validación o conservación de precios: `python -m unittest test_quote_failures test_local_server`.
+- Para comprobar la tarjeta, utiliza el panel iniciado con [Iniciar_Aplicacion.bat](../../../Iniciar_Aplicacion.bat); no recrees los lanzadores retirados.
+- Contrasta el resultado con la petición y completa [git-auto-sync](../git-auto-sync/SKILL.md).

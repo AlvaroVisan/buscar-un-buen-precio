@@ -1,40 +1,45 @@
 ---
 name: web-panel-dev
 description: >-
-  Use this skill when the user asks to modify, redesign, style, or add features to the
-  web panel UI (HTML, CSS, JS, Flask) of "Buscar un buen precio".
+  Modificar la interfaz HTML, CSS y JavaScript o las API HTTP del panel Buscar un buen precio.
+  Usar para tarjetas, filtros, modales, periodos, Diario y Cartera en la web.
 ---
 
-# Procedimiento para Desarrollo y Modificación del Panel Web (v2)
+# Panel web
 
-Esta skill describe la arquitectura, endpoints Flask y componentes interactivos del panel web.
+## Arquitectura vigente
 
-## 1. Arquitectura del Servidor Backend ([app.py](file:///e:/Proyectos/Buscar%20un%20buen%20precio/app.py))
+- [app.py](../../../app.py) usa `http.server`, `ThreadingFibonacciServer` y `FibonacciHandler`; no usa Flask ni blueprints. Escucha en `127.0.0.1:5050`.
+- [index.html](../../../index.html), [style.css](../../../style.css), [app.js](../../../app.js): HTML, tokens CSS oscuros y JavaScript sin framework. Conserva la estética actual; no restaures diseños históricos por una descripción antigua.
+- [business.js](../../../business.js): botón Ver negocio, modal, carga, accesibilidad y cancelación de peticiones. Se carga junto a `app.js`.
 
-Servidor Flask en `http://localhost:5050` con bloqueo de concurrencia (`_update_lock`) para evitar solapamientos:
-- `GET /`: Sirve [index.html](file:///e:/Proyectos/Buscar%20un%20buen%20precio/index.html).
-- `GET /api/data` y `GET /api/config`: Devuelven `latest_data.json` y la configuración pública.
-- `POST /api/update`: Ejecuta `python market_updater.py --force` con `timeout=180` y `_update_lock`.
-- `POST /api/period`: Cambia el periodo activo (`1mo`, `3mo`, `6mo`, `1y`) en `0 ms` proyectando los datos ya pre-calculados en `timeframes` dentro de `latest_data.json` (solo invoca `market_updater.py` si faltan datos pre-calculados).
-- `POST /api/assets` y `DELETE /api/assets/<ticker>`: Añaden o eliminan activos validando primero el ticker en `yfinance`.
-- `GET /api/journal`: Devuelve las señales y métricas de efectividad de `journal.json`.
-- `GET /api/portfolio`, `POST /api/portfolio/buy`, `POST /api/portfolio/close`, `DELETE /api/portfolio/<pos_id>`: CRUD completo de "💼 Mi Cartera Real".
-- `POST /api/telegram/test`: Envía un mensaje de prueba al bot de Telegram.
+## API de referencia
 
-## 2. Arquitectura Frontend ([index.html](file:///e:/Proyectos/Buscar%20un%20buen%20precio/index.html), [style.css](file:///e:/Proyectos/Buscar%20un%20buen%20precio/style.css), [app.js](file:///e:/Proyectos/Buscar%20un%20buen%20precio/app.js))
+| Método | Ruta | Comportamiento |
+|---|---|---|
+| GET | `/api/health` | Identidad del panel para el lanzador |
+| GET | `/api/data`, `/api/config` | Cotizaciones guardadas y configuración con secretos enmascarados |
+| GET | `/api/scheduler/status` | Horario, intervalo efectivo y próxima consulta |
+| POST | `/api/sync`, `/api/period` | Sincronización completa o proyección de periodo desde caché |
+| POST | `/api/assets/validate`, `/api/assets/add`, `/api/assets/remove` | Gestión de tickers |
+| GET | `/api/journal`, `/api/portfolio` | Diario automático y cartera enriquecida |
+| POST | `/api/journal/reset` | Borra el Diario; no es un endpoint de diagnóstico |
+| POST | `/api/portfolio/upsert`, `/api/portfolio/remove` | Compras/edición/DCA y bajas/ventas |
+| POST | `/api/telegram/save`, `/api/telegram/test`, `/api/scheduler/save` | Configuración y prueba explícita de Telegram |
+| GET | `/api/business?ticker=AMD` | Contexto empresarial bajo demanda |
 
-1. **Seguridad y Renderizado DOM**:
-   - **Prohibido usar `onclick` inline con interpolación de strings** en HTML generado dinámicamente. Usa siempre atributos `data-*` (`data-del-ticker`, `data-calc-ticker`, `data-buy-ticker`, `data-close-id`) con delegación de eventos y `escapeHtml()`.
-2. **Cambio de Periodo Instantáneo (`switchPeriod`)**:
-   - Al pulsar `1M`, `3M`, `6M` o `1A`, `app.js` proyecta inmediatamente `asset.timeframes[period]` en el cliente (`0 ms`), re-renderiza la cuadrícula y persiste la preferencia en segundo plano mediante `POST /api/period`.
-3. **Componentes en Tarjeta (`createCardHTML`)**:
-   - **Badges técnicos**: RSI(14), Tendencia (`Alcista`/`Bajista`), Confluencia Multi-Timeframe (`🔥 CONFLUENCIA`) y alerta de Resultados (`⚠️ Resultados en Xd`).
-   - **Posición en Cartera**: Si el usuario tiene acciones del activo, muestra badge `💼 En Cartera (X acc. · Peso Y%)` y banda con Precio Medio, P&L latente y Stop Loss ATR.
-   - **Sparkline SVG Interactiva**: Línea de precios con bandas horizontales discontinuas para el `50%`, `61.8%` y `78.6%` de Fibonacci.
-   - **Escalera de Fibonacci con Volume Profile y Clic-para-Copiar**: Cada fila `.fib-row` muestra su barra horizontal de densidad de liquidez (`.fib-vol-bar` y badge `🏦 POC` / `🏦 %` / `🕳️ LVN`) y copia el precio exacto al portapapeles al hacer clic (`data-copy-price`).
-   - **Panel de Liquidez Institucional (`.liquidity-engine-card`)**: Muestra Muro POC (con pin `.range-poc-pin` sobre la barra de rango), `RVOL (20d)`, Piscina de Stops (`SSL`) y veredicto institucional, además de chip de filtro `🏦 Liquidez / Barrido` y ordenación por Liquidez o RVOL.
-   - **Acciones Rápidas**: Botón `💼 Cartera`, `🧮 Calcular Posición` (con 3 métodos de Stop Loss: `78.6% Fib`, `2x ATR(14)` y `🧲 Bajo Piscina Liquidez SSL`) y enlace limpio a TradingView (`getTradingViewSymbol`).
-4. **Modales Interactivos**:
-   - **💼 Mi Cartera Real (`#portfolioModal`)**: Resumen de Valor Total, P&L Abierto/Cerrado, tabla de posiciones abiertas con barra de peso, acciones de DCA/Cerrar/Borrar e historial de operaciones cerradas.
-   - **📈 Efectividad de Señales (`#journalModal`)**: Win-Rate y tabla comparativa de retorno al cierre (`Close`) y pico máximo (`Máx`) a `+7d`, `+15d` y `+30d`.
-   - **🧮 Calculadora de Riesgo (`#calcModal`)**: Calcula acciones a comprar e importe total según capital, `%` de riesgo y Stop Loss (`78.6% Fib` o `2x ATR(14)`).
+Lee el cuerpo del handler antes de construir payloads. No sustituyas estas rutas por antiguos `/api/update`, `/api/portfolio/buy` o métodos DELETE inexistentes.
+
+## Invariantes de interfaz
+
+- `initApp()` carga configuración y cotizaciones; `startLivePolling()` sondea cada 20 segundos. `switchPeriod()` proyecta `timeframes` y guarda la preferencia en segundo plano. El cambio de ventana no altera los niveles históricos del Diario.
+- El Diario es el único seguimiento simulado; no recrees la sección ni el botón de planes separados. Sus tarjetas distinguen entrada, stop original, stop actual, TP1, TP2 y periodo registrado. No inventes el periodo de entradas antiguas.
+- Usa `escapeHtml()` para datos interpolados, atributos `data-*` y listeners/delegación. No añadas `onclick` inline con strings de datos. Comprueba desbordamientos con nombres largos y precios grandes o de muchos decimales.
+- Para modales comprueba cerrar con Escape y backdrop, foco al abrir, restauración del foco y navegación por teclado. `business.js` tiene su propia gestión: no rompas su interacción con `closeAllModals()`.
+- Conserva las comprobaciones de Host, Origin, Sec-Fetch-Site, el enlace exclusivo en loopback y el bloqueo de archivos internos. Las API de escritura requieren JSON cuando hay cuerpo; no abras el servidor a la red para arreglar un problema de acceso local.
+
+## Verificación y carga de cambios
+
+`node --check app.js` y, si se modifica, `node --check business.js`. Para handlers y protección local: `python -m unittest test_local_server`. Verifica escritorio y móvil cuando cambien componentes visibles; usa mocks para servicios y cartera en las pruebas de navegador.
+
+Actualiza la versión de las referencias CSS/JS en `index.html` cuando sea necesario evitar caché antigua. Cambios de Python requieren reiniciar la instancia: ver [app-launcher](../app-launcher/SKILL.md). Para la lectura empresarial usa [business-context](../business-context/SKILL.md), y para entrega [git-auto-sync](../git-auto-sync/SKILL.md).

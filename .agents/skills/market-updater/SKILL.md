@@ -1,51 +1,42 @@
 ---
 name: market-updater
 description: >-
-  Use this skill when the user asks to update prices, modify calculation periods, adjust
-  Fibonacci retracement logic, multi-timeframe clusters, ATR/RSI/Earnings calculations,
-  or troubleshoot market data synchronization in "Buscar un buen precio".
+  Mantener las cotizaciones, cálculos Fibonacci multi-periodo, RSI, ATR, liquidez,
+  resultados y sincronización de Buscar un buen precio. Usar también para investigar
+  precios inmóviles, descargas fallidas y cadencia automática.
 ---
 
-# Procedimiento para Actualización de Mercado y Sincronización (v2)
+# Motor de mercado
 
-Esta skill detalla cómo funciona el motor paralelo de cálculo de Fibonacci multi-periodo, confluencias (clusters), ATR(14), fechas de resultados (Earnings) y sincronización con Google Sheets.
+## Puntos de entrada reales
 
-## 1. Archivos Clave del Motor
+- [market_updater.py](../../../market_updater.py): `run_updater(target_period=None, sync_sheets=True, custom_webhook=None)` coordina descargas paralelas, JSON, Sheets, Telegram y Diario bajo `SYNC_LOCK`.
+- `fetch_asset_data()` obtiene historia diaria de un año, con fallback a dos años, y usa su último `Close` como precio. No hay streaming ni garantía de coincidencia con TradingView.
+- `_compute_timeframe_snapshot()` calcula los periodos; `detect_fibonacci_clusters()`, `compute_liquidity_metrics()`, `compute_rsi()`, `compute_atr()` y `fetch_earnings_info()` contienen las fórmulas. Lee sus parámetros actuales antes de cambiar umbrales.
+- [app.py](../../../app.py): `auto_scheduler_worker()` y `POST /api/sync` llaman al mismo motor dentro del proceso, sin un actualizador externo obligatorio.
 
-- [market_updater.py](file:///e:/Proyectos/Buscar%20un%20buen%20precio/market_updater.py): Motor principal con descarga paralela (`ThreadPoolExecutor(max_workers=5)`), escritura atómica JSON y pre-cálculo de los 4 periodos (`1mo`, `3mo`, `6mo`, `1y`).
-- [config.json](file:///e:/Proyectos/Buscar%20un%20buen%20precio/config.json): Parámetros de configuración públicos (`period`, `smart_market_hours`, `assets`).
-- `secrets.json`: Credenciales privadas (`webhook_url`, `telegram.bot_token`, `telegram.chat_id`), fusionadas en memoria por `load_config()`.
-- [latest_data.json](file:///e:/Proyectos/Buscar%20un%20buen%20precio/latest_data.json): Caché con métricas completas y diccionario `timeframes` por cada activo.
-- [google_apps_script.js](file:///e:/Proyectos/Buscar%20un%20buen%20precio/google_apps_script.js): Receptor idempotente en Google Sheets (deduplica filas del mismo día y formatea `0.00` o `0.0000` según `decimals`).
+## Periodos y datos persistentes
 
-## 2. Comandos de Ejecución
+`SUPPORTED_PERIODS` contiene `1mo`, `3mo`, `6mo`, `1y`. `timeframes` conserva los cálculos por periodo. `switch_cached_period()` proyecta la ventana elegida sobre los campos principales y persiste la preferencia; no debe requerir red si existe esa ventana. El frontend también realiza la proyección inmediata.
 
-- **Actualizar todo respetando Horario Inteligente de Mercado**:
-  ```powershell
-  python market_updater.py
-  ```
-- **Forzar actualización (incluso en fin de semana o mercado cerrado)**:
-  ```powershell
-  python market_updater.py --force
-  ```
-- **Cambiar periodo activo por defecto y actualizar**:
-  ```powershell
-  python market_updater.py --period 6mo --force
-  ```
+`latest_data.json` contiene `timestamp`, `period`, `market_sentiment`, `market_hours`, `failed_tickers` y `data`. Cada activo identifica ticker, precio, divisa, decimales, periodos, indicadores y riesgo. Se escribe con `_atomic_write_json()`.
 
-## 3. Cálculos Técnicos Incluidos por Activo
+Ante una descarga fallida se conserva una cotización anterior válida, con `is_stale=true` y su `last_success_at` original. No conviertas errores en precios cero ni presentes la caché como dato fresco. Las salidas hacia Sheets, alertas y Diario excluyen los activos obsoletos.
 
-1. **Multi-Timeframe Instantáneo (`timeframes`)**:
-   - Con una sola descarga de `1y` de historia diaria en `yfinance`, se calculan simultáneamente los niveles de Fibonacci (`23.6%`, `38.2%`, `50.0%`, `61.8%`, `78.6%`), máximos/mínimos con fecha, tendencia (`UP`/`DOWN`) y chispa (`sparkline`) para `1mo` (22 sesiones), `3mo` (66 sesiones), `6mo` (126 sesiones) y `1y`.
-   - Cambiar de periodo en la web (`POST /api/period`) es instantáneo (`0 ms`) porque activa el sub-diccionario pre-calculado en `latest_data.json` sin re-descargar de Yahoo Finance.
-2. **Detector de Clusters de Fibonacci (`detect_fibonacci_clusters`)**:
-   - Busca niveles áureos (`38.2%`, `50.0%`, `61.8%`, `78.6%`) de distintos periodos que converjan a menos de `1.2%` de distancia entre sí (exigiendo swings distintos `>= 2.5%` y al menos 2 ratios diferentes).
-3. **Volatilidad y Riesgo (`ATR 14` y `Earnings`)**:
-   - `calculate_atr_14(hist)` calcula el True Range medio de 14 sesiones y sugiere un Stop Loss dinámico a `2x ATR(14)` (`suggested_sl_2atr`).
-   - `get_earnings_info(ticker_symbol, ticker_obj)` consulta y cachea por 12h en `.earnings_cache.json` la próxima fecha de presentación de resultados (`earnings_warning: true` si faltan `0–14` días).
-4. **Horario Inteligente de Mercado (`is_any_market_open`)**:
-   - Si `smart_market_hours: true` y es fin de semana (y no hay criptomonedas `24/7` en cartera), omite la descarga salvo que se pase `--force`.
-5. **Motor de Liquidez Institucional (`compute_liquidity_metrics`)**:
-   - **Volume Profile & Muro POC (24 bins + fallback TPO)**: Calcula `poc_price`, Área de Valor del 70% (`val_price`–`vah_price`) y la densidad de liquidez (`0–100%`, `🏦 Muro POC`, `🏦 Alta Liq.`, `💧 Media`, `🕳️ Vacío LVN`) sobre cada nivel de Fibonacci (`fib_liquidity`) y confluencias en zona de compra (`fib_poc_confluence`).
-   - **Volumen Relativo (`RVOL`) y Absorción Institucional**: Compara el volumen con la media de 20 sesiones (`rvol`, `peak_rvol_3d`) y detecta velas de rechazo con mecha inferior larga en retroceso (`has_absorption`).
-   - **Piscinas de Stops (`SSL Pool`) y Barridos SMC (`has_sweep`)**: Detecta Swing Lows / Dobles Suelos (`is_equal_lows`), barridos alcistas recuperados al cierre (Spring SMC) y calcula un Stop Loss protegido bajo la piscina de liquidez (`ssl_stop_loss` a `0.55x ATR` bajo el pool) para los 4 periodos (`1mo`, `3mo`, `6mo`, `1y`).
+El POC y el área de valor son estimaciones históricas construidas con velas diarias. Distingue `profile_type="VOLUME"` y `has_real_volume` de un fallback TPO; no equivalen a órdenes pendientes verificadas. El score técnico tampoco es una probabilidad calibrada de éxito.
+
+## Cadencia y comandos
+
+- Lee `config.scheduler`: `enabled`, `interval_minutes`, `smart_hours_only`. La configuración actual debe consultarse, no asumirse por los valores por defecto.
+- El scheduler comprueba cada 30 segundos y hace una primera consulta tras arrancar. Con horario inteligente, bolsas cerradas pueden pausar consultas o ampliar a un mínimo de 120 minutos cuando hay cripto. El panel sondea la caché cada 20 segundos: sondear no descarga precios.
+- Solo se avanza el reloj del scheduler tras una ejecución sin excepción; comprueba también `failed_tickers`, porque una ejecución puede acabar con fallos parciales.
+- CLI actual: `python market_updater.py` o `python market_updater.py 6mo`. El periodo es posicional. `main()` no implementa `--force` ni `--period`; no documentes esos flags como operativos. El horario inteligente se aplica en el scheduler, no como filtro general del CLI.
+- Para arrancar o reiniciar servicios, usa [app-launcher](../app-launcher/SKILL.md).
+
+## Validación
+
+Ejecuta `python -m unittest test_quote_failures test_auto_scheduler` cuando cambies este flujo. Añade pruebas de las fórmulas que realmente modifiques con datos controlados; simula las salidas externas.
+
+Después de cambios de backend valida que el JSON se puede leer, no hay tickers duplicados, los precios presentes son finitos y positivos y el score/campos proyectados corresponden al periodo seleccionado. Comprueba conservación de cotizaciones, fechas de éxito y fallos explícitos. No lances una sincronización real solo para probar una función pura: puede enviar alertas, modificar el Diario y publicar en Sheets incluso con `sync_sheets=False`, que desactiva únicamente Sheets.
+
+Para tocar niveles que consume el Diario, consulta [portfolio-journal](../portfolio-journal/SKILL.md). Finaliza con [git-auto-sync](../git-auto-sync/SKILL.md).
