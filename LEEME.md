@@ -17,8 +17,10 @@ Las credenciales privadas (`bot_token`, `chat_id` y `webhook_url`) se almacenan 
 
 ## 🎯 ¿Cómo usarlo en tu día a día?
 
-### 1. Panel Web Interactivo (`Abrir_Panel_Web.bat`)
-* Haz doble clic en **`Abrir_Panel_Web.bat`** (abre `http://localhost:5050` con servidor multihilo, auto-scheduler con **Horario Inteligente de Mercado** y escucha de Telegram en segundo plano). El servidor escucha exclusivamente en `127.0.0.1`: el panel y sus API son de uso local en este equipo. Rechaza peticiones desde otros orígenes del navegador; no requiere contraseña local. El bot de Telegram sigue funcionando mediante su conexión saliente.
+### 1. Arranque único (`Iniciar_Aplicacion.bat`)
+* Haz doble clic en **`Iniciar_Aplicacion.bat`**. Comprueba Python 3.10 o superior y las dependencias, inicia el panel en `http://127.0.0.1:5050`, la actualización automática de precios y el bot de Telegram configurado. Si ya hay un panel funcionando, abre esa instancia sin iniciar otros servicios. Si otro programa ocupa el puerto, muestra un error y no lo cierra.
+* Mantén la ventana de la aplicación abierta y el equipo sin suspender para que los servicios continúen. Para detenerlos, pulsa **Ctrl+C** en esa ventana. Los precios se consultan con el intervalo configurado (30 minutos actualmente); el horario inteligente es opcional. Para aplicar cambios del código Python, detén la instancia anterior y abre de nuevo el lanzador.
+* El servidor escucha exclusivamente en `127.0.0.1`: el panel y sus API son de uso local en este equipo. Rechaza peticiones desde otros orígenes del navegador; no requiere contraseña local. El bot de Telegram sigue funcionando mediante su conexión saliente.
 * Cambio **Multi-Timeframe instantáneo (`0 ms`)** entre `1 Mes`, `3 Meses`, `6 Meses` y `1 Año`, con detección automática de **Clusters de Fibonacci Multi-Timeframe** y aviso de **próximos resultados (*Earnings*)**.
 * Incluye **4 modos de operación**:
   * 🟢 **Modo Compra (Dip Hunter)**: Escalera de Fibonacci (`23.6%` a `78.6%`), Score `0-100`, detección de impulso alcista vs. caída activa, mini-gráficos TradingView y **Calculadora de Posición / Riesgo** (con selector entre Stop Fibonacci `78.6%` y Stop por Volatilidad `2x ATR(14)` + unidades fraccionadas).
@@ -41,8 +43,9 @@ La ficha muestra fecha de consulta, cierre anual, fuentes y un desplegable con l
 * Botones **Inline** interactivos bajo cada alerta y ficha técnica (`[1M] [3M] [6M] [1A]`, `[🛡️ Lote 50/100/250]`, `[📈 TradingView ↗]`).
 * Comandos disponibles desde el móvil: `/resumen`, `/alertas`, `/cartera`, `/ver <TICKER>`, `/riesgo <TICKER> [presupuesto]`, `/add <TICKER> [Nombre]`, `/del <TICKER>`, `/venta`, `/historial`, `/periodo <1mo|3mo|6mo|1y>` y `/sync`.
 
-### 3. Actualización Rápida en 1 Clic (`Actualizar_Precios.bat`)
-* Ejecuta **`Actualizar_Precios.bat`** para descargar toda la cartera en paralelo (~1.5 - 2 s), actualizar `latest_data.json`, disparar alertas y refrescar Google Sheets.
+### 3. Actualizar precios cuando quieras
+* Usa **Actualizar** dentro del panel, o `/actualizar` en Telegram, para consultar todos los activos sin esperar al siguiente ciclo automático. Ya no hay un `.bat` separado para esta tarea.
+* El único archivo de arranque es `Iniciar_Aplicacion.bat`; sustituye a `Abrir_Panel_Web.bat` y `Actualizar_Precios.bat`. Conserva el resto de los archivos del proyecto junto al lanzador.
 
 ---
 

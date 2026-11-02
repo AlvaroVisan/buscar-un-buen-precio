@@ -1,5 +1,7 @@
 import http.server
 import json
+import errno
+import socket
 import os
 import sys
 import urllib.parse
@@ -100,8 +102,14 @@ def auto_scheduler_worker():
 
 
 class ThreadingFibonacciServer(http.server.ThreadingHTTPServer):
-    allow_reuse_address = True
+    allow_reuse_address = os.name != "nt"
     daemon_threads = True
+
+    def server_bind(self):
+        # Windows permite compartir el puerto con SO_REUSEADDR: exigir exclusividad.
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
@@ -141,6 +149,14 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = self.path.split("?", 1)[0]
+
+        if route == "/api/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(b'{"application":"buscar-un-buen-precio","status":"ok"}')
+            return
 
         if route == "/api/business":
             query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
@@ -649,14 +665,19 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
 
 
 def run_server():
-    # Iniciar hilo de sincronización automática en segundo plano
-    sched_thread = threading.Thread(target=auto_scheduler_worker, daemon=True)
-    sched_thread.start()
+    # Reservar primero el puerto: una segunda apertura no debe iniciar servicios.
+    try:
+        httpd = ThreadingFibonacciServer((HOST, PORT), FibonacciHandler)
+    except OSError as error:
+        if error.errno == errno.EADDRINUSE or getattr(error, "winerror", None) == 10048:
+            print(f"El puerto {PORT} ya está ocupado. Usa Iniciar_Aplicacion.bat para abrir el panel existente.")
+            return 1
+        raise
 
-    # Iniciar hilo de escucha interactiva de Telegram (comandos bajo demanda)
-    telegram_notifier.start_bot_listener_thread()
-
-    with ThreadingFibonacciServer((HOST, PORT), FibonacciHandler) as httpd:
+    with httpd:
+        sched_thread = threading.Thread(target=auto_scheduler_worker, daemon=True)
+        sched_thread.start()
+        telegram_notifier.start_bot_listener_thread()
         print(f"\n=======================================================")
         print(f"  🌐 PANEL WEB 'BUSCAR UN BUEN PRECIO' ACTIVO")
         print(f"  Accede desde tu navegador en:")
@@ -673,4 +694,4 @@ def run_server():
 
 
 if __name__ == "__main__":
-    run_server()
+    sys.exit(run_server())
