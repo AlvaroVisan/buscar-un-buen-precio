@@ -64,17 +64,21 @@ class LauncherTests(unittest.TestCase):
 
 class ProbeTests(unittest.TestCase):
     def test_free_port(self):
-        with patch.object(launcher.socket, "create_connection", side_effect=ConnectionRefusedError):
-            self.assertEqual(launcher.probe_panel(), "free")
+        with launcher.socket.socket() as temporary:
+            temporary.bind((app.HOST, 0))
+            port = temporary.getsockname()[1]
+        # Una conexión lenta o bloqueada no debe impedir detectar un puerto libre.
+        with patch.object(launcher.socket, "create_connection", side_effect=TimeoutError):
+            self.assertEqual(launcher.probe_panel(port=port), "free")
 
     def test_old_panel_is_recognized(self):
-        with patch.object(launcher.socket, "create_connection"), \
+        with patch.object(launcher, "_port_is_available", return_value=False), \
                 patch.object(launcher, "_read_response", side_effect=[
                     (404, "missing"), (200, "<title>Buscar un Buen Precio | Monitor Fibonacci &amp; TradingView</title>")]):
             self.assertEqual(launcher.probe_panel(), "running")
 
     def test_other_service_is_not_treated_as_panel(self):
-        with patch.object(launcher.socket, "create_connection"), \
+        with patch.object(launcher, "_port_is_available", return_value=False), \
                 patch.object(launcher, "_read_response", side_effect=[(200, "{}"), (200, "Other application")]):
             self.assertEqual(launcher.probe_panel(), "occupied")
 

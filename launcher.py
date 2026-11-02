@@ -3,6 +3,7 @@
 import http.client
 import importlib.util
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -26,15 +27,22 @@ def _read_response(path, host, port):
         connection.close()
 
 
+def _port_is_available(host, port):
+    """Comprobar bind evita confundir un timeout de conexión con un puerto ocupado."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as candidate:
+            if os.name == "nt":
+                candidate.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            candidate.bind((host, port))
+        return True
+    except OSError:
+        return False
+
+
 def probe_panel(host=HOST, port=PORT):
     """Devuelve running/free/occupied sin confundir otro servicio con el panel."""
-    try:
-        connection = socket.create_connection((host, port), timeout=2)
-        connection.close()
-    except ConnectionRefusedError:
+    if _port_is_available(host, port):
         return "free"
-    except OSError:
-        return "occupied"
 
     try:
         status, body = _read_response("/api/health", host, port)
