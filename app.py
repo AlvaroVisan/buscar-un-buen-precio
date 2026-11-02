@@ -14,7 +14,8 @@ PORT = 5050
 HOST = "127.0.0.1"
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 MASK_PREFIX = "••••••••"
-last_auto_sync_time = time.time()
+# La primera comprobación del scheduler debe descargar datos al arrancar.
+last_auto_sync_time = 0.0
 
 
 def mask_secret(val):
@@ -87,10 +88,12 @@ def auto_scheduler_worker():
             interval_sec = effective_interval_min * 60
             now = time.time()
             if now - last_auto_sync_time >= interval_sec:
-                last_auto_sync_time = now
                 period = cfg.get("period", "3mo")
                 print(f"\n[Auto-Scheduler] ⏰ Intervalo de {effective_interval_min}m alcanzado ({mh['status_label']}). Sincronizando precios...")
                 market_updater.run_updater(target_period=period)
+                # Solo avanzar el reloj si la ejecución terminó correctamente.
+                # Ante una excepción se reintenta en la siguiente comprobación.
+                last_auto_sync_time = now
         except Exception as e:
             print(f"[Auto-Scheduler] ⚠️ Error en ciclo automático: {e}")
 

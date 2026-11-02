@@ -13,7 +13,7 @@
   "scheduler": {
     "enabled": true,
     "interval_minutes": 30,
-    "smart_hours_only": true
+    "smart_hours_only": false
   },
   "assets": [
     {
