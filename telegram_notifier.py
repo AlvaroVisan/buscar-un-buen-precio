@@ -174,7 +174,7 @@ def build_alert_inline_keyboard(ticker):
                 {"text": "🔴 Consejo Venta", "callback_data": f"venta:{t}"}
             ],
             [
-                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"},
+                {"text": "🛡️ Calcular Lote", "callback_data": f"riesgo:{t}:100"},
                 {"text": "📈 TradingView ↗", "url": get_tradingview_url(t)}
             ]
         ]
@@ -182,20 +182,16 @@ def build_alert_inline_keyboard(ticker):
 
 
 def build_buy_advice_inline_keyboard(ticker, active_period="3mo"):
-    """Botonera interactiva bajo el Consejo de Compra."""
+    """Botonera interactiva limpia bajo el Consejo de Compra."""
     t = str(ticker or "").strip().upper()
     return {
         "inline_keyboard": [
             [
                 {"text": "🔴 Consejo Venta", "callback_data": f"venta:{t}"},
-                {"text": "📐 Ver Fibo", "callback_data": f"fib:{t}:{active_period}"}
+                {"text": "📐 Detalle Técnico", "callback_data": f"fib:{t}:{active_period}"}
             ],
             [
-                {"text": "🛡️ Lote 50", "callback_data": f"riesgo:{t}:50"},
-                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"},
-                {"text": "🛡️ Lote 250", "callback_data": f"riesgo:{t}:250"}
-            ],
-            [
+                {"text": "🛡️ Calcular Lote", "callback_data": f"riesgo:{t}:100"},
                 {"text": "📈 TradingView ↗", "url": get_tradingview_url(t)}
             ]
         ]
@@ -203,130 +199,47 @@ def build_buy_advice_inline_keyboard(ticker, active_period="3mo"):
 
 
 def journal_tracking_context(item, _chat_id=None):
-    """Niveles y estado del único seguimiento: la señal registrada en el Diario."""
-    ticker = str(item.get("ticker", ""))
+    """Pin compacto de una sola línea si hay señal activa en el Diario; cero ruido si no la hay."""
+    ticker = str((item or {}).get("ticker", "")).strip()
+    if not ticker:
+        return ""
     try:
         tracking = journal_manager.get_tracking_signal(ticker)
-    except ValueError as error:
-        return f"⚠️ {escape_md(error)}\nEsta lectura actual no confirma el estado de una señal previa.\n\n"
-    entry = tracking["entry"]
-    if not entry:
-        return (f"📔 *Sin seguimiento activo en el Diario para {escape_md(ticker)}*.\n"
-                "No hay una señal registrada. Consultar el bot no crea operaciones; "
-                "las señales se registran automáticamente al actualizar el mercado si cumplen los criterios.\n\n"
-                "*Lectura actual del mercado:*\n\n")
-    statuses = {
-        "ACTIVA": "En seguimiento", "TP1_ALCANZADO": "TP1 alcanzado; resto protegido en la entrada",
-        "TP2_ALCANZADO": "TP2 alcanzado; ganada", "STOP_EJECUTADO": "Stop alcanzado; perdida",
-        "BREAKEVEN_EJECUTADO": "Cerrada con beneficio parcial de TP1", "CERRADA_MANUAL": "Cerrada manualmente",
-    }
-    state = statuses.get(entry.get("status"), entry.get("status", "No registrado"))
-    original_stop = entry.get("initial_stop_loss")
-    if original_stop is None and entry.get("status") in ("ACTIVA", "STOP_EJECUTADO"):
-        original_stop = entry.get("stop_loss")
-    def price(value):
-        return f"`{_fmt_price(value, entry)}`" if isinstance(value, (int, float)) else "No registrado"
-    current_stop = entry.get("stop_loss")
-    if original_stop is not None and price(original_stop) == price(current_stop):
-        stop_line = f"Stop: {price(current_stop)}\n"
-    else:
-        label = "Stop del resto" if entry.get("status") in ("TP1_ALCANZADO", "BREAKEVEN_EJECUTADO") and original_stop is not None else "Stop de seguimiento"
-        stop_line = f"Stop original: {price(original_stop)} · {label}: {price(current_stop)}\n"
+    except Exception:
+        return ""
+    entry = tracking.get("entry")
+    if not entry or not tracking.get("is_active"):
+        return ""  # Cero texto si no hay seguimiento activo
+
+    entry_p = entry.get("entry_price")
     ret = entry.get("final_return_pct")
     if ret is None:
-        ret = entry.get("current_return_pct", 0)
-    header = (f"📔 *SEGUIMIENTO ACTIVO DEL DIARIO: {escape_md(ticker)}*" if tracking["is_active"]
-              else f"📔 *Sin seguimiento activo para {escape_md(ticker)}*. Última señal registrada:")
-    return (
-        f"{header}\nEstado: *{escape_md(state)}*\n"
-        f"Registrada: {escape_md(entry.get('signal_date') or 'No registrado')}\n"
-        f"Periodo original: {escape_md(entry.get('period') or 'No registrado')} · Score inicial: {entry.get('score', 'No registrado')}\n"
-        f"Entrada registrada: {price(entry.get('entry_price'))}\n"
-        f"{stop_line}"
-        f"TP1 registrado: {price(entry.get('tp1'))} · TP2 registrado: {price(entry.get('tp2'))}\n"
-        f"Último precio evaluado: {price(entry.get('current_price'))} · Retorno simulado: `{ret:+.2f}%`\n"
-        f"Última revisión: {escape_md(entry.get('last_check') or 'No registrada')}\n"
-        "Estos son los niveles del Diario; una consulta no los sustituye. "
-        "Tras TP1 solo se protege el stop del resto en la entrada. No son compras reales.\n\n"
-        "*Lectura actual del mercado (no modifica la señal registrada):*\n\n"
-    )
+        ret = entry.get("current_return_pct", 0.0)
+    stop_p = entry.get("stop_loss")
+
+    entry_str = _fmt_price(entry_p, entry) if isinstance(entry_p, (int, float)) else "--"
+    stop_str = _fmt_price(stop_p, entry) if isinstance(stop_p, (int, float)) else "--"
+    sign = "+" if ret >= 0 else ""
+
+    return f"📌 *Seguimiento activo*: Entrada en `{entry_str}` (P&L: *{sign}{ret:.2f}%*) · Salida si cae de `{stop_str}`\n\n"
 
 
 def format_current_market_context(item, period=None):
-    """Zonas orientativas calculadas con datos existentes, sin alterar el Diario."""
-    def positive(value):
-        try:
-            value = float(value)
-            return value if math.isfinite(value) and value > 0 else None
-        except (ValueError, TypeError, OverflowError):
-            return None
-    period = period or item.get("period", "3mo")
-    heading = f"🧭 *Contexto actual · {escape_md(period)}*\n"
-    current = positive(item.get("current_price"))
-    if item.get("is_stale") or current is None:
-        return heading + "No hay una cotización actual válida para situar soportes y volumen. Actualiza los datos. Esta lectura no modifica el Diario.\n\n"
-    candidates = []
-    # Solo confluencias de al menos dos periodos cuyo centro no esté por encima
-    # del precio. Las confluencias superiores no se presentan como un suelo.
-    for cluster in item.get("fib_clusters") or []:
-        low, high = positive(cluster.get("min_price")), positive(cluster.get("max_price"))
-        periods = {member.get("period") for member in cluster.get("members_detail", []) if member.get("period")}
-        if low and high and low <= high and (low + high) / 2 <= current and len(periods) >= 2:
-            center = (low + high) / 2
-            candidates.append((current - center, 0, low, high, "coincidencia de Fibonacci de varios periodos"))
-    references = [(item.get("min"), "mínimo observado del periodo")]
-    references.extend((value, f"retroceso Fibonacci {level}") for level, value in (item.get("fib_levels") or {}).items())
-    for raw, reason in references:
-        value = positive(raw)
-        if value and value <= current:
-            # Un nivel aislado se presenta como banda visual ±0,5%, no como
-            # intervalo estadístico ni pronóstico de dónde terminará la caída.
-            candidates.append((current - value, 1, value * 0.995, value * 1.005, reason))
-    lines = [heading.rstrip()]
-    if candidates:
-        _, _, low, high, reason = min(candidates, key=lambda candidate: candidate[:2])
-        low_text, high_text = _fmt_price(low, item), _fmt_price(high, item)
-        zone = f"`{low_text}`–`{high_text}`" if low_text != high_text else f"en torno a `{low_text}`"
-        lines.append(f"*Posible zona de soporte*: {zone}. Referencia: {escape_md(reason)}. Zona orientativa, no suelo confirmado.")
-    else:
-        lines.append("No hay referencias suficientes por debajo del precio para delimitar un posible soporte; no se propone un suelo.")
-    if item.get("swing_type") == "FALLING_KNIFE":
-        lines.append("⚠️ Caída activa: el mínimo puede seguir bajando; falta confirmación de giro.")
-    liquidity = item.get("liquidity") or {}
-    poc = positive(liquidity.get("poc_price"))
-    if liquidity.get("has_real_volume") and liquidity.get("profile_type") == "VOLUME" and poc:
-        relation = (poc - current) / current
-        if relation > 0.005:
-            interpretation = "Está por encima del precio: podría actuar como resistencia durante un rebote."
-        elif relation < -0.005:
-            interpretation = "Está por debajo del precio: podría actuar como soporte si vuelve a probarse."
-        else:
-            interpretation = "Está cerca del precio actual: zona de negociación que no confirma por sí sola un giro."
-        lines.append(f"*Mayor concentración estimada de volumen*: `{_fmt_price(poc, item)}` (POC histórico). {interpretation}")
-        val, vah = positive(liquidity.get("val_price")), positive(liquidity.get("vah_price"))
-        if val and vah and val <= vah:
-            lines.append(f"Área de valor histórica: `{_fmt_price(val, item)}`–`{_fmt_price(vah, item)}`.")
-        lines.append("El perfil aproxima el volumen con velas diarias; no muestra órdenes pendientes ni garantiza liquidez futura.")
-    else:
-        lines.append("No hay un perfil de volumen real disponible para estimar su concentración. Un perfil TPO refleja frecuencia de precios, no volumen negociado.")
-    lines.append("Este contexto no modifica el stop ni los objetivos registrados en el Diario.")
-    return "\n".join(lines) + "\n\n"
+    """Sin bloques redundantemente largos; la información se integra en la narrativa principal."""
+    return ""
 
 
 def build_sell_advice_inline_keyboard(ticker, active_period="3mo"):
-    """Botonera interactiva bajo el Consejo de Venta."""
+    """Botonera interactiva limpia bajo el Consejo de Venta."""
     t = str(ticker or "").strip().upper()
     return {
         "inline_keyboard": [
             [
                 {"text": "🟢 Consejo Compra", "callback_data": f"compra:{t}"},
-                {"text": "📐 Ver Fibo", "callback_data": f"fib:{t}:{active_period}"}
+                {"text": "📐 Detalle Técnico", "callback_data": f"fib:{t}:{active_period}"}
             ],
             [
                 {"text": "💼 Mi Cartera", "callback_data": "cartera"},
-                {"text": "🛡️ Lote 100", "callback_data": f"riesgo:{t}:100"}
-            ],
-            [
                 {"text": "📈 TradingView ↗", "url": get_tradingview_url(t)}
             ]
         ]
@@ -384,7 +297,7 @@ def send_telegram_message(bot_token, chat_id, text, parse_mode="Markdown", reply
         resp = requests.post(url, json=payload, timeout=12)
         data = resp.json()
         if resp.status_code == 200 and data.get("ok"):
-            return True, "Mensaje enviado con éxito"
+            return True, data.get("result", {})
 
         err_desc = data.get("description", f"Error HTTP {resp.status_code}")
         # Fallback automático en texto plano si falla el parseo de entidades Markdown
@@ -393,12 +306,31 @@ def send_telegram_message(bot_token, chat_id, text, parse_mode="Markdown", reply
             resp_plain = requests.post(url, json=plain_payload, timeout=12)
             data_plain = resp_plain.json()
             if resp_plain.status_code == 200 and data_plain.get("ok"):
-                return True, "Mensaje enviado con éxito (texto plano)"
+                return True, data_plain.get("result", {})
             err_desc = data_plain.get("description", err_desc)
 
         return False, err_desc
     except Exception as e:
         return False, f"Error de conexión con Telegram: {str(e)}"
+
+
+def pin_telegram_message(bot_token, chat_id, message_id, disable_notification=True):
+    """
+    Fija un mensaje relevante en Telegram (PIN) para que quede anclado arriba del chat.
+    disable_notification=True evita emitir un pitido molesto al anclarlo.
+    """
+    if not bot_token or not chat_id or not message_id:
+        return False
+    try:
+        url = f"https://api.telegram.org/bot{bot_token.strip()}/pinChatMessage"
+        resp = requests.post(url, json={
+            "chat_id": str(chat_id).strip(),
+            "message_id": int(message_id),
+            "disable_notification": disable_notification
+        }, timeout=8)
+        return resp.status_code == 200 and resp.json().get("ok")
+    except Exception:
+        return False
 
 def setup_bot_commands(bot_token):
     """
@@ -494,11 +426,12 @@ def find_asset_item(query):
 
 def format_buy_advice(item, period="3mo"):
     """
-    Construye la narrativa de proyección de movimiento futuro para la compra:
-    1. Contexto: De dónde viene el precio, corrección y huella de las manos fuertes (Smart Money / Absorción).
-    2. Hoja de ruta: Trayectoria proyectada paso a paso (suelo, primer impulso TP1 y despegue a TP2).
-    3. Invalidación: Dónde y por qué se anula la tesis alcista (Stop Loss / Piscina SSL).
-    4. Veredicto táctico y avisos de Resultados (Earnings).
+    Construye una narrativa clara, fluida y resumida para la compra:
+    1. Precio actual y corrección.
+    2. Suelo o volumen cercano que frena la caída.
+    3. A dónde queremos llegar (primer objetivo y máximos).
+    4. Dónde perdemos dinero (nivel de salida / stop para no asumir más pérdidas).
+    5. Pines de aviso relevante (Resultados / Earnings).
     """
     ticker = item.get("ticker", "")
     tab = escape_md(item.get("tab", ticker))
@@ -506,116 +439,90 @@ def format_buy_advice(item, period="3mo"):
     drop = item.get("drop_pct", 0)
     p_max = item.get("max", price)
     p_min = item.get("min", price)
-    score = item.get("score", 0)
-    fibs = item.get("fib_levels", {})
-    f50 = fibs.get("50.0%", 0)
-    f618 = fibs.get("61.8%", 0)
-    f786 = fibs.get("78.6%", 0)
+
     risk = item.get("risk_mgmt") or {}
     liq = item.get("liquidity") or {}
     earnings = item.get("earnings") or {}
 
     poc_p = liq.get("poc_price", 0) if liq.get("has_real_volume") and liq.get("profile_type") == "VOLUME" else 0
+    ssl_p = liq.get("ssl_pool_price", 0)
+    floor_p = ssl_p if (ssl_p and ssl_p < price) else (p_min if (p_min and p_min < price) else price * 0.95)
+
     sl = risk.get("ssl_stop_loss") or risk.get("stop_loss") or (price * 0.95)
-    tp1 = risk.get("take_profit_1", f50 if f50 > price else price * 1.05)
-    tp2 = risk.get("take_profit_2", p_max)
-    entry_reference = risk.get("entry_price") or price
-    rr2 = round((tp2 - entry_reference) / (entry_reference - sl), 2) if entry_reference > sl else 0.0
+    tp1 = risk.get("take_profit_1") or (price * 1.10)
+    tp2 = risk.get("take_profit_2") or p_max
+
+    gain_tp1 = risk.get("reward_1_pct", ((tp1 - price) / price * 100) if price > 0 else 0)
     gain_tp2 = risk.get("reward_2_pct", ((tp2 - price) / price * 100) if price > 0 else 0)
+    loss_pct = ((price - sl) / price * 100) if price > 0 else 0
 
-    # 1. PÁRRAFO DE CONTEXTO: ¿De dónde viene y dónde está parada?
-    p1 = []
-    if drop >= 12.0:
-        p1.append(f"*{tab}* cotiza en `{_fmt_price(price, item)}`, tras una corrección del *-{drop:.1f}%* desde sus máximos de `{_fmt_price(p_max, item)}`.")
-    elif drop >= 5.0:
-        p1.append(f"*{tab}* cotiza en `{_fmt_price(price, item)}`, en pleno retroceso ordenado (-{drop:.1f}% desde techo de `{_fmt_price(p_max, item)}`).")
+    # 1 y 2. Narrativa de Precio actual y Suelo / Volumen
+    if drop >= 10.0:
+        drop_phrase = f", tras una corrección del *-{drop:.1f}%* desde sus máximos de `{_fmt_price(p_max, item)}`"
+    elif drop >= 4.0:
+        drop_phrase = f", con un retroceso del *-{drop:.1f}%* desde máximos de `{_fmt_price(p_max, item)}`"
     else:
-        p1.append(f"*{tab}* cotiza en `{_fmt_price(price, item)}`, manteniéndose muy cerca de sus máximos de `{_fmt_price(p_max, item)}` (-{drop:.1f}%).")
+        drop_phrase = ""
 
-    # Dónde está apoyándose
-    if f618 > 0 and price <= f618:
-        p1.append(f"El precio ha perforado de lleno la *Zona Áurea de Fibonacci ({_fmt_price(f618, item)})*, una zona de alta probabilidad histórica donde suele secarse la oferta.")
-    elif f50 > 0 and price <= f50:
-        p1.append(f"Se encuentra testeando el retroceso del *50% ({_fmt_price(f50, item)})*, el primer escalón natural de compra institucional.")
+    if poc_p > 0 and abs(poc_p - price) / price < 0.20:
+        vol_phrase = f", donde las compras institucionales han dejado un fuerte muro de volumen en torno a `{_fmt_price(poc_p, item)}`"
+    elif liq.get("has_absorption"):
+        vol_phrase = ", donde las compras fuertes están absorbiendo la presión de venta"
     else:
-        p1.append(f"Por ahora cotiza por encima del nivel del 50%, sin descuento técnico profundo.")
+        vol_phrase = ""
 
-    # Actividad de las manos fuertes
-    if liq.get("has_sweep") and liq.get("sweep_label"):
-        p1.append(f"🧲 *Huella institucional*: El algoritmo detectó un *{escape_md(liq.get('sweep_label'))}*; las ballenas fueron a buscar los stops minoristas abajo y han reabsorbido el precio.")
-    elif liq.get("has_absorption") and liq.get("absorption_label"):
-        rvol = liq.get("rvol", 1.0)
-        p1.append(f"🐋 *Huella institucional*: Hay *{escape_md(liq.get('absorption_label'))}* con un volumen relativo de `{rvol:.1f}x`, lo que evidencia que las manos fuertes están frenando la caída.")
-    elif poc_p > 0:
-        p1.append(f"El gran *Muro de Volumen (POC)* negociado en este ciclo se sitúa en `{_fmt_price(poc_p, item)}`.")
+    p1 = (
+        f"*{tab}* cotiza ahora en `{_fmt_price(price, item)}`{drop_phrase}, "
+        f"intentando frenar la caída cerca de su suelo en `{_fmt_price(floor_p, item)}`{vol_phrase}."
+    )
 
-    best_cluster = item.get("best_cluster")
-    if isinstance(best_cluster, dict) and best_cluster.get("label"):
-        p1.append(f"🧬 Confluye con un soporte clave multi-temporal: `{escape_md(best_cluster['label'])}`.")
+    # 3 y 4. A dónde queremos llegar y dónde perdemos dinero
+    p2 = (
+        f"La idea aquí es aprovechar este freno para buscar un rebote hacia los `{_fmt_price(tp1, item)}` *(+{gain_tp1:.1f}%)* como primera meta, "
+        f"con margen de volver a máximos en `{_fmt_price(tp2, item)}` *(+{gain_tp2:.1f}%)*. "
+        f"Si la cosa se tuerce y rompe el soporte de los `{_fmt_price(sl, item)}` *(-{loss_pct:.1f}%)*, "
+        f"cortamos la posición para no asumir más pérdidas."
+    )
 
-    # 2. PÁRRAFO DE HOJA DE RUTA: El camino que trazará el precio
-    p2 = ["📈 *Escenario condicional de rebote*:"]
-    step1_txt = f"Si la zona actual en torno a `{_fmt_price(price, item)}` confirma soporte, el escenario plantearía un **primer objetivo en `{_fmt_price(tp1, item)}`**"
-    if poc_p > 0 and abs((poc_p - tp1) / tp1) < 0.05:
-        step1_txt += " (coincidente con el Muro POC de mayor negociación)."
-    else:
-        step1_txt += "."
-    p2.append(step1_txt)
+    # 5. Pines con información relevante adicional (Resultados / Catalizadores)
+    pins = []
+    if earnings.get("has_earnings") and earnings.get("short_date"):
+        ed = earnings.get("short_date")
+        du = earnings.get("days_until")
+        eps = earnings.get("eps_avg")
+        eps_txt = f" (beneficio previsto: `${eps}`/acc)" if eps is not None else ""
+        if du == 0:
+            when = "HOY"
+        elif du == 1:
+            when = "MAÑANA"
+        elif du is not None and du <= 5:
+            when = f"en {du} días ({ed})"
+        else:
+            when = f"el {ed}"
+        pins.append(f"📌 *Resultados*: Presenta cuentas *{when}*{eps_txt}. Atención a la volatilidad.")
 
-    step2_txt = f"Superada esa barrera con volumen, el recorrido alcista se abriría para volver a testear el techo anterior en **`{_fmt_price(tp2, item)}` (+{gain_tp2:.1f}%)**, completando la estructura de recuperación."
-    p2.append(step2_txt)
-
-    # 3. ESCENARIO DE INVALIDACIÓN
-    p3 = ["🛑 *Escenario de invalidación (Riesgo)*:"]
-    inv_reason = "piscina de liquidez SSL" if risk.get("ssl_stop_loss") else "soporte extremo del 78.6%"
-    p3.append(f"La hipótesis alcista se anula si pierde los **`{_fmt_price(sl, item)}`** ({inv_reason}). Si rompe ese nivel, es señal de que la caída no ha terminado y conviene estar fuera.")
-
-    # 4. VEREDICTO FINAL Y AVISOS
-    p4 = []
-    rr_std = risk.get("rr_ratio_2") or rr2
-    if risk.get("ssl_stop_loss") and abs(rr2 - rr_std) > 0.05:
-        rr_clause = f"`1:{rr2}` con Stop ceñido SSL (o `1:{rr_std}` con Stop amplio 78.6%)"
-    else:
-        rr_clause = f"`1:{rr2}`"
-
-    if score >= 80:
-        verdict = f"🟢 *Confluencia técnica alta (Score {score}/100)*. Ratio teórico riesgo/beneficio: {rr_clause}. El score no es una probabilidad de éxito."
-    elif score >= 65:
-        verdict = f"🟢 *Confluencia técnica favorable (Score {score}/100)*. Ratio teórico riesgo/beneficio: {rr_clause}. Requiere confirmación; el score no es una probabilidad de éxito."
-    elif score >= 45:
-        verdict = f"🟡 **Veredicto: En observación (Score {score}/100)**. Esperar confirmación de giro antes de entrar."
-    else:
-        verdict = f"⚪ **Veredicto: Precio elevado / Sin descuento suficiente (Score {score}/100)**. Dejar correr y no precipitarse."
-    p4.append(verdict)
-    p4.append("Esta es una lectura actual. Si hay una señal abierta, su seguimiento usa exclusivamente los niveles registrados en el Diario, mostrados al principio del mensaje.")
-
-    if earnings.get("has_earnings") and earnings.get("label"):
-        warn_icon = "⚠️" if earnings.get("warning_level") == "IMMINENT" else "📅"
-        p4.append(f"{warn_icon} *Aviso*: {escape_md(earnings.get('label'))}. Considera operar con lote prudente ante el riesgo de gap.")
-
-    p1_str = " ".join(p1)
-    p2_str = " ".join(p2)
-    p3_str = " ".join(p3)
-    p4_str = "\n".join(p4)
+    pins_str = ("\n\n" + "\n".join(pins)) if pins else ""
+    header_icon = "🟢" if drop >= 8.0 else "🔵"
 
     msg = (
-        f"🔮 *PROYECCIÓN DE MOVIMIENTO: {tab} ({ticker})*\n"
+        f"{header_icon} *{tab}* · `{_fmt_price(price, item)}`\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{p1_str}\n\n"
-        f"{p2_str}\n\n"
-        f"{p3_str}\n\n"
-        f"{p4_str}"
+        f"{p1}\n\n"
+        f"{p2}"
+        f"{pins_str}"
     )
-    return (f"⚠️ Cotización desactualizada. Último dato válido: {escape_md(item.get('last_success_at') or 'fecha desconocida')}\n\n" if item.get("is_stale") else "") + msg
+    stale_warn = f"⚠️ *Cotización desactualizada* ({escape_md(item.get('last_success_at') or '')})\n\n" if item.get("is_stale") else ""
+    return stale_warn + msg
 
 
 def format_sell_advice(item, period="3mo"):
     """
-    Construye la narrativa de proyección de salida y toma de beneficios:
-    1. Contexto: Ganancia acumulada desde mínimos, cercanía a máximos y nivel de RSI.
-    2. Hoja de ruta: Agotamiento/resistencia o continuidad alcista.
-    3. Plan táctico de salida: Venta parcial, Trailing Stop protector y extensiones de Fibonacci.
-    4. Veredicto de presión vendedora.
+    Construye una narrativa clara, fluida y resumida para la toma de beneficios y modo venta:
+    1. Precio actual y subida acumulada.
+    2. Suelo de protección o soporte inferior.
+    3. Dónde queremos llegar / Agotamiento del recorrido.
+    4. Dónde asegurar para no perder ganancias.
+    5. Pines de aviso relevante (Resultados).
     """
     ticker = item.get("ticker", "")
     tab = escape_md(item.get("tab", ticker))
@@ -623,72 +530,53 @@ def format_sell_advice(item, period="3mo"):
     p_max = item.get("max", price)
     p_min = item.get("min", price)
     sm = item.get("sell_mgmt") or {}
-    score = sm.get("sell_score", 0)
     gain_low = sm.get("gain_from_low_pct", 0)
     dist_hi = sm.get("dist_to_high_pct", 0)
-    ext127 = sm.get("ext_127", price * 1.05)
-    t_stop = sm.get("trailing_stop", price * 0.945)
-    rsi = item.get("rsi")
-    rsi_str = f"{rsi:.1f}" if isinstance(rsi, (int, float)) else "--"
+    t_stop = sm.get("trailing_stop") or (price * 0.95)
+    earnings = item.get("earnings") or {}
 
-    p1 = [
-        f"*{tab}* cotiza en `{_fmt_price(price, item)}`, tras acumular un alza del *+{gain_low:.1f}%* desde sus mínimos de `{_fmt_price(p_min, item)}`."
-    ]
+    fibs = item.get("fib_levels") or {}
+    f50 = fibs.get("50.0%", p_min)
+    prot_pct = ((price - t_stop) / price * 100) if price > 0 else 0
 
-    if score >= 60 or dist_hi <= 2.5:
-        p1.append(
-            f"Está a solo un *{dist_hi:.1f}%* de su resistencia máxima de `{_fmt_price(p_max, item)}`. Con el RSI en `{rsi_str}`, el impulso muestra signos de sobrecalentamiento y la presión compradora empieza a flaquear."
-        )
-        p2 = [
-            "📉 *Hoja de ruta esperada (Agotamiento)*:",
-            "El precio se encuentra en una zona de alta resistencia donde los fondos suelen tomar beneficios. El escenario natural es un **frenazo o retroceso técnico hacia la zona de soporte**.",
-            f"Aunque por inercia pudiera estirarse hasta la extensión de Fibonacci del 127.2% en **`{_fmt_price(ext127, item)}`**, el riesgo de entrar o no proteger aquí es muy alto."
-        ]
-        p3 = [
-            "🛡️ *Plan de acción recomendado*:",
-            f"Es momento de **asegurar ganancias**: considera vender una parte de la posición (30%–50%) y colocar un **Trailing Stop protector en `{_fmt_price(t_stop, item)}`** (-5.5%). De esta forma, si el precio se gira te vas con el beneficio en el bolsillo."
-        ]
-        verdict = f"🔴 **Veredicto: Toma de Beneficios / Zona de Techo (Presión {score}/100)**."
-    elif score >= 35 or dist_hi <= 4.5:
-        p1.append(
-            f"Se aproxima a la zona alta (a un *{dist_hi:.1f}%* de máximos de `{_fmt_price(p_max, item)}`) con un RSI de `{rsi_str}`."
-        )
-        p2 = [
-            "⚠️ *Hoja de ruta esperada (Zona de Decisión)*:",
-            "El impulso alcista sigue vivo pero se acerca a zonas donde la oferta suele reactivarse. Si no supera el techo con volumen contundente, podríamos ver una consolidación lateral o retroceso."
-        ]
-        p3 = [
-            "🛡️ *Plan de acción recomendado*:",
-            f"Ajustar un **Trailing Stop dinámico en `{_fmt_price(t_stop, item)}`** para blindar beneficios si ya vas dentro, o abstenerse de comprar nuevo capital en esta cota."
-        ]
-        verdict = f"🟠 **Veredicto: Alerta de Techo / Ajustar Stop (Presión {score}/100)**."
-    else:
-        p1.append(
-            f"Actualmente cotiza a un *-{dist_hi:.1f}%* de sus máximos. No presenta sobrecompra extrema (RSI `{rsi_str}`) ni presión de venta peligrosa."
-        )
-        p2 = [
-            "📈 *Hoja de ruta esperada (Continuidad)*:",
-            "El activo no está en zona de distribución institucional. El escenario más probable es que continúe construyendo su estructura sin riesgo inminente de giro bajista brusco."
-        ]
-        p3 = [
-            "💡 *Recomendación táctica*:",
-            f"**No vender**. Deja correr los beneficios y mantén un Trailing Stop preventivo de referencia en **`{_fmt_price(t_stop, item)}`** para acompañar la tendencia."
-        ]
-        verdict = f"🟢 **Veredicto: Sin presión de venta (Presión {score}/100)**. Mantener posición."
+    p1 = (
+        f"*{tab}* cotiza ahora en `{_fmt_price(price, item)}`, tras acumular un alza del *+{gain_low:.1f}%* desde mínimos "
+        f"y situarse a solo un *{dist_hi:.1f}%* de su techo en `{_fmt_price(p_max, item)}`."
+    )
 
-    p1_str = " ".join(p1)
-    p2_str = " ".join(p2)
-    p3_str = " ".join(p3)
+    p2 = (
+        f"El recorrido de subida está prácticamente completado y el volumen comprador empieza a agotarse. "
+        f"Para no devolver lo ganado, el plan sensato es asegurar beneficios o colocar un stop de protección en "
+        f"`{_fmt_price(t_stop, item)}` *(-{prot_pct:.1f}%)*, vigilando el soporte inferior en `{_fmt_price(f50, item)}` por si el precio se gira."
+    )
+
+    pins = []
+    if earnings.get("has_earnings") and earnings.get("short_date"):
+        ed = earnings.get("short_date")
+        du = earnings.get("days_until")
+        eps = earnings.get("eps_avg")
+        eps_txt = f" (beneficio previsto: `${eps}`/acc)" if eps is not None else ""
+        if du == 0:
+            when = "HOY"
+        elif du == 1:
+            when = "MAÑANA"
+        elif du is not None and du <= 5:
+            when = f"en {du} días ({ed})"
+        else:
+            when = f"el {ed}"
+        pins.append(f"📌 *Resultados*: Presenta cuentas *{when}*{eps_txt}. Atención a la volatilidad.")
+
+    pins_str = ("\n\n" + "\n".join(pins)) if pins else ""
 
     msg = (
-        f"🔮 *HOJA DE RUTA DE SALIDA: {tab} ({ticker})*\n"
+        f"🔴 *{tab}* · `{_fmt_price(price, item)}` (Zona de Venta)\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{p1_str}\n\n"
-        f"{p2_str}\n\n"
-        f"{p3_str}\n\n"
-        f"{verdict}"
+        f"{p1}\n\n"
+        f"{p2}"
+        f"{pins_str}"
     )
-    return (f"⚠️ Cotización desactualizada. Último dato válido: {escape_md(item.get('last_success_at') or 'fecha desconocida')}\n\n" if item.get("is_stale") else "") + msg
+    stale_warn = f"⚠️ *Cotización desactualizada* ({escape_md(item.get('last_success_at') or '')})\n\n" if item.get("is_stale") else ""
+    return stale_warn + msg
 
 
 def format_detailed_fibonacci(item, period="3mo"):
@@ -807,6 +695,8 @@ def dispatch_telegram_alerts(market_payload, config):
             if ok:
                 delivered_to_any = True
                 print(f"[Telegram Notifier] 📲 Alerta enviada para {ticker} ({item.get('tab')}) al chat {cid}")
+                if isinstance(res, dict) and "message_id" in res:
+                    pin_telegram_message(bot_token, cid, res["message_id"], disable_notification=True)
             else:
                 print(f"[Telegram Notifier] ❌ Error enviando alerta para {ticker} a {cid}: {res}")
             time.sleep(0.2)
@@ -1117,7 +1007,7 @@ def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
         text = format_buy_advice(view_item, period=period)
         kb = build_buy_advice_inline_keyboard(view_item.get("ticker", clean_q), period)
 
-    send_telegram_message(bot_token, chat_id, journal_tracking_context(view_item, chat_id) + format_current_market_context(view_item, period) + text, reply_markup=kb)
+    send_telegram_message(bot_token, chat_id, journal_tracking_context(view_item, chat_id) + text, reply_markup=kb)
 
 def handle_riesgo(bot_token, chat_id, raw_args):
     """
@@ -1937,7 +1827,7 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         handle_del_asset(bot_token, chat_id, parts[1] if len(parts) > 1 else "")
         return
 
-    if cmd in ("/historial", "/diario", "/journal", "/stats", "📔 historial", "historial", "diario"):
+    if cmd in ("/historial", "/diario", "/journal", "/stats", "/seguimiento", "/seguimientos", "📔 historial", "historial", "diario", "seguimiento", "seguimientos"):
         handle_historial(bot_token, chat_id)
         return
 
