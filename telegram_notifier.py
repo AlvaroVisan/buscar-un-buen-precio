@@ -8,6 +8,7 @@ Proporciona:
 
 import os
 import json
+import math
 import time
 import threading
 import requests
@@ -225,6 +226,12 @@ def journal_tracking_context(item, _chat_id=None):
         original_stop = entry.get("stop_loss")
     def price(value):
         return f"`{_fmt_price(value, entry)}`" if isinstance(value, (int, float)) else "No registrado"
+    current_stop = entry.get("stop_loss")
+    if original_stop is not None and price(original_stop) == price(current_stop):
+        stop_line = f"Stop: {price(current_stop)}\n"
+    else:
+        label = "Stop del resto" if entry.get("status") in ("TP1_ALCANZADO", "BREAKEVEN_EJECUTADO") and original_stop is not None else "Stop de seguimiento"
+        stop_line = f"Stop original: {price(original_stop)} · {label}: {price(current_stop)}\n"
     ret = entry.get("final_return_pct")
     if ret is None:
         ret = entry.get("current_return_pct", 0)
@@ -235,7 +242,7 @@ def journal_tracking_context(item, _chat_id=None):
         f"Registrada: {escape_md(entry.get('signal_date') or 'No registrado')}\n"
         f"Periodo original: {escape_md(entry.get('period') or 'No registrado')} · Score inicial: {entry.get('score', 'No registrado')}\n"
         f"Entrada registrada: {price(entry.get('entry_price'))}\n"
-        f"Stop original: {price(original_stop)} · Stop de seguimiento: {price(entry.get('stop_loss'))}\n"
+        f"{stop_line}"
         f"TP1 registrado: {price(entry.get('tp1'))} · TP2 registrado: {price(entry.get('tp2'))}\n"
         f"Último precio evaluado: {price(entry.get('current_price'))} · Retorno simulado: `{ret:+.2f}%`\n"
         f"Última revisión: {escape_md(entry.get('last_check') or 'No registrada')}\n"
@@ -243,6 +250,67 @@ def journal_tracking_context(item, _chat_id=None):
         "Tras TP1 solo se protege el stop del resto en la entrada. No son compras reales.\n\n"
         "*Lectura actual del mercado (no modifica la señal registrada):*\n\n"
     )
+
+
+def format_current_market_context(item, period=None):
+    """Zonas orientativas calculadas con datos existentes, sin alterar el Diario."""
+    def positive(value):
+        try:
+            value = float(value)
+            return value if math.isfinite(value) and value > 0 else None
+        except (ValueError, TypeError, OverflowError):
+            return None
+    period = period or item.get("period", "3mo")
+    heading = f"🧭 *Contexto actual · {escape_md(period)}*\n"
+    current = positive(item.get("current_price"))
+    if item.get("is_stale") or current is None:
+        return heading + "No hay una cotización actual válida para situar soportes y volumen. Actualiza los datos. Esta lectura no modifica el Diario.\n\n"
+    candidates = []
+    # Solo confluencias de al menos dos periodos cuyo centro no esté por encima
+    # del precio. Las confluencias superiores no se presentan como un suelo.
+    for cluster in item.get("fib_clusters") or []:
+        low, high = positive(cluster.get("min_price")), positive(cluster.get("max_price"))
+        periods = {member.get("period") for member in cluster.get("members_detail", []) if member.get("period")}
+        if low and high and low <= high and (low + high) / 2 <= current and len(periods) >= 2:
+            center = (low + high) / 2
+            candidates.append((current - center, 0, low, high, "coincidencia de Fibonacci de varios periodos"))
+    references = [(item.get("min"), "mínimo observado del periodo")]
+    references.extend((value, f"retroceso Fibonacci {level}") for level, value in (item.get("fib_levels") or {}).items())
+    for raw, reason in references:
+        value = positive(raw)
+        if value and value <= current:
+            # Un nivel aislado se presenta como banda visual ±0,5%, no como
+            # intervalo estadístico ni pronóstico de dónde terminará la caída.
+            candidates.append((current - value, 1, value * 0.995, value * 1.005, reason))
+    lines = [heading.rstrip()]
+    if candidates:
+        _, _, low, high, reason = min(candidates, key=lambda candidate: candidate[:2])
+        low_text, high_text = _fmt_price(low, item), _fmt_price(high, item)
+        zone = f"`{low_text}`–`{high_text}`" if low_text != high_text else f"en torno a `{low_text}`"
+        lines.append(f"*Posible zona de soporte*: {zone}. Referencia: {escape_md(reason)}. Zona orientativa, no suelo confirmado.")
+    else:
+        lines.append("No hay referencias suficientes por debajo del precio para delimitar un posible soporte; no se propone un suelo.")
+    if item.get("swing_type") == "FALLING_KNIFE":
+        lines.append("⚠️ Caída activa: el mínimo puede seguir bajando; falta confirmación de giro.")
+    liquidity = item.get("liquidity") or {}
+    poc = positive(liquidity.get("poc_price"))
+    if liquidity.get("has_real_volume") and liquidity.get("profile_type") == "VOLUME" and poc:
+        relation = (poc - current) / current
+        if relation > 0.005:
+            interpretation = "Está por encima del precio: podría actuar como resistencia durante un rebote."
+        elif relation < -0.005:
+            interpretation = "Está por debajo del precio: podría actuar como soporte si vuelve a probarse."
+        else:
+            interpretation = "Está cerca del precio actual: zona de negociación que no confirma por sí sola un giro."
+        lines.append(f"*Mayor concentración estimada de volumen*: `{_fmt_price(poc, item)}` (POC histórico). {interpretation}")
+        val, vah = positive(liquidity.get("val_price")), positive(liquidity.get("vah_price"))
+        if val and vah and val <= vah:
+            lines.append(f"Área de valor histórica: `{_fmt_price(val, item)}`–`{_fmt_price(vah, item)}`.")
+        lines.append("El perfil aproxima el volumen con velas diarias; no muestra órdenes pendientes ni garantiza liquidez futura.")
+    else:
+        lines.append("No hay un perfil de volumen real disponible para estimar su concentración. Un perfil TPO refleja frecuencia de precios, no volumen negociado.")
+    lines.append("Este contexto no modifica el stop ni los objetivos registrados en el Diario.")
+    return "\n".join(lines) + "\n\n"
 
 
 def build_sell_advice_inline_keyboard(ticker, active_period="3mo"):
@@ -447,7 +515,7 @@ def format_buy_advice(item, period="3mo"):
     liq = item.get("liquidity") or {}
     earnings = item.get("earnings") or {}
 
-    poc_p = liq.get("poc_price", 0)
+    poc_p = liq.get("poc_price", 0) if liq.get("has_real_volume") and liq.get("profile_type") == "VOLUME" else 0
     sl = risk.get("ssl_stop_loss") or risk.get("stop_loss") or (price * 0.95)
     tp1 = risk.get("take_profit_1", f50 if f50 > price else price * 1.05)
     tp2 = risk.get("take_profit_2", p_max)
@@ -1049,7 +1117,7 @@ def handle_ver_ticker(bot_token, chat_id, query, forced_period=None):
         text = format_buy_advice(view_item, period=period)
         kb = build_buy_advice_inline_keyboard(view_item.get("ticker", clean_q), period)
 
-    send_telegram_message(bot_token, chat_id, journal_tracking_context(view_item, chat_id) + text, reply_markup=kb)
+    send_telegram_message(bot_token, chat_id, journal_tracking_context(view_item, chat_id) + format_current_market_context(view_item, period) + text, reply_markup=kb)
 
 def handle_riesgo(bot_token, chat_id, raw_args):
     """

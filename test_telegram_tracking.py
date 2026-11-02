@@ -152,6 +152,83 @@ class JournalTrackingTests(unittest.TestCase):
         for field in ("entry_price", "tp1", "tp2", "initial_stop_loss", "stop_loss", "period"):
             self.assertEqual(result["entries"][0][field], original[field])
 
+    def test_same_stop_is_shown_once_and_protected_stop_is_explained(self):
+        self.seed([signal()])
+        context = bot.journal_tracking_context(market_item())
+        self.assertIn("Stop: `$450.00`", context)
+        self.assertNotIn("Stop original:", context)
+        self.assertNotIn("Stop de seguimiento:", context)
+        self.seed([signal(status="TP1_ALCANZADO", stop_loss=500)])
+        context = bot.journal_tracking_context(market_item())
+        self.assertIn("Stop original: `$450.00`", context)
+        self.assertIn("Stop del resto: `$500.00`", context)
+
+    def test_ver_adds_context_after_frozen_signal_without_changing_records(self):
+        self.seed([signal()])
+        before = self.path.read_bytes()
+        item = market_item()
+        item.update(min=475, swing_type="FALLING_KNIFE", liquidity={
+            "has_real_volume": True, "profile_type": "VOLUME", "poc_price": 530,
+            "val_price": 490, "vah_price": 560,
+        })
+        message, _ = self.query(item)
+        self.assertLess(message.index("SEGUIMIENTO ACTIVO"), message.index("Contexto actual"))
+        self.assertIn("posible", message.lower())
+        self.assertIn("resistencia durante un rebote", message)
+        self.assertIn("mínimo puede seguir bajando", message)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertLess(len(message), 4096)
+
+
+class CurrentMarketContextTests(unittest.TestCase):
+    def test_actual_cluster_bounds_are_used_for_support(self):
+        item = market_item()
+        item["fib_clusters"] = [{"min_price": 470, "max_price": 474,
+                                 "members_detail": [{"period": "1mo"}, {"period": "3mo"}]}]
+        before = deepcopy(item)
+        result = bot.format_current_market_context(item)
+        self.assertIn("`$470.00`–`$474.00`", result)
+        self.assertIn("varios periodos", result)
+        self.assertEqual(item, before)
+
+    def test_cluster_above_price_is_never_called_support(self):
+        item = market_item()
+        item["fib_clusters"] = [{"min_price": 490, "max_price": 500,
+                                 "members_detail": [{"period": "1mo"}, {"period": "3mo"}]}]
+        result = bot.format_current_market_context(item)
+        self.assertIn("No hay referencias suficientes", result)
+        self.assertNotIn("varios periodos", result)
+
+    def test_single_level_uses_an_explicitly_approximate_band(self):
+        item = market_item()
+        item["min"] = 470
+        result = bot.format_current_market_context(item)
+        self.assertIn("`$467.65`–`$472.35`", result)
+        self.assertIn("no suelo confirmado", result)
+
+    def test_poc_role_depends_on_its_position_and_is_not_order_book(self):
+        for poc, expected in ((530, "resistencia"), (450, "soporte"), (480, "zona de negociación")):
+            with self.subTest(poc=poc):
+                item = market_item()
+                item["liquidity"] = {"has_real_volume": True, "profile_type": "VOLUME", "poc_price": poc}
+                result = bot.format_current_market_context(item)
+                self.assertIn(expected, result)
+                self.assertIn("no muestra órdenes pendientes", result)
+
+    def test_tpo_is_not_presented_as_real_volume(self):
+        item = market_item()
+        item["liquidity"] = {"has_real_volume": False, "profile_type": "TPO", "poc_price": 530}
+        result = bot.format_current_market_context(item)
+        self.assertIn("frecuencia de precios, no volumen", result)
+        self.assertNotIn("Mayor concentración estimada de volumen", result)
+        self.assertNotIn("gran *Muro de Volumen", bot.format_buy_advice(item))
+
+    def test_stale_or_invalid_price_does_not_produce_new_zones(self):
+        for item in (market_item() | {"is_stale": True}, market_item() | {"current_price": float("nan")}):
+            result = bot.format_current_market_context(item)
+            self.assertIn("No hay una cotización actual válida", result)
+            self.assertNotIn("Posible zona de soporte", result)
+
 
 if __name__ == "__main__":
     unittest.main()
