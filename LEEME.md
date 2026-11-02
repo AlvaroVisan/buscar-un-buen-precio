@@ -47,6 +47,17 @@ La ficha muestra fecha de consulta, cierre anual, fuentes y un desplegable con l
 * Usa **Actualizar** dentro del panel, o `/actualizar` en Telegram, para consultar todos los activos sin esperar al siguiente ciclo automático. Ya no hay un `.bat` separado para esta tarea.
 * El único archivo de arranque es `Iniciar_Aplicacion.bat`; sustituye a `Abrir_Panel_Web.bat` y `Actualizar_Precios.bat`. Conserva el resto de los archivos del proyecto junto al lanzador.
 
+### Seguir un plan del bot sin cambiar sus niveles
+
+* Consulta `/compra AMD` o la ficha de un activo y pulsa **Seguir este plan**. El botón conserva la entrada propuesta, el stop mostrado (SSL si lo hay), TP1, TP2, periodo y fecha **de ese mensaje**, aunque el mercado o el periodo cambien antes de pulsarlo. Las consultas y las alertas no inician seguimientos por sí solas.
+* Solo se mantiene un plan abierto por activo y chat. Otra consulta muestra el estado del plan guardado y distingue el análisis nuevo. Pulsar repetidamente un botón nunca duplica ni sustituye el plan. Los botones pertenecen al chat al que se envió el mensaje; las propuestas no guardadas caducan a los 30 días.
+* `/planes` muestra tus planes y su tasa de acierto; `/plan AMD` abre el último de ese activo. Al tocar TP1 se simula vender el 50% y se protege el resto al precio de entrada. Termina en TP2, stop o vuelta a la entrada después de TP1. Las entradas límite esperan a que se observe su precio; una invalidación antes de entrar no cuenta como pérdida. El historial se conserva sin caducidad y no se inicia otro plan automáticamente.
+* Puedes **Cancelar seguimiento**, con confirmación. Se conserva como cancelado y queda excluido de la tasa de acierto. Los planes elegidos tienen su sección y estadísticas propias en el **Diario web**, separadas de las señales automáticas.
+* El seguimiento empieza al guardar, sin atribuir máximos o mínimos anteriores a esa acción. Se revisa en cada actualización del mercado, recuperando las velas completas disponibles de cinco minutos. No se usan velas que solapen el guardado o una observación puntual ya evaluada. Puede haber toques sin observar en esos tramos o cuando faltan datos. Una vela que toca varios niveles sin orden conocido se resuelve de forma conservadora y se identifica como ambigua. Los precios de salida son simulados a los niveles previstos, sin comisiones ni garantía de ejecución en gaps.
+* Estos planes sirven tanto para contrastar una idea como para acompañar una compra real; **no registran compras ni ejecutan órdenes**. El retorno del plan utiliza su entrada propuesta; registra tu precio y unidades reales en Cartera para ver el P&L real. Los planes y borradores se guardan localmente en `.trade_plans.json`, excluido de Git y del acceso HTTP directo. El Diario web devuelve los planes sin identificadores de chat ni borradores.
+
+La descarga intradía utiliza la [API de históricos de yfinance](https://ranaroussi.github.io/yfinance/reference/yfinance.price_history.html), cuya cobertura reciente es limitada. Si se recupera un tramo incompleto se muestra el aviso; se conservan los niveles originales.
+
 ---
 
 ## 📊 Google Sheets (`google_apps_script.js`)

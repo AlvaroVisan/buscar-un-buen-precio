@@ -8,6 +8,7 @@ portfolio.json
 .alerts_cache.json
 .earnings_cache.json
 .business_cache.json
+.trade_plans.json
 *.local.json
 *.tmp
 .vscode/

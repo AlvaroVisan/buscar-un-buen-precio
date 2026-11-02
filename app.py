@@ -259,7 +259,12 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
         if route == "/api/journal":
             try:
                 import journal_manager
+                import trade_plan_manager
                 j_data = journal_manager.load_journal()
+                try:
+                    j_data["followed_plans"] = trade_plan_manager.get_plans()
+                except ValueError as error:
+                    j_data["followed_plans"] = {"plans": [], "stats": {}, "error": str(error)}
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")

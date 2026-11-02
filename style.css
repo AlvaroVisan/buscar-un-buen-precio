@@ -4635,6 +4635,21 @@ input, select, textarea { accent-color: #ddd; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
 /* Contexto del negocio: resumen primero, evidencia desplegable. */
+.followed-plans-section { width: 100%; grid-column: 1 / -1; min-width: 0; }
+.followed-plans-heading, .followed-plan-title { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 18px; }
+.followed-plans-heading h3, .automatic-journal-heading { font-size: 1rem; font-weight: 500; }
+.followed-plans-heading > span, .followed-plans-intro, .followed-plan-date, .followed-plan-note { color: var(--text-muted); font-size: .76rem; }
+.followed-plans-intro { margin: 10px 0 18px; }
+.followed-plan-card { border: 1px solid var(--card-border); background: var(--bg-secondary); border-radius: var(--radius-md); padding: 18px; margin-bottom: 14px; overflow-wrap: anywhere; }
+.followed-plan-card p { font-size: .8rem; margin-top: 10px; }
+.followed-plan-title > span { color: var(--text-secondary); font-size: .8rem; }
+.followed-plan-levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.followed-plan-levels span, .followed-plan-levels strong { display: block; font-size: .8rem; }
+.followed-plan-levels span { color: var(--text-muted); margin-bottom: 4px; }
+.followed-plan-levels strong { font-family: var(--font-mono); font-weight: 500; }
+.automatic-journal-heading { margin-top: 28px; }
+@media (max-width: 600px) { .followed-plan-levels { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 .asset-identity .business-open-btn { margin-top: 10px; }
 .business-open-btn {
   border: 1px solid var(--card-border); border-radius: var(--radius-sm);
