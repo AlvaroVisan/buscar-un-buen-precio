@@ -3208,13 +3208,13 @@ async function loadAndRenderJournal() {
     const journalBadge = document.getElementById("journalStatsPill");
     if (journalBadge) {
       if (closedEntries.length === 0) {
-        journalBadge.textContent = "Win Rate: 0.0%";
+        journalBadge.textContent = "Balance: 0.0%";
       } else if (wonEntries.length === 0 && lostEntries.length > 0) {
-        journalBadge.textContent = `Win Rate: -${lossRate}%`;
+        journalBadge.textContent = `Balance: -${lossRate}%`;
       } else {
         const net = (winRateNum - lossRateNum).toFixed(1);
         const sign = net > 0 ? "+" : "";
-        journalBadge.textContent = `Win Rate: ${sign}${net}%`;
+        journalBadge.textContent = `Balance: ${sign}${net}%`;
       }
     }
 
@@ -3234,9 +3234,9 @@ async function loadAndRenderJournal() {
       if (journalCurrentFilter === "ACTIVE") {
         emptyMsg = "No hay oportunidades activas en seguimiento en este momento.";
       } else if (journalCurrentFilter === "WON") {
-        emptyMsg = "Aún no hay oportunidades cerradas en Take Profit.";
+        emptyMsg = "Aún no hay señales cerradas con beneficio.";
       } else if (journalCurrentFilter === "LOST") {
-        emptyMsg = "No hay oportunidades cerradas en Stop Loss.";
+        emptyMsg = "Aún no hay señales cerradas con pérdida.";
       } else if (journalCurrentFilter === "CLOSED") {
         emptyMsg = "No hay oportunidades cerradas registradas.";
       }
@@ -3254,13 +3254,13 @@ async function loadAndRenderJournal() {
       let badgeLabel = "🔵 En Seguimiento";
       if (e.status === "TP2_ALCANZADO") {
         badgeClass = "j-badge-won";
-        badgeLabel = "🟢 TP2 Alcanzado (Ganada)";
+        badgeLabel = "🟢 TP2 alcanzado · Cerrada";
       } else if (e.status === "BREAKEVEN_EJECUTADO") {
         badgeClass = "j-badge-breakeven";
-        badgeLabel = "🟢 Break-Even (TP1 Asegurado)";
+        badgeLabel = "🟢 Cerrada · Beneficio parcial en TP1";
       } else if (e.status === "TP1_ALCANZADO") {
         badgeClass = "j-badge-tp1";
-        badgeLabel = "🟡 TP1 Alcanzado (Stop en BE)";
+        badgeLabel = "🟡 TP1 alcanzado · Stop en la entrada";
       } else if (e.status === "STOP_EJECUTADO") {
         badgeClass = "j-badge-lost";
         badgeLabel = "🔴 Stop Ejecutado";
@@ -3302,7 +3302,7 @@ async function loadAndRenderJournal() {
             <span class="j-signal-sub">Periodo registrado: ${escapeHtml(e.period || "No registrado")}</span>
             ${e.exit_reason ? `
               <div class="j-entry-exit-reason ${isWon ? 'j-exit-win' : 'j-exit-loss'}">
-                <strong>${isWon ? '🏆 Salida en TP' : '🛑 Salida en Stop'}:</strong> ${escapeHtml(e.exit_reason)}
+                <strong>${isWon ? '🏆 Cierre con beneficio' : '🛑 Cierre con pérdida'}:</strong> ${escapeHtml(e.exit_reason)}
               </div>` : ""}
             ${!isClosed && e.advice ? `
               <div class="j-entry-exit-reason j-exit-info">
@@ -3320,7 +3320,7 @@ async function loadAndRenderJournal() {
               <span>${originalStop !== null ? formatPrice(originalStop, fmtRef) : "No registrado"}</span>
             </div>
             <div class="j-prices-row">
-              <span class="j-prices-label">${isClosed ? 'Stop salida:' : 'Stop actual:'}</span>
+              <span class="j-prices-label">${isClosed ? 'Último stop:' : 'Stop actual:'}</span>
               <span>${formatPrice(e.stop_loss, fmtRef)}</span>
             </div>
             <div class="j-prices-row">
@@ -3337,7 +3337,7 @@ async function loadAndRenderJournal() {
             <span class="j-return-val ${retColor}">${retSign}${ret.toFixed(1)}%</span>
             <span class="j-status-badge ${badgeClass}">${badgeLabel}</span>
             <span style="font-size: 0.68rem; color: #756c60;">Máx: +${maxRet.toFixed(1)}%</span>
-            ${isClosed ? `<span class="j-result-pill ${isWon ? 'pill-green' : 'pill-red'}">${isWon ? 'Ganada (TP)' : 'En Stop'}</span>` : ""}
+            ${isClosed ? `<span class="j-result-pill ${isWon ? 'pill-green' : 'pill-red'}">${isWon ? 'Con beneficio' : 'En Stop'}</span>` : ""}
           </div>
 
           <div class="j-entry-actions">

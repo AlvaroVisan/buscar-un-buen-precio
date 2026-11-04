@@ -4789,3 +4789,12 @@ input, select, textarea { accent-color: #ddd; }
   .business-verdict { padding: 16px; }
   .business-verdict h4 { font-size: 1.3rem; }
 }
+
+/* Diario: lectura y controles adaptables. */
+#journalSection .journal-toolbar { flex-wrap: wrap; align-items: flex-start; }
+#journalSection .journal-toolbar > div:first-child { flex: 1 1 280px; min-width: 0; }
+#journalSection .journal-subheading { max-width: 65ch; line-height: 1.6; }
+#journalSection .journal-filter-group { flex-wrap: wrap; max-width: 100%; }
+#journalSection .journal-filter-btn { white-space: normal; }
+.journal-method-note { margin: 0; padding: 14px 16px; border: 1px solid rgba(255,255,255,.08); border-radius: var(--radius-md); color: var(--text-secondary); font-size: .78rem; line-height: 1.7; }
+#journalSection .j-status-badge, #journalSection .j-kpi-sub { overflow-wrap: anywhere; white-space: normal; }

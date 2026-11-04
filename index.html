@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <meta name="theme-color" content="#090909">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261104-v5">
+  <link rel="stylesheet" href="style.css?v=20261104-v6">
 </head>
 <body>
   <div class="app-container">
@@ -222,7 +222,7 @@
             <span class="mode-tab-title">Diario</span>
             <span class="mode-tab-sub">Historial & Tasa de Acierto</span>
           </span>
-          <span class="mode-pill-stat" id="journalStatsPill">Win Rate: 0%</span>
+          <span class="mode-pill-stat" id="journalStatsPill">Balance: 0%</span>
         </button>
 
         <button class="mode-tab-btn" id="btnModePortfolio" data-mode="PORTFOLIO">
@@ -350,22 +350,22 @@
       <!-- Stats KPIs -->
       <div class="journal-kpi-grid">
         <div class="journal-kpi-card highlight-winrate" id="kpiCardJournalWinRate" title="Click para ver oportunidades en seguimiento" style="cursor: pointer;">
-          <span class="j-kpi-label">🎯 Balance de Acierto</span>
+          <span class="j-kpi-label">🎯 Balance de aciertos</span>
           <div class="j-kpi-val" id="jStatWinRate">0.0%</div>
           <span class="j-kpi-sub" id="jStatWinRateSub">0.0% Ganadas · 0.0% en Stop</span>
         </div>
         <div class="journal-kpi-card" id="kpiCardJournalTotal" title="Click para ver todas las oportunidades registradas" style="cursor: pointer;">
-          <span class="j-kpi-label">📦 Oportunidades Registradas</span>
+          <span class="j-kpi-label">📦 Señales registradas</span>
           <div class="j-kpi-val" id="jStatTotal">0</div>
           <span class="j-kpi-sub" id="jStatActiveSub">0 activas en seguimiento</span>
         </div>
         <div class="journal-kpi-card highlight-success" id="kpiCardJournalWon" title="Click para ver solo las oportunidades Ganadas (TP)" style="cursor: pointer;">
-          <span class="j-kpi-label">🏆 Ganadas (+)</span>
+          <span class="j-kpi-label">🏆 Con beneficio</span>
           <div class="j-kpi-val text-green" id="jStatWon">0</div>
           <span class="j-kpi-sub" id="jStatAvgWin">Acierto: 0.0% • Media: +0.0%</span>
         </div>
         <div class="journal-kpi-card highlight-danger" id="kpiCardJournalLost" title="Click para ver solo las oportunidades en Stop Loss" style="cursor: pointer;">
-          <span class="j-kpi-label">🛑 En Stop Loss (-)</span>
+          <span class="j-kpi-label">🛑 Con pérdida</span>
           <div class="j-kpi-val text-red" id="jStatLost">0</div>
           <span class="j-kpi-sub" id="jStatAvgLoss">Fallo: 0.0% • Media: -0.0%</span>
         </div>
@@ -374,18 +374,18 @@
       <!-- Journal Header & Controls -->
       <div class="journal-toolbar">
         <div>
-          <h3 class="journal-heading">Historial de Oportunidades</h3>
-          <p class="journal-subheading">Registros automáticos en Zona Áurea o Score ≥ 70 con cálculo continuo de retorno</p>
+          <h3 class="journal-heading">Diario de señales</h3>
+          <p class="journal-subheading">Cada señal conserva su entrada, sus objetivos y su periodo para seguir su evolución.</p>
         </div>
         <div class="journal-filter-group" id="journalFilterGroup">
           <button class="journal-filter-btn active" id="btnJFilterActive" data-filter="ACTIVE" type="button">
             🟢 En seguimiento (<span id="jCountActive">0</span>)
           </button>
           <button class="journal-filter-btn" id="btnJFilterWon" data-filter="WON" type="button">
-            🏆 Ganadas TP (<span id="jCountWon">0</span>)
+            🏆 Con beneficio (<span id="jCountWon">0</span>)
           </button>
           <button class="journal-filter-btn" id="btnJFilterLost" data-filter="LOST" type="button">
-            🛑 En Stop Loss (<span id="jCountLost">0</span>)
+            🛑 Con pérdida (<span id="jCountLost">0</span>)
           </button>
           <button class="journal-filter-btn" id="btnJFilterClosed" data-filter="CLOSED" type="button">
             📁 Cerradas (<span id="jCountClosed">0</span>)
@@ -400,13 +400,15 @@
           </button>
           <button id="btnRefreshJournal" class="btn btn-secondary btn-sm" type="button">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-            Refrescar
+            Actualizar
           </button>
           <button id="btnResetJournal" class="btn btn-secondary btn-sm btn-danger-soft" type="button">
-            🗑️ Resetear señales
+            🗑️ Borrar diario
           </button>
         </div>
       </div>
+
+      <p class="journal-method-note">Seguimiento simulado: se registra una señal al alcanzar o caer bajo el nivel Fibonacci del 61,8 % o un score ≥ 70. Se cierra el 50 % en TP1 y se mueve el stop del resto a la entrada; después, se cierra en TP2 o al volver a la entrada. El balance resta el porcentaje de pérdidas al de aciertos sobre las señales cerradas. No son operaciones de tu cartera real.</p>
 
       <!-- Journal Entries Container -->
       <div id="journalEntriesContainer" class="journal-entries-container">
@@ -1103,7 +1105,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20261104-v5"></script>
+  <script src="app.js?v=20261104-v6"></script>
   <script src="business.js?v=20261102-business-2"></script>
 </body>
 </html>
