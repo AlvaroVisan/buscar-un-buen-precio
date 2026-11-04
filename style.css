@@ -4834,3 +4834,7 @@ input, select, textarea { accent-color: #ddd; }
 .currency-notice { margin: 22px 0 0; }
 .currency-notice a { color: inherit; text-decoration: underline; }
 @media (max-width: 420px) { .currency-dialog { padding: 20px; } .currency-input-row { flex-wrap: wrap; } .currency-input-row select { flex: 1 1 100%; } }
+/* Acceso al conversor siempre a mano durante el scroll. */
+#btnCurrencyConverter.currency-floating-button { position: fixed; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); z-index: 400; min-height: 48px; min-width: 76px; padding: 12px 18px; border-radius: 999px; background: var(--bg-card, #141414); border: 1px solid #555; color: var(--text-primary, #eee); font-size: 1rem; }
+body { padding-bottom: 88px; }
+@media (max-width: 600px) { #btnCurrencyConverter.currency-floating-button { right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); } }

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <meta name="theme-color" content="#090909">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261104-v8">
+  <link rel="stylesheet" href="style.css?v=20261104-v9">
 </head>
 <body>
   <div class="app-container">
@@ -34,8 +34,6 @@
           <span class="status-dot pulse"></span>
           <span id="marketStatus">Sincronizado</span>
         </div>
-
-        <button id="btnCurrencyConverter" type="button" class="btn btn-secondary" aria-haspopup="dialog" aria-controls="currencyDialog" title="Convertir euros y dólares">€ ↔ $</button>
 
         <button id="btnOpenSheet" class="btn btn-secondary" title="Abrir Google Sheet en nueva pestaña">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -1110,6 +1108,7 @@
     </div>
   </div>
 
+  <button id="btnCurrencyConverter" type="button" class="btn btn-secondary currency-floating-button" aria-haspopup="dialog" aria-controls="currencyDialog" aria-label="Abrir conversor de euros y dólares" title="Convertir euros y dólares">€ ↔ $</button>
   <dialog id="currencyDialog" class="currency-dialog" aria-labelledby="currencyTitle" aria-describedby="currencyNotice">
     <div class="currency-heading"><div><span class="currency-eyebrow">A TU MONEDA</span><h2 id="currencyTitle">Euros y dólares</h2></div><button id="closeCurrencyDialog" type="button" class="btn btn-secondary" aria-label="Cerrar conversor">✕</button></div>
     <p class="currency-intro">Una referencia rápida para tus próximos movimientos.</p>
