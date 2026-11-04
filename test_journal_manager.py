@@ -158,6 +158,7 @@ class JournalRemovalAndStatsTests(unittest.TestCase):
         self.assertEqual(stats["total_lost"], 1)
         self.assertEqual(stats["win_rate_pct"], 50.0)
         self.assertEqual(stats["loss_rate_pct"], 50.0)
+        self.assertEqual(stats["net_win_rate_pct"], 0.0)
         self.assertEqual(stats["avg_win_pct"], 10.0)
         self.assertEqual(stats["avg_loss_pct"], -5.0)
 

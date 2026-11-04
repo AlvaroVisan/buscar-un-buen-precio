@@ -100,6 +100,7 @@ def calculate_journal_stats(entries):
 
     win_rate = round((len(won) / len(closed)) * 100, 1) if closed else 0.0
     loss_rate = round((len(lost) / len(closed)) * 100, 1) if closed else 0.0
+    net_win_rate = round(win_rate - loss_rate, 1) if closed else 0.0
 
     win_returns = [e.get("final_return_pct", 0) for e in won if e.get("final_return_pct") is not None]
     loss_returns = [e.get("final_return_pct", 0) for e in lost if e.get("final_return_pct") is not None]
@@ -113,6 +114,7 @@ def calculate_journal_stats(entries):
         "closed_count": len(closed),
         "win_rate_pct": win_rate,
         "loss_rate_pct": loss_rate,
+        "net_win_rate_pct": net_win_rate,
         "total_won": len(won),
         "total_lost": len(lost),
         "avg_win_pct": avg_win,

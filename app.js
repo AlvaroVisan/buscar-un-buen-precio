@@ -3152,17 +3152,43 @@ async function loadAndRenderJournal() {
     const elLost = document.getElementById("jStatLost");
     const elAvgLoss = document.getElementById("jStatAvgLoss");
 
-    const winRate = (stats.win_rate_pct || 0).toFixed(1);
-    const lossRate = (stats.loss_rate_pct !== undefined ? stats.loss_rate_pct : (stats.closed_count ? (stats.total_lost / stats.closed_count * 100) : 0)).toFixed(1);
+    const winRateNum = typeof stats.win_rate_pct === "number" ? stats.win_rate_pct : 0;
+    const lossRateNum = (stats.loss_rate_pct !== undefined ? stats.loss_rate_pct : (stats.closed_count ? (stats.total_lost / stats.closed_count * 100) : 0));
+    const winRate = winRateNum.toFixed(1);
+    const lossRate = lossRateNum.toFixed(1);
 
-    if (elWinRate) elWinRate.textContent = `${winRate}%`;
-    if (elWinRateSub) elWinRateSub.textContent = `${winRate}% Ganadas · ${lossRate}% en Stop`;
+    if (elWinRate) {
+      if (closedEntries.length === 0) {
+        elWinRate.textContent = "0.0%";
+        elWinRate.className = "j-kpi-val";
+        if (elWinRateSub) elWinRateSub.textContent = "0.0% Ganadas · 0.0% en Stop";
+      } else if (wonEntries.length === 0 && lostEntries.length > 0) {
+        // Todo en pérdidas por ahora: porcentaje de balance en negativo y en rojo
+        elWinRate.textContent = `-${lossRate}%`;
+        elWinRate.className = "j-kpi-val text-red";
+        if (elWinRateSub) elWinRateSub.textContent = `0.0% Ganadas · ${lossRate}% en Stop`;
+      } else if (wonEntries.length > 0 && lostEntries.length === 0) {
+        elWinRate.textContent = `+${winRate}%`;
+        elWinRate.className = "j-kpi-val text-green";
+        if (elWinRateSub) elWinRateSub.textContent = `${winRate}% Ganadas · 0.0% en Stop`;
+      } else {
+        const net = (winRateNum - lossRateNum).toFixed(1);
+        const sign = net > 0 ? "+" : "";
+        elWinRate.textContent = `${sign}${net}%`;
+        elWinRate.className = `j-kpi-val ${net >= 0 ? "text-green" : "text-red"}`;
+        if (elWinRateSub) elWinRateSub.textContent = `${winRate}% Ganadas · ${lossRate}% en Stop`;
+      }
+    }
+
     if (elTotal) elTotal.textContent = `${stats.total_opportunities || 0}`;
     if (elActiveSub) elActiveSub.textContent = `${stats.active_count || activeEntries.length} activas en seguimiento`;
     if (elWon) elWon.textContent = `${stats.total_won || wonEntries.length}`;
     if (elAvgWin) elAvgWin.textContent = `Acierto: ${winRate}% • Media: +${(stats.avg_win_pct || 0).toFixed(1)}%`;
     if (elLost) elLost.textContent = `${stats.total_lost || lostEntries.length}`;
-    if (elAvgLoss) elAvgLoss.textContent = `Fallo: ${lossRate}% • Media: ${(stats.avg_loss_pct || 0).toFixed(1)}%`;
+    if (elAvgLoss) {
+      const avgLossVal = typeof stats.avg_loss_pct === "number" ? stats.avg_loss_pct : 0;
+      elAvgLoss.textContent = `Fallo: ${lossRate}% • Media: ${avgLossVal >= 0 && avgLossVal !== 0 ? '-' : ''}${avgLossVal.toFixed(1)}%`;
+    }
 
     const countActiveEl = document.getElementById("jCountActive");
     const countWonEl = document.getElementById("jCountWon");
@@ -3180,7 +3206,17 @@ async function loadAndRenderJournal() {
     });
 
     const journalBadge = document.getElementById("journalStatsPill");
-    if (journalBadge) journalBadge.textContent = `Win Rate: ${winRate}%`;
+    if (journalBadge) {
+      if (closedEntries.length === 0) {
+        journalBadge.textContent = "Win Rate: 0.0%";
+      } else if (wonEntries.length === 0 && lostEntries.length > 0) {
+        journalBadge.textContent = `Win Rate: -${lossRate}%`;
+      } else {
+        const net = (winRateNum - lossRateNum).toFixed(1);
+        const sign = net > 0 ? "+" : "";
+        journalBadge.textContent = `Win Rate: ${sign}${net}%`;
+      }
+    }
 
     let filteredEntries = entries;
     if (journalCurrentFilter === "ACTIVE") {

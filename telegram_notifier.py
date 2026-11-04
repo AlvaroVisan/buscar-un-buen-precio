@@ -1292,11 +1292,22 @@ def handle_historial(bot_token, chat_id, filter_mode="ALL"):
 
         f_mode = str(filter_mode or "ALL").upper()
 
+        if closed == 0:
+            bal_str = "0.0%"
+        elif won == 0 and lost > 0:
+            bal_str = f"-{loss_rate:.1f}%"
+        elif won > 0 and lost == 0:
+            bal_str = f"+{win_rate:.1f}%"
+        else:
+            net_bal = win_rate - loss_rate
+            sign = "+" if net_bal > 0 else ""
+            bal_str = f"{sign}{net_bal:.1f}%"
+
         lines = [
             "📔 *DIARIO DE TRADING & HISTORIAL*",
             "Seguimiento automático único. `/ver TICKER` muestra la señal registrada antes de la lectura actual.",
             "━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            f"🎯 *Balance de Acierto*: `{win_rate:.1f}%` Ganadas | `{loss_rate:.1f}%` en Stop",
+            f"🎯 *Balance de Acierto*: `{bal_str}` ({win_rate:.1f}% Ganadas | {loss_rate:.1f}% en Stop)",
             f"📊 *Operaciones Totales*: `{total}` ({active} activas, {closed} cerradas)",
             f"🏆 *Ganadas (+)*: `{won}` (`{win_rate:.1f}%`, Retorno medio: `+{avg_win:.1f}%`)",
             f"🛑 *En Stop Loss (-)*: `{lost}` (`{loss_rate:.1f}%`, Pérdida media: `{avg_loss:.1f}%`)",
