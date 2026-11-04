@@ -1264,10 +1264,10 @@ def handle_venta(bot_token, chat_id, query=""):
     except Exception as e:
         send_telegram_message(bot_token, chat_id, f"❌ Error al consultar modo venta: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
-def handle_historial(bot_token, chat_id):
+def handle_historial(bot_token, chat_id, filter_mode="ALL"):
     """
     Diario de Trading y Rendimiento del algoritmo.
-    Muestra la tasa de acierto (Win Rate), operaciones ganadas/perdidas y últimas señales.
+    Muestra la tasa de acierto (Win Rate), desglose de operaciones ganadas en TP y cerradas en Stop Loss.
     """
     try:
         import journal_manager
@@ -1275,15 +1275,22 @@ def handle_historial(bot_token, chat_id):
         stats = j_data.get("stats", {})
         entries = j_data.get("entries", [])
 
-        total = stats.get("total_opportunities", 0)
-        active = stats.get("active_count", 0)
-        closed = stats.get("closed_count", 0)
+        total = stats.get("total_opportunities", len(entries))
+        active_entries = [e for e in entries if e.get("status") in ("ACTIVA", "TP1_ALCANZADO")]
+        won_entries = [e for e in entries if e.get("result") == "GANADA" or e.get("status") in ("TP2_ALCANZADO", "BREAKEVEN_EJECUTADO")]
+        lost_entries = [e for e in entries if e.get("result") == "PERDIDA" or e.get("status") == "STOP_EJECUTADO"]
+        closed_entries = [e for e in entries if e.get("status") not in ("ACTIVA", "TP1_ALCANZADO")]
+
+        active = stats.get("active_count", len(active_entries))
+        closed = stats.get("closed_count", len(closed_entries))
         win_rate = stats.get("win_rate_pct", 0.0)
         loss_rate = stats.get("loss_rate_pct", 0.0)
-        won = stats.get("total_won", 0)
-        lost = stats.get("total_lost", 0)
+        won = stats.get("total_won", len(won_entries))
+        lost = stats.get("total_lost", len(lost_entries))
         avg_win = stats.get("avg_win_pct", 0.0)
         avg_loss = stats.get("avg_loss_pct", 0.0)
+
+        f_mode = str(filter_mode or "ALL").upper()
 
         lines = [
             "📔 *DIARIO DE TRADING & HISTORIAL*",
@@ -1298,39 +1305,114 @@ def handle_historial(bot_token, chat_id):
 
         if not entries:
             lines.append("ℹ️ Aún no hay registros en el diario. Las oportunidades se guardarán automáticamente cada vez que un activo entre en Zona Áurea (61.8%) o alcance Confluencia ≥ 70.")
-        else:
-            lines.append("📋 *Últimas Oportunidades en Seguimiento:*\n")
-            for e in entries[:5]:
+        elif f_mode == "WON":
+            lines.append(f"🏆 *REGISTRO DE OPERACIONES GANADAS (TP) ({len(won_entries)}):*\n")
+            if not won_entries:
+                lines.append("Aún no hay operaciones cerradas en Take Profit.")
+            for e in won_entries:
+                tab = escape_md(e.get("tab", e.get("ticker", "")))
+                ticker = e.get("ticker", "")
+                entry_p = e.get("entry_price", 0)
+                ret = e.get("final_return_pct", e.get("current_return_pct", 0.0))
+                sig_date = e.get("signal_date", "").split()[0]
+                cls_date = (e.get("closed_date") or "").split()[0]
+                cls_info = f" ➔ Cierre: `{cls_date}`" if cls_date else ""
+                reason = escape_md(e.get("exit_reason") or "Take Profit alcanzado con éxito")
+                status = "🟢 TP2 Ganada" if e.get("status") == "TP2_ALCANZADO" else "🟢 Break-Even (+TP1)"
+                lines.append(
+                    f"• *{tab}* (`{ticker}`) — {status} (*+{ret:.1f}%*)\n"
+                    f"  Entrada: `{_fmt_price(entry_p, e)}` ({sig_date}){cls_info}\n"
+                    f"  📝 _{reason}_\n"
+                )
+        elif f_mode == "LOST":
+            lines.append(f"🛑 *REGISTRO DE OPERACIONES EN STOP LOSS ({len(lost_entries)}):*\n")
+            if not lost_entries:
+                lines.append("No hay operaciones cerradas en Stop Loss.")
+            for e in lost_entries:
+                tab = escape_md(e.get("tab", e.get("ticker", "")))
+                ticker = e.get("ticker", "")
+                entry_p = e.get("entry_price", 0)
+                stop_p = e.get("stop_loss", 0)
+                ret = e.get("final_return_pct", e.get("current_return_pct", 0.0))
+                sig_date = e.get("signal_date", "").split()[0]
+                cls_date = (e.get("closed_date") or "").split()[0]
+                cls_info = f" ➔ Cierre: `{cls_date}`" if cls_date else ""
+                reason = escape_md(e.get("exit_reason") or f"Stop Loss alcanzado en {_fmt_price(stop_p, e)}")
+                lines.append(
+                    f"• *{tab}* (`{ticker}`) — 🔴 Stop Ejecutado (*{ret:.1f}%*)\n"
+                    f"  Entrada: `{_fmt_price(entry_p, e)}` ({sig_date}){cls_info} | Stop: `{_fmt_price(stop_p, e)}`\n"
+                    f"  📝 _{reason}_\n"
+                )
+        elif f_mode == "ACTIVE":
+            lines.append(f"🟢 *DETALLE DE OPERACIONES EN SEGUIMIENTO ({len(active_entries)}):*\n")
+            if not active_entries:
+                lines.append("No hay operaciones activas en este momento.")
+            for e in active_entries:
                 tab = escape_md(e.get("tab", e.get("ticker", "")))
                 ticker = e.get("ticker", "")
                 entry_p = e.get("entry_price", 0)
                 curr_p = e.get("current_price", entry_p)
-                ret = e.get("final_return_pct") if e.get("final_return_pct") is not None else e.get("current_return_pct", 0.0)
-                max_ret = e.get("max_return_pct", 0.0)
-                status = e.get("status", "ACTIVA")
-                date = e.get("signal_date", "").split()[0]
-
-                if status == "TP2_ALCANZADO":
-                    status_badge = "🟢 TP2 Alcanzado (+Ganada)"
-                elif status == "BREAKEVEN_EJECUTADO":
-                    status_badge = "🟢 Break-Even (+TP1 Asegurado)"
-                elif status == "TP1_ALCANZADO":
-                    status_badge = "🟡 TP1 Alcanzado (Stop en Break-Even)"
-                elif status == "STOP_EJECUTADO":
-                    status_badge = "🔴 Stop Ejecutado"
-                else:
-                    status_badge = "🔵 En Seguimiento"
-
+                stop_p = e.get("stop_loss", 0)
+                ret = e.get("current_return_pct", 0.0)
+                sig_date = e.get("signal_date", "").split()[0]
                 sign = "+" if ret >= 0 else ""
+                status_txt = "🟡 TP1 (Stop en BE)" if e.get("status") == "TP1_ALCANZADO" else "🔵 En Seguimiento"
+                advice = f"\n  💡 _{escape_md(e.get('advice'))}_" if e.get("advice") else ""
                 lines.append(
-                    f"• *{tab}* (`{ticker}`) — {status_badge}\n"
-                    f"  Entrada: `{_fmt_price(entry_p, e)}` ({date}) | Actual: `{_fmt_price(curr_p, e)}`\n"
-                    f"  Retorno: *{sign}{ret:.1f}%* (Máx alcanzado: +{max_ret:.1f}%)\n"
+                    f"• *{tab}* (`{ticker}`) — {status_txt}\n"
+                    f"  Entrada: `{_fmt_price(entry_p, e)}` ({sig_date}) | Actual: `{_fmt_price(curr_p, e)}` (P&L: *{sign}{ret:.1f}%*)\n"
+                    f"  Stop: `{_fmt_price(stop_p, e)}` | TP1: `{_fmt_price(e.get('tp1'), e)}`{advice}\n"
                 )
+        else:
+            if active_entries:
+                lines.append(f"🟢 *En Seguimiento Activo ({len(active_entries)}):*")
+                for e in active_entries[:4]:
+                    tab = escape_md(e.get("tab", e.get("ticker", "")))
+                    ret = e.get("current_return_pct", 0.0)
+                    sign = "+" if ret >= 0 else ""
+                    lines.append(f"• *{tab}*: Entrada `{_fmt_price(e.get('entry_price'), e)}` | P&L: *{sign}{ret:.1f}%* | Stop: `{_fmt_price(e.get('stop_loss'), e)}`")
+                if len(active_entries) > 4:
+                    lines.append(f"  _...y {len(active_entries) - 4} más (pulsa '🟢 Activas' para verlas todas)_")
+                lines.append("")
+
+            if won_entries:
+                lines.append(f"🏆 *Ganadas en Take Profit ({len(won_entries)}):*")
+                for e in won_entries[:3]:
+                    tab = escape_md(e.get("tab", e.get("ticker", "")))
+                    ret = e.get("final_return_pct", 0.0)
+                    reason = escape_md(e.get("exit_reason") or "TP alcanzado")
+                    lines.append(f"• *{tab}*: *+{ret:.1f}%* — _{reason}_")
+                if len(won_entries) > 3:
+                    lines.append(f"  _...y {len(won_entries) - 3} más (pulsa '🏆 Ganadas' abajo)_")
+                lines.append("")
+
+            if lost_entries:
+                lines.append(f"🛑 *En Stop Loss ({len(lost_entries)}):*")
+                for e in lost_entries[:3]:
+                    tab = escape_md(e.get("tab", e.get("ticker", "")))
+                    ret = e.get("final_return_pct", 0.0)
+                    reason = escape_md(e.get("exit_reason") or "Stop alcanzado")
+                    lines.append(f"• *{tab}*: *{ret:.1f}%* — _{reason}_")
+                if len(lost_entries) > 3:
+                    lines.append(f"  _...y {len(lost_entries) - 3} más (pulsa '🛑 En Stop' abajo)_")
+                lines.append("")
 
         lines.append("💡 _Visualiza el gráfico y estadísticas completas abriendo http://localhost:5050 en tu navegador._")
         msg = "\n".join(lines)
-        send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
+
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {"text": f"🟢 Activas ({len(active_entries)})", "callback_data": "hist:ACTIVE"},
+                    {"text": f"🏆 TP Ganadas ({len(won_entries)})", "callback_data": "hist:WON"},
+                    {"text": f"🛑 En Stop ({len(lost_entries)})", "callback_data": "hist:LOST"}
+                ],
+                [
+                    {"text": "📋 Ver Todo el Historial", "callback_data": "hist:ALL"}
+                ]
+            ]
+        }
+        send_telegram_message(bot_token, chat_id, msg, reply_markup=keyboard)
     except Exception as e:
         send_telegram_message(bot_token, chat_id, f"❌ Error al consultar historial: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
@@ -1679,6 +1761,10 @@ def process_callback_query(bot_token, chat_id, callback_id, data_str):
     elif action == "cartera":
         answer_callback_query(bot_token, callback_id, "💼 Mi Cartera")
         handle_cartera(bot_token, chat_id)
+    elif action == "hist":
+        mode = parts[1].upper() if len(parts) >= 2 else "ALL"
+        answer_callback_query(bot_token, callback_id, f"Diario ({mode})")
+        handle_historial(bot_token, chat_id, filter_mode=mode)
     else:
         answer_callback_query(bot_token, callback_id, "Acción recibida")
 
@@ -1847,8 +1933,30 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         handle_del_asset(bot_token, chat_id, parts[1] if len(parts) > 1 else "")
         return
 
-    if cmd in ("/historial", "/diario", "/journal", "/stats", "/seguimiento", "/seguimientos", "📔 historial", "historial", "diario", "seguimiento", "seguimientos"):
-        handle_historial(bot_token, chat_id)
+    if command in ("/historial", "/diario", "/journal", "/stats", "/seguimiento", "/seguimientos") or cmd in ("📔 historial", "historial", "diario", "seguimiento", "seguimientos"):
+        arg = text.split(maxsplit=1)[1].strip().lower() if len(text.split(maxsplit=1)) > 1 else ""
+        if arg in ("tp", "ganadas", "won", "ganada"):
+            handle_historial(bot_token, chat_id, filter_mode="WON")
+        elif arg in ("sl", "stop", "stops", "perdidas", "lost", "perdida"):
+            handle_historial(bot_token, chat_id, filter_mode="LOST")
+        elif arg in ("activas", "activa", "open", "active"):
+            handle_historial(bot_token, chat_id, filter_mode="ACTIVE")
+        elif arg in ("cerradas", "closed"):
+            handle_historial(bot_token, chat_id, filter_mode="CLOSED")
+        else:
+            handle_historial(bot_token, chat_id, filter_mode="ALL")
+        return
+
+    if cmd in ("/ganadas", "/tp"):
+        handle_historial(bot_token, chat_id, filter_mode="WON")
+        return
+
+    if cmd in ("/stops", "/sl", "/perdidas"):
+        handle_historial(bot_token, chat_id, filter_mode="LOST")
+        return
+
+    if cmd in ("/activas", "/abiertas"):
+        handle_historial(bot_token, chat_id, filter_mode="ACTIVE")
         return
 
     # Si el usuario escribe directamente el nombre de un ticker o tab (ej: AMD, TSLA, NVDA, META, CEG, GC=F)

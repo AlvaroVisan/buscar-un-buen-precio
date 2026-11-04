@@ -101,7 +101,7 @@ function setupEventListeners() {
     });
   }
 
-  // Filtros de estado del Diario: En seguimiento, Cerradas, Todas
+  // Filtros de estado del Diario: En seguimiento, Ganadas TP, En Stop, Cerradas, Todas
   const journalFilterBtns = document.querySelectorAll(".journal-filter-btn");
   journalFilterBtns.forEach(btn => {
     btn.addEventListener("click", () => {
@@ -111,6 +111,36 @@ function setupEventListeners() {
       loadAndRenderJournal();
     });
   });
+
+  // Clics interactivos en las tarjetas KPI del Diario para filtrar al instante
+  const kpiJWinRate = document.getElementById("kpiCardJournalWinRate");
+  if (kpiJWinRate) {
+    kpiJWinRate.addEventListener("click", () => {
+      journalCurrentFilter = "ACTIVE";
+      loadAndRenderJournal();
+    });
+  }
+  const kpiJTotal = document.getElementById("kpiCardJournalTotal");
+  if (kpiJTotal) {
+    kpiJTotal.addEventListener("click", () => {
+      journalCurrentFilter = "ALL";
+      loadAndRenderJournal();
+    });
+  }
+  const kpiJWon = document.getElementById("kpiCardJournalWon");
+  if (kpiJWon) {
+    kpiJWon.addEventListener("click", () => {
+      journalCurrentFilter = "WON";
+      loadAndRenderJournal();
+    });
+  }
+  const kpiJLost = document.getElementById("kpiCardJournalLost");
+  if (kpiJLost) {
+    kpiJLost.addEventListener("click", () => {
+      journalCurrentFilter = "LOST";
+      loadAndRenderJournal();
+    });
+  }
 
   // Limpiar todas las oportunidades cerradas del Diario
   const btnClearClosedJournal = document.getElementById("btnClearClosedJournal");
@@ -3110,6 +3140,8 @@ async function loadAndRenderJournal() {
 
     const activeEntries = entries.filter(e => ["ACTIVA", "TP1_ALCANZADO"].includes(e.status));
     const closedEntries = entries.filter(e => !["ACTIVA", "TP1_ALCANZADO"].includes(e.status));
+    const wonEntries = entries.filter(e => e.result === "GANADA" || ["TP2_ALCANZADO", "BREAKEVEN_EJECUTADO"].includes(e.status));
+    const lostEntries = entries.filter(e => e.result === "PERDIDA" || e.status === "STOP_EJECUTADO");
 
     const elWinRate = document.getElementById("jStatWinRate");
     const elWinRateSub = document.getElementById("jStatWinRateSub");
@@ -3127,15 +3159,19 @@ async function loadAndRenderJournal() {
     if (elWinRateSub) elWinRateSub.textContent = `${winRate}% Ganadas · ${lossRate}% en Stop`;
     if (elTotal) elTotal.textContent = `${stats.total_opportunities || 0}`;
     if (elActiveSub) elActiveSub.textContent = `${stats.active_count || activeEntries.length} activas en seguimiento`;
-    if (elWon) elWon.textContent = `${stats.total_won || 0}`;
+    if (elWon) elWon.textContent = `${stats.total_won || wonEntries.length}`;
     if (elAvgWin) elAvgWin.textContent = `Acierto: ${winRate}% • Media: +${(stats.avg_win_pct || 0).toFixed(1)}%`;
-    if (elLost) elLost.textContent = `${stats.total_lost || 0}`;
+    if (elLost) elLost.textContent = `${stats.total_lost || lostEntries.length}`;
     if (elAvgLoss) elAvgLoss.textContent = `Fallo: ${lossRate}% • Media: ${(stats.avg_loss_pct || 0).toFixed(1)}%`;
 
     const countActiveEl = document.getElementById("jCountActive");
+    const countWonEl = document.getElementById("jCountWon");
+    const countLostEl = document.getElementById("jCountLost");
     const countClosedEl = document.getElementById("jCountClosed");
     const countAllEl = document.getElementById("jCountAll");
     if (countActiveEl) countActiveEl.textContent = activeEntries.length;
+    if (countWonEl) countWonEl.textContent = wonEntries.length;
+    if (countLostEl) countLostEl.textContent = lostEntries.length;
     if (countClosedEl) countClosedEl.textContent = closedEntries.length;
     if (countAllEl) countAllEl.textContent = entries.length;
 
@@ -3149,16 +3185,25 @@ async function loadAndRenderJournal() {
     let filteredEntries = entries;
     if (journalCurrentFilter === "ACTIVE") {
       filteredEntries = activeEntries;
+    } else if (journalCurrentFilter === "WON") {
+      filteredEntries = wonEntries;
+    } else if (journalCurrentFilter === "LOST") {
+      filteredEntries = lostEntries;
     } else if (journalCurrentFilter === "CLOSED") {
       filteredEntries = closedEntries;
     }
 
     if (filteredEntries.length === 0) {
-      const emptyMsg = journalCurrentFilter === "ACTIVE"
-        ? "No hay oportunidades activas en seguimiento en este momento."
-        : (journalCurrentFilter === "CLOSED"
-          ? "No hay oportunidades cerradas registradas."
-          : "Aún no hay señales registradas en el diario.");
+      let emptyMsg = "Aún no hay señales registradas en el diario.";
+      if (journalCurrentFilter === "ACTIVE") {
+        emptyMsg = "No hay oportunidades activas en seguimiento en este momento.";
+      } else if (journalCurrentFilter === "WON") {
+        emptyMsg = "Aún no hay oportunidades cerradas en Take Profit.";
+      } else if (journalCurrentFilter === "LOST") {
+        emptyMsg = "No hay oportunidades cerradas en Stop Loss.";
+      } else if (journalCurrentFilter === "CLOSED") {
+        emptyMsg = "No hay oportunidades cerradas registradas.";
+      }
       container.innerHTML = `
         <div class="journal-empty-box">
           <p style="font-size: 1.1rem; font-weight: 600; color: #f4efe6; margin-bottom: 8px;">${emptyMsg}</p>
@@ -3201,6 +3246,7 @@ async function loadAndRenderJournal() {
       };
       const originalStop = e.initial_stop_loss ?? (["ACTIVA", "STOP_EJECUTADO"].includes(e.status) ? e.stop_loss : null);
       const isClosed = !["ACTIVA", "TP1_ALCANZADO"].includes(e.status);
+      const isWon = e.result === "GANADA" || ["TP2_ALCANZADO", "BREAKEVEN_EJECUTADO"].includes(e.status);
 
       return `
         <div class="journal-entry-card">
@@ -3209,13 +3255,23 @@ async function loadAndRenderJournal() {
               <span class="j-asset-tab">${e.tab}</span>
               <span class="j-asset-ticker">${e.ticker}</span>
             </div>
-            <span class="j-asset-date">📅 ${e.signal_date}</span>
+            <span class="j-asset-date">📅 Entrada: ${e.signal_date}</span>
+            ${isClosed && e.closed_date ? `<span class="j-asset-date" style="color: #cbd5e1;">🏁 Cierre: ${e.closed_date}</span>` : ""}
+            ${!isClosed && e.tp1_hit_date ? `<span class="j-asset-date text-green">🎯 TP1 tocado: ${e.tp1_hit_date}</span>` : ""}
           </div>
 
           <div class="j-signal-col">
             <span class="j-signal-label">${e.signal_label}</span>
             <span class="j-signal-sub">Score inicial: <strong>${e.score}/100</strong> • RSI: ${e.rsi || '--'}</span>
             <span class="j-signal-sub">Periodo registrado: ${escapeHtml(e.period || "No registrado")}</span>
+            ${e.exit_reason ? `
+              <div class="j-entry-exit-reason ${isWon ? 'j-exit-win' : 'j-exit-loss'}">
+                <strong>${isWon ? '🏆 Salida en TP' : '🛑 Salida en Stop'}:</strong> ${escapeHtml(e.exit_reason)}
+              </div>` : ""}
+            ${!isClosed && e.advice ? `
+              <div class="j-entry-exit-reason j-exit-info">
+                💡 ${escapeHtml(e.advice)}
+              </div>` : ""}
           </div>
 
           <div class="j-prices-col">
@@ -3228,7 +3284,7 @@ async function loadAndRenderJournal() {
               <span>${originalStop !== null ? formatPrice(originalStop, fmtRef) : "No registrado"}</span>
             </div>
             <div class="j-prices-row">
-              <span class="j-prices-label">Stop actual:</span>
+              <span class="j-prices-label">${isClosed ? 'Stop salida:' : 'Stop actual:'}</span>
               <span>${formatPrice(e.stop_loss, fmtRef)}</span>
             </div>
             <div class="j-prices-row">
@@ -3236,8 +3292,8 @@ async function loadAndRenderJournal() {
               <span>${formatPrice(e.tp1, fmtRef)} / ${formatPrice(e.tp2, fmtRef)}</span>
             </div>
             <div class="j-prices-row">
-              <span class="j-prices-label">Actual:</span>
-              <span style="font-weight: 700;">${formatPrice(e.current_price || e.entry_price, fmtRef)}</span>
+              <span class="j-prices-label">${isClosed ? 'Precio cierre:' : 'Actual:'}</span>
+              <span style="font-weight: 700;">${formatPrice(isClosed ? (e.stop_loss || e.current_price) : (e.current_price || e.entry_price), fmtRef)}</span>
             </div>
           </div>
 
@@ -3245,6 +3301,7 @@ async function loadAndRenderJournal() {
             <span class="j-return-val ${retColor}">${retSign}${ret.toFixed(1)}%</span>
             <span class="j-status-badge ${badgeClass}">${badgeLabel}</span>
             <span style="font-size: 0.68rem; color: #756c60;">Máx: +${maxRet.toFixed(1)}%</span>
+            ${isClosed ? `<span class="j-result-pill ${isWon ? 'pill-green' : 'pill-red'}">${isWon ? 'Ganada (TP)' : 'En Stop'}</span>` : ""}
           </div>
 
           <div class="j-entry-actions">

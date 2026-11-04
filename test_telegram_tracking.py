@@ -214,5 +214,69 @@ class CurrentMarketContextTests(unittest.TestCase):
         self.assertIn("⚠️ *Cotización desactualizada*", advice)
 
 
+class HistorialCommandTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "journal.json"
+        patcher = patch.object(journal, "JOURNAL_PATH", str(self.path))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_handle_historial_filters_won_and_lost_correctly(self):
+        entries = [
+            {
+                "id": "e_won", "ticker": "NVDA", "tab": "NVDA", "status": "TP2_ALCANZADO",
+                "result": "GANADA", "entry_price": 100, "current_price": 120, "final_return_pct": 15.0,
+                "signal_date": "2026-11-01 10:00:00", "closed_date": "2026-11-03 14:00:00",
+                "exit_reason": "TP2 alcanzado exitosamente"
+            },
+            {
+                "id": "e_lost", "ticker": "CEG", "tab": "CEG", "status": "STOP_EJECUTADO",
+                "result": "PERDIDA", "entry_price": 260, "stop_loss": 240, "final_return_pct": -7.7,
+                "signal_date": "2026-11-01 10:00:00", "closed_date": "2026-11-04 16:00:00",
+                "exit_reason": "Stop Loss alcanzado en $240.00"
+            },
+            {
+                "id": "e_act", "ticker": "AMD", "tab": "AMD", "status": "ACTIVA",
+                "result": "EN_CURSO", "entry_price": 500, "current_price": 490, "current_return_pct": -2.0,
+                "stop_loss": 450, "tp1": 550, "signal_date": "2026-11-02 10:00:00"
+            }
+        ]
+        self.path.write_text(json.dumps({"entries": entries, "stats": journal.calculate_journal_stats(entries)}), encoding="utf-8")
+
+        # 1. Test filtro GANADAS (WON)
+        with patch.object(bot, "send_telegram_message") as send:
+            bot.handle_historial("unused", "chat1", filter_mode="WON")
+            msg = send.call_args.args[2]
+            self.assertIn("REGISTRO DE OPERACIONES GANADAS", msg)
+            self.assertIn("NVDA", msg)
+            self.assertIn("+15.0%", msg)
+            self.assertNotIn("CEG", msg)
+
+        # 2. Test filtro STOP LOSS (LOST)
+        with patch.object(bot, "send_telegram_message") as send:
+            bot.handle_historial("unused", "chat1", filter_mode="LOST")
+            msg = send.call_args.args[2]
+            self.assertIn("REGISTRO DE OPERACIONES EN STOP LOSS", msg)
+            self.assertIn("CEG", msg)
+            self.assertIn("-7.7%", msg)
+            self.assertNotIn("NVDA", msg)
+
+        # 3. Test comando interactivo /tp y /sl
+        with patch.object(bot, "send_telegram_message") as send:
+            bot.process_user_telegram_command("unused", "chat1", "/tp")
+            self.assertIn("REGISTRO DE OPERACIONES GANADAS", send.call_args.args[2])
+
+        with patch.object(bot, "send_telegram_message") as send:
+            bot.process_user_telegram_command("unused", "chat1", "/sl")
+            self.assertIn("REGISTRO DE OPERACIONES EN STOP LOSS", send.call_args.args[2])
+
+        # 4. Test callback query hist:WON
+        with patch.object(bot, "send_telegram_message") as send, patch.object(bot, "answer_callback_query"):
+            bot.process_callback_query("unused", "chat1", "cb1", "hist:WON")
+            self.assertIn("REGISTRO DE OPERACIONES GANADAS", send.call_args.args[2])
+
+
 if __name__ == "__main__":
     unittest.main()

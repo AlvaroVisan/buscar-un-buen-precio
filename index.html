@@ -349,22 +349,22 @@
     <section class="journal-section" id="journalSection" style="display: none;">
       <!-- Stats KPIs -->
       <div class="journal-kpi-grid">
-        <div class="journal-kpi-card highlight-winrate">
+        <div class="journal-kpi-card highlight-winrate" id="kpiCardJournalWinRate" title="Click para ver oportunidades en seguimiento" style="cursor: pointer;">
           <span class="j-kpi-label">🎯 Balance de Acierto</span>
           <div class="j-kpi-val" id="jStatWinRate">0.0%</div>
           <span class="j-kpi-sub" id="jStatWinRateSub">0.0% Ganadas · 0.0% en Stop</span>
         </div>
-        <div class="journal-kpi-card">
+        <div class="journal-kpi-card" id="kpiCardJournalTotal" title="Click para ver todas las oportunidades registradas" style="cursor: pointer;">
           <span class="j-kpi-label">📦 Oportunidades Registradas</span>
           <div class="j-kpi-val" id="jStatTotal">0</div>
           <span class="j-kpi-sub" id="jStatActiveSub">0 activas en seguimiento</span>
         </div>
-        <div class="journal-kpi-card highlight-success">
+        <div class="journal-kpi-card highlight-success" id="kpiCardJournalWon" title="Click para ver solo las oportunidades Ganadas (TP)" style="cursor: pointer;">
           <span class="j-kpi-label">🏆 Ganadas (+)</span>
           <div class="j-kpi-val text-green" id="jStatWon">0</div>
           <span class="j-kpi-sub" id="jStatAvgWin">Acierto: 0.0% • Media: +0.0%</span>
         </div>
-        <div class="journal-kpi-card highlight-danger">
+        <div class="journal-kpi-card highlight-danger" id="kpiCardJournalLost" title="Click para ver solo las oportunidades en Stop Loss" style="cursor: pointer;">
           <span class="j-kpi-label">🛑 En Stop Loss (-)</span>
           <div class="j-kpi-val text-red" id="jStatLost">0</div>
           <span class="j-kpi-sub" id="jStatAvgLoss">Fallo: 0.0% • Media: -0.0%</span>
@@ -380,6 +380,12 @@
         <div class="journal-filter-group" id="journalFilterGroup">
           <button class="journal-filter-btn active" id="btnJFilterActive" data-filter="ACTIVE" type="button">
             🟢 En seguimiento (<span id="jCountActive">0</span>)
+          </button>
+          <button class="journal-filter-btn" id="btnJFilterWon" data-filter="WON" type="button">
+            🏆 Ganadas TP (<span id="jCountWon">0</span>)
+          </button>
+          <button class="journal-filter-btn" id="btnJFilterLost" data-filter="LOST" type="button">
+            🛑 En Stop Loss (<span id="jCountLost">0</span>)
           </button>
           <button class="journal-filter-btn" id="btnJFilterClosed" data-filter="CLOSED" type="button">
             📁 Cerradas (<span id="jCountClosed">0</span>)
