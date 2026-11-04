@@ -464,6 +464,24 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
+        if route == "/api/journal/archive":
+            try:
+                import journal_manager
+                result = journal_manager.archive_journal_entries(
+                    entry_ids=post_data.get("ids"),
+                    clear_closed=post_data.get("clear_closed", False),
+                    archived=post_data.get("archived", True))
+                code, payload = 200, {"success": True, **result}
+            except ValueError as e:
+                code, payload = 400, {"error": str(e)}
+            except Exception as e:
+                code, payload = 500, {"error": str(e)}
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+            return
+
         if route == "/api/journal/remove":
             try:
                 import journal_manager

@@ -42,6 +42,19 @@ class LocalServerTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_archive_endpoint_and_validation(self):
+        headers = {"Content-Type": "application/json"}
+        with patch("journal_manager.archive_journal_entries", return_value={"changed_ids": ["loss"], "journal": {}}) as archive:
+            status, _, body = self.request("POST", "/api/journal/archive", headers, '{"ids":["loss"]}')
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(body)["changed_ids"], ["loss"])
+            archive.assert_called_once_with(entry_ids=["loss"], clear_closed=False, archived=True)
+        with patch("journal_manager.archive_journal_entries", side_effect=ValueError("Invalid")):
+            self.assertEqual(self.request("POST", "/api/journal/archive", headers, '{}')[0], 400)
+        with patch("journal_manager.archive_journal_entries") as archive:
+            self.assertEqual(self.request("POST", "/api/journal/archive", {**headers, "Origin": "https://example.com"}, '{}')[0], 403)
+            archive.assert_not_called()
+
     def test_local_panel_and_security_headers(self):
         self.assertEqual(self.server.server_address[0], "127.0.0.1")
         for host in ("localhost", "127.0.0.1"):

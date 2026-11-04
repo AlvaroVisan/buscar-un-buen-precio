@@ -8,10 +8,21 @@ y hace seguimiento de su evolución (Stop Loss, TP1, TP2, retorno máximo alcanz
 import os
 import json
 import time
+import threading
+from functools import wraps
 from datetime import datetime
 
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 JOURNAL_PATH = os.path.join(DIRECTORY, "journal.json")
+_JOURNAL_LOCK = threading.RLock()
+
+
+def _locked(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        with _JOURNAL_LOCK:
+            return function(*args, **kwargs)
+    return wrapped
 
 def load_journal():
     """
@@ -122,6 +133,30 @@ def calculate_journal_stats(entries):
     }
 
 
+@_locked
+def archive_journal_entries(entry_ids=None, clear_closed=False, archived=True):
+    """Oculta/restaura cierres sin excluirlos de las estadísticas."""
+    if not isinstance(archived, bool) or not isinstance(clear_closed, bool):
+        raise ValueError("Acción de archivo incorrecta")
+    if not clear_closed and (not isinstance(entry_ids, list) or not entry_ids):
+        raise ValueError("Selecciona las señales que quieres archivar o restaurar")
+    journal = load_journal()
+    ids = {str(value) for value in (entry_ids or [])}
+    changed_ids = []
+    for entry in journal.get("entries", []):
+        if entry.get("status") in ("ACTIVA", "TP1_ALCANZADO"):
+            continue
+        if (clear_closed or str(entry.get("id")) in ids) and bool(entry.get("archived")) != archived:
+            entry["archived"] = archived
+            changed_ids.append(str(entry["id"]))
+    journal["stats"] = calculate_journal_stats(journal.get("entries", []))
+    journal["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if not save_journal(journal):
+        raise OSError("No se pudo guardar el Diario")
+    return {"journal": journal, "changed_ids": changed_ids}
+
+
+@_locked
 def remove_journal_entry(entry_id=None, clear_closed=False):
     """
     Elimina una oportunidad del diario por ID o limpia todas las cerradas.
@@ -133,12 +168,14 @@ def remove_journal_entry(entry_id=None, clear_closed=False):
     if clear_closed:
         entries = [e for e in entries if e.get("status") in ("ACTIVA", "TP1_ALCANZADO")]
     elif entry_id:
-        entries = [e for e in entries if str(e.get("id")) != str(entry_id)]
+        entries = [e for e in entries if str(e.get("id")) != str(entry_id)
+                   or e.get("status") in ("ACTIVA", "TP1_ALCANZADO")]
 
     journal["entries"] = entries
     journal["stats"] = calculate_journal_stats(entries)
     journal["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    save_journal(journal)
+    if not save_journal(journal):
+        raise OSError("No se pudo guardar el Diario")
     return journal
 
 
@@ -216,6 +253,7 @@ def _evaluate_price_point(trade, high_p, low_p, close_p, event_date_str):
         trade["advice"] = "TP 1 alcanzado. Stop Loss movido automáticamente a Precio de Entrada (Break-Even) para riesgo cero."
 
 
+@_locked
 def update_journal_with_market_data(market_data_list, histories=None):
     """
     Sincroniza el diario de trading:

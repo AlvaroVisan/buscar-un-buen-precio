@@ -32,6 +32,34 @@ class JournalUpdateTests(unittest.TestCase):
     def seed(self, entries):
         self.path.write_text(json.dumps({"entries": entries}), encoding="utf-8")
 
+    def test_archive_restore_keeps_loss_and_active_trade(self):
+        loss = {**open_trade("CEG", 100), "id": "loss", "status": "STOP_EJECUTADO",
+                "result": "PERDIDA", "final_return_pct": -10}
+        active = open_trade("CEG", 100)
+        self.seed([loss, active])
+        original_stats = journal.calculate_journal_stats([loss, active])
+        result = journal.archive_journal_entries(clear_closed=True)
+        self.assertEqual(result["changed_ids"], ["loss"])
+        self.assertEqual(result["journal"]["stats"], original_stats)
+        self.assertTrue(result["journal"]["entries"][0]["archived"])
+        self.assertNotIn("archived", result["journal"]["entries"][1])
+        journal.update_journal_with_market_data([{"ticker": "CEG", "current_price": 101}])
+        self.assertTrue(journal.load_journal()["entries"][0]["archived"])
+        result = journal.archive_journal_entries(entry_ids=["loss"], archived=False)
+        self.assertEqual(result["changed_ids"], ["loss"])
+        self.assertEqual(result["journal"]["stats"], original_stats)
+        self.assertFalse(result["journal"]["entries"][0]["archived"])
+        self.assertEqual(journal.archive_journal_entries(entry_ids=["loss"], archived=False)["changed_ids"], [])
+
+    def test_archive_skips_active_and_reports_save_failure(self):
+        self.seed([open_trade("CEG", 100)])
+        self.assertEqual(journal.archive_journal_entries(entry_ids=["existing_CEG"])["changed_ids"], [])
+        with patch.object(journal, "save_journal", return_value=False):
+            with self.assertRaises(OSError):
+                journal.archive_journal_entries(clear_closed=True)
+        with self.assertRaises(ValueError):
+            journal.archive_journal_entries(entry_ids=["existing_CEG"], archived="false")
+
     def test_new_signals_do_not_displace_existing_trades(self):
         items = [
             {"ticker": "NEW", "current_price": 50, "score": 80},

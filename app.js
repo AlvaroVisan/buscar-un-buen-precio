@@ -142,59 +142,47 @@ function setupEventListeners() {
     });
   }
 
-  // Limpiar todas las oportunidades cerradas del Diario
+  // Archivar conserva el resultado; borrar exige una confirmación explícita.
   const btnClearClosedJournal = document.getElementById("btnClearClosedJournal");
   if (btnClearClosedJournal) {
-    btnClearClosedJournal.addEventListener("click", async () => {
-      if (confirm("¿Quitar todas las oportunidades cerradas del listado? El balance histórico de aciertos y fallos se conservará intacto.")) {
-        try {
-          const resp = await fetch("/api/journal/remove", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ clear_closed: true })
-          });
-          if (!resp.ok) throw new Error("Error en servidor al limpiar cerradas");
-          await loadAndRenderJournal();
-          showToast("Oportunidades cerradas retiradas de la lista 🧹");
-        } catch (e) {
-          showToast("Error al limpiar cerradas: " + e.message);
-        }
-      }
-    });
+    btnClearClosedJournal.addEventListener("click", () => archiveJournal({ clear_closed: true }));
   }
-
-  // Delegación de eventos para quitar entradas individuales del Diario
+  const undoArchive = document.getElementById("btnUndoJournalArchive");
+  if (undoArchive) undoArchive.addEventListener("click", async () => {
+    if (!journalUndoIds.length) return;
+    await archiveJournal({ ids: [...journalUndoIds], archived: false });
+  });
   const jEntriesContainer = document.getElementById("journalEntriesContainer");
-  if (jEntriesContainer) {
-    jEntriesContainer.addEventListener("click", async (e) => {
-      const removeBtn = e.target.closest(".btn-remove-journal");
-      if (removeBtn && removeBtn.dataset.id) {
-        e.preventDefault();
-        const entryId = removeBtn.dataset.id;
-        if (confirm("¿Quitar esta oportunidad cerrada del diario?")) {
-          try {
-            const resp = await fetch("/api/journal/remove", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: entryId })
-            });
-            if (!resp.ok) throw new Error("Error al retirar la entrada");
-            await loadAndRenderJournal();
-            showToast("Oportunidad retirada del diario 🗑️");
-          } catch (err) {
-            showToast("Error: " + err.message);
-          }
-        }
+  if (jEntriesContainer) jEntriesContainer.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-journal-action]");
+    if (!button || button.disabled) return;
+    const id = button.dataset.id;
+    const action = button.dataset.journalAction;
+    if (!id) return;
+    button.disabled = true;
+    try {
+      if (action === "delete") {
+        if (!confirm("¿Borrar definitivamente esta señal? Su resultado también se eliminará de las estadísticas. Esta acción no se puede deshacer. Para conservarlo, usa Archivar.")) return;
+        await journalRequest("/api/journal/remove", { id });
+        journalUndoIds = journalUndoIds.filter(value => value !== id);
+        document.getElementById("journalArchiveNotice").hidden = !journalUndoIds.length;
+        await loadAndRenderJournal();
+        showToast("Señal borrada y estadísticas recalculadas");
+      } else {
+        await archiveJournal({ ids: [id], archived: action === "archive" });
       }
-    });
-  }
+    } catch (error) { showToast(error.message); }
+    finally { button.disabled = false; }
+  });
 
   const btnResetJournal = document.getElementById("btnResetJournal");
   if (btnResetJournal) {
     btnResetJournal.addEventListener("click", async () => {
       if (confirm("¿Borrar las señales del Diario y sus estadísticas? Esta acción no modifica tu cartera real.")) {
         try {
-          await fetch("/api/journal/reset", { method: "POST" });
+          await journalRequest("/api/journal/reset", {});
+          journalUndoIds = [];
+          document.getElementById("journalArchiveNotice").hidden = true;
           await loadAndRenderJournal();
           showToast("Diario de trading reiniciado.");
         } catch (e) {
@@ -3126,6 +3114,44 @@ function recalcPartialSell() {
   }
 }
 
+let journalUndoIds = [];
+let journalArchiveBusy = false;
+
+async function journalRequest(url, body) {
+  const response = await fetch(url, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json();
+  if (!response.ok || !data.success) throw new Error(data.error || "No se pudo guardar el cambio en el Diario");
+  return data;
+}
+
+async function archiveJournal(body) {
+  if (journalArchiveBusy) return;
+  journalArchiveBusy = true;
+  try {
+    const data = await journalRequest("/api/journal/archive", body);
+    const restoring = body.archived === false;
+    if (data.changed_ids.length) {
+      journalUndoIds = restoring ? journalUndoIds.filter(id => !data.changed_ids.includes(id)) : data.changed_ids;
+    }
+    document.getElementById("journalArchiveNotice").hidden = !journalUndoIds.length;
+    document.getElementById("journalArchiveMessage").textContent = `${journalUndoIds.length} señal(es) archivada(s). Sus resultados siguen contando.`;
+    await loadAndRenderJournal();
+    showToast(data.changed_ids.length ? (restoring ? "Señales restauradas" : "Archivado guardado · Estadísticas conservadas") : "No hay señales que cambiar");
+  } catch (error) { showToast(error.message); }
+  finally { journalArchiveBusy = false; }
+}
+
+function journalExitSummary(entry, fmtRef) {
+  const price = value => value == null ? "No registrado" : formatPrice(value, fmtRef);
+  if (entry.status === "TP2_ALCANZADO") return `50 % en TP1: ${price(entry.tp1)} · 50 % en TP2: ${price(entry.tp2)}`;
+  if (entry.status === "BREAKEVEN_EJECUTADO") return `50 % en TP1: ${price(entry.tp1)} · 50 % en la entrada: ${price(entry.entry_price)}`;
+  if (entry.status === "STOP_EJECUTADO") return `100 % en el stop: ${price(entry.stop_loss)}`;
+  return "Salida simulada no registrada";
+}
+
 async function loadAndRenderJournal() {
   const container = document.getElementById("journalEntriesContainer");
   if (!container) return;
@@ -3158,36 +3184,21 @@ async function loadAndRenderJournal() {
     const lossRate = lossRateNum.toFixed(1);
 
     if (elWinRate) {
-      if (closedEntries.length === 0) {
-        elWinRate.textContent = "0.0%";
-        elWinRate.className = "j-kpi-val";
-        if (elWinRateSub) elWinRateSub.textContent = "0.0% Ganadas · 0.0% en Stop";
-      } else if (wonEntries.length === 0 && lostEntries.length > 0) {
-        // Todo en pérdidas por ahora: porcentaje de balance en negativo y en rojo
-        elWinRate.textContent = `-${lossRate}%`;
-        elWinRate.className = "j-kpi-val text-red";
-        if (elWinRateSub) elWinRateSub.textContent = `0.0% Ganadas · ${lossRate}% en Stop`;
-      } else if (wonEntries.length > 0 && lostEntries.length === 0) {
-        elWinRate.textContent = `+${winRate}%`;
-        elWinRate.className = "j-kpi-val text-green";
-        if (elWinRateSub) elWinRateSub.textContent = `${winRate}% Ganadas · 0.0% en Stop`;
-      } else {
-        const net = (winRateNum - lossRateNum).toFixed(1);
-        const sign = net > 0 ? "+" : "";
-        elWinRate.textContent = `${sign}${net}%`;
-        elWinRate.className = `j-kpi-val ${net >= 0 ? "text-green" : "text-red"}`;
-        if (elWinRateSub) elWinRateSub.textContent = `${winRate}% Ganadas · ${lossRate}% en Stop`;
-      }
+      elWinRate.textContent = closedEntries.length ? `${winRate}%` : "—";
+      elWinRate.className = "j-kpi-val";
+      if (elWinRateSub) elWinRateSub.textContent = closedEntries.length
+        ? `${wonEntries.length} con beneficio de ${closedEntries.length} cerradas · Incluye archivadas`
+        : "Sin señales cerradas todavía";
     }
 
     if (elTotal) elTotal.textContent = `${stats.total_opportunities || 0}`;
     if (elActiveSub) elActiveSub.textContent = `${stats.active_count || activeEntries.length} activas en seguimiento`;
     if (elWon) elWon.textContent = `${stats.total_won || wonEntries.length}`;
-    if (elAvgWin) elAvgWin.textContent = `Acierto: ${winRate}% • Media: +${(stats.avg_win_pct || 0).toFixed(1)}%`;
+    if (elAvgWin) elAvgWin.textContent = `Ganancia media: +${(stats.avg_win_pct || 0).toFixed(1)}% · ${winRate}% de las cerradas`;
     if (elLost) elLost.textContent = `${stats.total_lost || lostEntries.length}`;
     if (elAvgLoss) {
       const avgLossVal = typeof stats.avg_loss_pct === "number" ? stats.avg_loss_pct : 0;
-      elAvgLoss.textContent = `Fallo: ${lossRate}% • Media: ${avgLossVal >= 0 && avgLossVal !== 0 ? '-' : ''}${avgLossVal.toFixed(1)}%`;
+      elAvgLoss.textContent = `Pérdida media: ${avgLossVal.toFixed(1)}% · ${lossRate}% de las cerradas`;
     }
 
     const countActiveEl = document.getElementById("jCountActive");
@@ -3206,17 +3217,10 @@ async function loadAndRenderJournal() {
     });
 
     const journalBadge = document.getElementById("journalStatsPill");
-    if (journalBadge) {
-      if (closedEntries.length === 0) {
-        journalBadge.textContent = "Balance: 0.0%";
-      } else if (wonEntries.length === 0 && lostEntries.length > 0) {
-        journalBadge.textContent = `Balance: -${lossRate}%`;
-      } else {
-        const net = (winRateNum - lossRateNum).toFixed(1);
-        const sign = net > 0 ? "+" : "";
-        journalBadge.textContent = `Balance: ${sign}${net}%`;
-      }
-    }
+    if (journalBadge) journalBadge.textContent = closedEntries.length ? `Acierto: ${winRate}%` : "Sin cierres";
+    const archivedEntries = closedEntries.filter(entry => entry.archived);
+    const archiveCount = document.getElementById("jCountArchived");
+    if (archiveCount) archiveCount.textContent = archivedEntries.length;
 
     let filteredEntries = entries;
     if (journalCurrentFilter === "ACTIVE") {
@@ -3227,6 +3231,15 @@ async function loadAndRenderJournal() {
       filteredEntries = lostEntries;
     } else if (journalCurrentFilter === "CLOSED") {
       filteredEntries = closedEntries;
+    }
+
+    // Los contadores y KPI incluyen el historial completo; las vistas habituales ocultan archivadas.
+    if (journalCurrentFilter === "ARCHIVED") filteredEntries = archivedEntries;
+    else if (journalCurrentFilter !== "ALL") filteredEntries = filteredEntries.filter(entry => !entry.archived);
+    const visibleCounts = { WON: wonEntries, LOST: lostEntries, CLOSED: closedEntries };
+    for (const [filter, list] of Object.entries(visibleCounts)) {
+      const count = document.getElementById({ WON: "jCountWon", LOST: "jCountLost", CLOSED: "jCountClosed" }[filter]);
+      if (count) count.textContent = list.filter(entry => !entry.archived).length;
     }
 
     if (filteredEntries.length === 0) {
@@ -3240,10 +3253,11 @@ async function loadAndRenderJournal() {
       } else if (journalCurrentFilter === "CLOSED") {
         emptyMsg = "No hay oportunidades cerradas registradas.";
       }
+      if (journalCurrentFilter === "ARCHIVED") emptyMsg = "No hay señales archivadas. Archivar despeja el listado sin borrar resultados.";
       container.innerHTML = `
         <div class="journal-empty-box">
           <p style="font-size: 1.1rem; font-weight: 600; color: #f4efe6; margin-bottom: 8px;">${emptyMsg}</p>
-          <p style="font-size: 0.85rem; color: #a89f91; margin: 0;">Cada vez que un activo entre en la <strong>Zona Áurea (61.8%)</strong> o su <strong>Score de Confluencia sea ≥ 70</strong>, se registrará aquí automáticamente para medir la rentabilidad alcanzada.</p>
+          <p style="font-size: 0.85rem; color: #a89f91; margin: 0;">Las señales se añaden automáticamente con los datos de mercado. El filtro <strong>Todas</strong> incluye también las archivadas.</p>
         </div>
       `;
       return;
@@ -3288,16 +3302,16 @@ async function loadAndRenderJournal() {
         <div class="journal-entry-card">
           <div class="j-asset-col">
             <div class="j-asset-header">
-              <span class="j-asset-tab">${e.tab}</span>
-              <span class="j-asset-ticker">${e.ticker}</span>
+              <span class="j-asset-tab">${escapeHtml(e.tab)}</span>
+              <span class="j-asset-ticker">${escapeHtml(e.ticker)}</span>
             </div>
-            <span class="j-asset-date">📅 Entrada: ${e.signal_date}</span>
-            ${isClosed && e.closed_date ? `<span class="j-asset-date" style="color: #cbd5e1;">🏁 Cierre: ${e.closed_date}</span>` : ""}
+            <span class="j-asset-date">📅 Entrada: ${escapeHtml(e.signal_date)}</span>
+            ${isClosed && e.closed_date ? `<span class="j-asset-date" style="color: #cbd5e1;">🏁 Cierre: ${escapeHtml(e.closed_date)}</span>` : ""}
             ${!isClosed && e.tp1_hit_date ? `<span class="j-asset-date text-green">🎯 TP1 tocado: ${e.tp1_hit_date}</span>` : ""}
           </div>
 
           <div class="j-signal-col">
-            <span class="j-signal-label">${e.signal_label}</span>
+            <span class="j-signal-label">${escapeHtml(e.signal_label)}</span>
             <span class="j-signal-sub">Score inicial: <strong>${e.score}/100</strong> • RSI: ${e.rsi || '--'}</span>
             <span class="j-signal-sub">Periodo registrado: ${escapeHtml(e.period || "No registrado")}</span>
             ${e.exit_reason ? `
@@ -3328,8 +3342,8 @@ async function loadAndRenderJournal() {
               <span>${formatPrice(e.tp1, fmtRef)} / ${formatPrice(e.tp2, fmtRef)}</span>
             </div>
             <div class="j-prices-row">
-              <span class="j-prices-label">${isClosed ? 'Precio cierre:' : 'Actual:'}</span>
-              <span style="font-weight: 700;">${formatPrice(isClosed ? (e.stop_loss || e.current_price) : (e.current_price || e.entry_price), fmtRef)}</span>
+              <span class="j-prices-label">${isClosed ? 'Salida simulada:' : 'Actual:'}</span>
+              <span style="font-weight: 700;">${isClosed ? journalExitSummary(e, fmtRef) : formatPrice(e.current_price || e.entry_price, fmtRef)}</span>
             </div>
           </div>
 
@@ -3337,14 +3351,16 @@ async function loadAndRenderJournal() {
             <span class="j-return-val ${retColor}">${retSign}${ret.toFixed(1)}%</span>
             <span class="j-status-badge ${badgeClass}">${badgeLabel}</span>
             <span style="font-size: 0.68rem; color: #756c60;">Máx: +${maxRet.toFixed(1)}%</span>
-            ${isClosed ? `<span class="j-result-pill ${isWon ? 'pill-green' : 'pill-red'}">${isWon ? 'Con beneficio' : 'En Stop'}</span>` : ""}
+            ${isClosed ? `<span class="j-result-pill ${isWon ? 'pill-green' : 'pill-red'}">${isWon ? 'Con beneficio' : 'Con pérdida'}</span>` : ""}
           </div>
 
           <div class="j-entry-actions">
             <a href="${tvUrl}" target="_blank" class="btn btn-secondary btn-sm" title="Abrir gráfico en TradingView">
               📊 Gráfico
             </a>
-            ${isClosed ? `<button type="button" class="btn btn-secondary btn-sm btn-danger-soft btn-remove-journal" data-id="${e.id}" title="Quitar del diario">🗑️ Quitar</button>` : ""}
+            ${e.archived ? '<span class="j-signal-sub">Archivada · Incluida en estadísticas</span>' : ""}
+            ${isClosed ? `<button type="button" class="btn btn-secondary btn-sm" data-journal-action="${e.archived ? 'restore' : 'archive'}" data-id="${escapeHtml(e.id)}">${e.archived ? 'Restaurar' : 'Archivar'}</button>` : ""}
+            ${isClosed && e.archived ? `<button type="button" class="btn btn-secondary btn-sm btn-danger-soft" data-journal-action="delete" data-id="${escapeHtml(e.id)}">Borrar definitivamente</button>` : ""}
           </div>
         </div>
       `;

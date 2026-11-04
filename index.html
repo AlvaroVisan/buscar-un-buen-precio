@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <meta name="theme-color" content="#090909">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261104-v6">
+  <link rel="stylesheet" href="style.css?v=20261104-v7">
 </head>
 <body>
   <div class="app-container">
@@ -222,7 +222,7 @@
             <span class="mode-tab-title">Diario</span>
             <span class="mode-tab-sub">Historial & Tasa de Acierto</span>
           </span>
-          <span class="mode-pill-stat" id="journalStatsPill">Balance: 0%</span>
+          <span class="mode-pill-stat" id="journalStatsPill">Sin cierres</span>
         </button>
 
         <button class="mode-tab-btn" id="btnModePortfolio" data-mode="PORTFOLIO">
@@ -350,9 +350,9 @@
       <!-- Stats KPIs -->
       <div class="journal-kpi-grid">
         <div class="journal-kpi-card highlight-winrate" id="kpiCardJournalWinRate" title="Click para ver oportunidades en seguimiento" style="cursor: pointer;">
-          <span class="j-kpi-label">🎯 Balance de aciertos</span>
+          <span class="j-kpi-label">🎯 Tasa de acierto</span>
           <div class="j-kpi-val" id="jStatWinRate">0.0%</div>
-          <span class="j-kpi-sub" id="jStatWinRateSub">0.0% Ganadas · 0.0% en Stop</span>
+          <span class="j-kpi-sub" id="jStatWinRateSub">Solo señales cerradas · Incluye archivadas</span>
         </div>
         <div class="journal-kpi-card" id="kpiCardJournalTotal" title="Click para ver todas las oportunidades registradas" style="cursor: pointer;">
           <span class="j-kpi-label">📦 Señales registradas</span>
@@ -390,13 +390,14 @@
           <button class="journal-filter-btn" id="btnJFilterClosed" data-filter="CLOSED" type="button">
             📁 Cerradas (<span id="jCountClosed">0</span>)
           </button>
+          <button class="journal-filter-btn" data-filter="ARCHIVED" type="button">Archivadas (<span id="jCountArchived">0</span>)</button>
           <button class="journal-filter-btn" id="btnJFilterAll" data-filter="ALL" type="button">
             Todas (<span id="jCountAll">0</span>)
           </button>
         </div>
         <div class="journal-actions">
-          <button id="btnClearClosedJournal" class="btn btn-secondary btn-sm" title="Quitar todas las oportunidades cerradas de la lista" type="button">
-            🧹 Limpiar cerradas
+          <button id="btnClearClosedJournal" class="btn btn-secondary btn-sm" title="Ocultar las señales cerradas conservando sus resultados" type="button">
+            🧹 Archivar cerradas
           </button>
           <button id="btnRefreshJournal" class="btn btn-secondary btn-sm" type="button">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -408,7 +409,9 @@
         </div>
       </div>
 
-      <p class="journal-method-note">Seguimiento simulado: se registra una señal al alcanzar o caer bajo el nivel Fibonacci del 61,8 % o un score ≥ 70. Se cierra el 50 % en TP1 y se mueve el stop del resto a la entrada; después, se cierra en TP2 o al volver a la entrada. El balance resta el porcentaje de pérdidas al de aciertos sobre las señales cerradas. No son operaciones de tu cartera real.</p>
+      <p class="journal-method-note">Seguimiento simulado: se registra una señal al alcanzar o caer bajo el nivel Fibonacci del 61,8 % o un score ≥ 70. Se cierra el 50 % en TP1 y se mueve el stop del resto a la entrada; después, se cierra en TP2 o al volver a la entrada. La tasa de acierto muestra qué porcentaje de señales cerradas terminó con beneficio. Archivar conserva sus resultados en las estadísticas. No son operaciones de tu cartera real.</p>
+
+      <div id="journalArchiveNotice" class="journal-archive-notice" role="status" hidden><span id="journalArchiveMessage"></span><button id="btnUndoJournalArchive" type="button" class="btn btn-secondary btn-sm">Deshacer</button></div>
 
       <!-- Journal Entries Container -->
       <div id="journalEntriesContainer" class="journal-entries-container">
@@ -1105,7 +1108,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20261104-v6"></script>
+  <script src="app.js?v=20261104-v7"></script>
   <script src="business.js?v=20261102-business-2"></script>
 </body>
 </html>

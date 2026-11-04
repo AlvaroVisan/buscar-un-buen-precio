@@ -4798,3 +4798,16 @@ input, select, textarea { accent-color: #ddd; }
 #journalSection .journal-filter-btn { white-space: normal; }
 .journal-method-note { margin: 0; padding: 14px 16px; border: 1px solid rgba(255,255,255,.08); border-radius: var(--radius-md); color: var(--text-secondary); font-size: .78rem; line-height: 1.7; }
 #journalSection .j-status-badge, #journalSection .j-kpi-sub { overflow-wrap: anywhere; white-space: normal; }
+
+.journal-archive-notice:not([hidden]) { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 16px; border: 1px solid var(--border-color, #333); border-radius: var(--radius-md); font-size: .85rem; color: var(--text-secondary); }
+#journalSection .j-prices-row { gap: 12px; align-items: flex-start; }
+#journalSection .j-prices-row > span:last-child { min-width: 0; overflow-wrap: anywhere; text-align: right; }
+#journalSection .journal-entry-card > div { min-width: 0; max-width: 100%; }
+#journalSection .j-asset-header { flex-wrap: wrap; }
+#journalSection .j-asset-tab, #journalSection .j-entry-exit-reason { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  #journalSection .journal-toolbar > div:first-child { flex: 0 1 auto; }
+  #journalSection .j-prices-col { width: 100%; min-width: 0; }
+  #journalSection .j-prices-row { white-space: normal; }
+  #journalSection .j-entry-actions { flex-wrap: wrap; }
+}
