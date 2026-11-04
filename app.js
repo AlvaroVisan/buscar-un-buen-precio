@@ -3716,11 +3716,12 @@ async function submitPortfolioAction() {
   const errBox = document.getElementById("pfModalError");
   const btnSubmit = document.getElementById("btnSubmitPortfolio");
 
+  const parseNum = (v) => parseFloat(String(v || "0").replace(",", "."));
   const ticker = tickerInp ? tickerInp.value.trim().toUpperCase() : "";
-  const shares = parseFloat(sharesInp ? sharesInp.value : "0");
-  const avg_price = parseFloat(priceInp ? priceInp.value : "0");
-  const custom_sl = slInp && slInp.value.trim() !== "" ? parseFloat(slInp.value) : null;
-  const custom_tp = tpInp && tpInp.value.trim() !== "" ? parseFloat(tpInp.value) : null;
+  const shares = parseNum(sharesInp ? sharesInp.value : "0");
+  const avg_price = parseNum(priceInp ? priceInp.value : "0");
+  const custom_sl = slInp && slInp.value.trim() !== "" ? parseNum(slInp.value) : null;
+  const custom_tp = tpInp && tpInp.value.trim() !== "" ? parseNum(tpInp.value) : null;
   const notes = notesInp ? notesInp.value.trim() : "";
   const merge = chkMerge ? chkMerge.checked : true;
 
@@ -3798,8 +3799,9 @@ function updatePfClosePreview() {
 
   const sharesInp = document.getElementById("pfCloseSharesInput");
   const priceInp = document.getElementById("pfClosePriceInput");
-  const qty = Math.min(Number(pos.shares || 0), Math.max(0, parseFloat(sharesInp ? sharesInp.value : "0") || 0));
-  const exitP = Math.max(0, parseFloat(priceInp ? priceInp.value : "0") || 0);
+  const parseNum = (v) => parseFloat(String(v || "0").replace(",", "."));
+  const qty = Math.min(Number(pos.shares || 0), Math.max(0, parseNum(sharesInp ? sharesInp.value : "0") || 0));
+  const exitP = Math.max(0, parseNum(priceInp ? priceInp.value : "0") || 0);
   const sym = pos.currency || "$";
 
   if (qty <= 0 || exitP <= 0) {
@@ -3828,8 +3830,9 @@ async function submitPortfolioCloseAction(rawDeleteOnly = false) {
   const errBox = document.getElementById("pfCloseError");
   const btnConfirm = document.getElementById("btnConfirmPfClose");
 
-  const sell_shares = rawDeleteOnly ? pos.shares : parseFloat(sharesInp ? sharesInp.value : "0");
-  const sell_price = rawDeleteOnly ? null : parseFloat(priceInp ? priceInp.value : "0");
+  const parseNum = (v) => parseFloat(String(v || "0").replace(",", "."));
+  const sell_shares = rawDeleteOnly ? pos.shares : parseNum(sharesInp ? sharesInp.value : "0");
+  const sell_price = rawDeleteOnly ? null : parseNum(priceInp ? priceInp.value : "0");
 
   if (!rawDeleteOnly && (!sell_shares || sell_shares <= 0 || !sell_price || sell_price <= 0)) {
     if (errBox) {
