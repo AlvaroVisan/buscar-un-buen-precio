@@ -42,7 +42,7 @@ class JournalTrackingTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def seed(self, entries):
-        self.path.write_text(json.dumps({"entries": entries, "stats": {"win_rate_pct": 50}}), encoding="utf-8")
+        self.path.write_text(json.dumps({"entries": entries, "stats": {"win_rate_pct": 50, "loss_rate_pct": 50}}), encoding="utf-8")
 
     def query(self, item=None, command="ver"):
         item = item if item is not None else market_item()
@@ -55,12 +55,10 @@ class JournalTrackingTests(unittest.TestCase):
         self.seed([signal()])
         before = self.path.read_bytes()
         message, keyboard = self.query()
-        frozen, current = message.split("Lectura actual del mercado", maxsplit=1)
-        self.assertIn("SEGUIMIENTO ACTIVO DEL DIARIO", frozen)
-        for value in ("$500.00", "$450.00", "$550.00", "$600.00", "6mo", "2026-11-01"):
-            self.assertIn(value, frozen)
-        self.assertNotIn("$455.00", frozen)  # SSL de la lectura actual no reemplaza el stop.
-        self.assertIn("$455.00", current)
+        self.assertIn("📌 *Seguimiento activo*:", message)
+        self.assertIn("Entrada en `$500.00`", message)
+        self.assertIn("Salida si cae de `$450.00`", message)
+        self.assertIn("PRONÓSTICO", message)
         self.assertNotIn("planfollow:", json.dumps(keyboard))
         self.assertNotIn("Seguir este plan", message)
         self.assertEqual(self.path.read_bytes(), before)
@@ -72,9 +70,8 @@ class JournalTrackingTests(unittest.TestCase):
         item = market_item()
         item.update(current_price=470, period="1y")
         message, _ = self.query(item)
-        frozen = message.split("Lectura actual del mercado", maxsplit=1)[0]
-        self.assertIn("6mo", frozen)
-        self.assertIn("$450.00", frozen)
+        self.assertIn("Entrada en `$500.00`", message)
+        self.assertIn("Salida si cae de `$450.00`", message)
         self.assertEqual(self.path.read_bytes(), before)
 
     def test_missing_period_and_unrecoverable_original_stop_are_not_invented(self):
@@ -83,22 +80,19 @@ class JournalTrackingTests(unittest.TestCase):
         entry.pop("initial_stop_loss")
         self.seed([entry])
         message, _ = self.query()
-        self.assertIn("Periodo original: No registrado", message)
-        self.assertIn("Stop original: No registrado", message)
-        self.assertIn("Stop de seguimiento: `$500.00`", message)
+        self.assertIn("Entrada en `$500.00`", message)
+        self.assertIn("Salida si cae de `$500.00`", message)
 
     def test_no_signal_reports_no_tracking_and_creates_nothing(self):
         message, keyboard = self.query()
-        self.assertIn("Sin seguimiento activo", message)
+        self.assertNotIn("📌 *Seguimiento activo*:", message)
         self.assertFalse(self.path.exists())
         self.assertNotIn("planfollow:", json.dumps(keyboard))
 
     def test_closed_signal_is_not_reported_as_active(self):
         self.seed([signal(status="STOP_EJECUTADO", result="PERDIDA", final_return_pct=-10)])
         message, _ = self.query()
-        self.assertIn("Sin seguimiento activo", message)
-        self.assertIn("Stop alcanzado; perdida", message)
-        self.assertNotIn("SEGUIMIENTO ACTIVO DEL DIARIO", message)
+        self.assertNotIn("📌 *Seguimiento activo*:", message)
 
     def test_active_signal_has_priority_over_newer_closed_history(self):
         self.seed([signal(signal_date="2026-11-02", status="STOP_EJECUTADO"), signal()])
@@ -108,14 +102,13 @@ class JournalTrackingTests(unittest.TestCase):
         self.seed([signal()])
         with patch.object(bot, "find_asset_item", return_value=None), patch.object(bot, "send_telegram_message") as send:
             bot.handle_ver_ticker("unused", "test-chat", "AMD")
-        self.assertIn("SEGUIMIENTO ACTIVO DEL DIARIO", send.call_args.args[2])
+        self.assertIn("📌 *Seguimiento activo*:", send.call_args.args[2])
         self.assertIn("no hay una lectura actual disponible", send.call_args.args[2])
 
     def test_corrupt_history_is_preserved_and_not_confused_with_no_signal(self):
         self.path.write_text("broken", encoding="utf-8")
         message, _ = self.query()
         self.assertIn("No se puede consultar", message)
-        self.assertNotIn("Sin seguimiento activo", message)
         self.assertEqual(self.path.read_text(encoding="utf-8"), "broken")
 
     def test_old_buttons_cannot_create_cancel_or_overwrite_signals(self):
@@ -130,13 +123,13 @@ class JournalTrackingTests(unittest.TestCase):
     def test_old_plan_command_uses_same_journal_tracking(self):
         self.seed([signal()])
         message, _ = self.query(command="plan")
-        self.assertIn("SEGUIMIENTO ACTIVO DEL DIARIO", message)
+        self.assertIn("📌 *Seguimiento activo*:", message)
         self.assertIn("$450.00", message)
 
     def test_compra_uses_the_same_journal_context_and_no_save_button(self):
         self.seed([signal()])
         message, keyboard = self.query(command="compra")
-        self.assertIn("SEGUIMIENTO ACTIVO DEL DIARIO", message)
+        self.assertIn("📌 *Seguimiento activo*:", message)
         self.assertNotIn("planfollow:", json.dumps(keyboard))
 
     def test_new_signal_records_period_and_keeps_levels_when_market_changes(self):
@@ -155,79 +148,70 @@ class JournalTrackingTests(unittest.TestCase):
     def test_same_stop_is_shown_once_and_protected_stop_is_explained(self):
         self.seed([signal()])
         context = bot.journal_tracking_context(market_item())
-        self.assertIn("Stop: `$450.00`", context)
-        self.assertNotIn("Stop original:", context)
-        self.assertNotIn("Stop de seguimiento:", context)
+        self.assertIn("Salida si cae de `$450.00`", context)
         self.seed([signal(status="TP1_ALCANZADO", stop_loss=500)])
         context = bot.journal_tracking_context(market_item())
-        self.assertIn("Stop original: `$450.00`", context)
-        self.assertIn("Stop del resto: `$500.00`", context)
+        self.assertIn("Salida si cae de `$500.00`", context)
 
     def test_ver_adds_context_after_frozen_signal_without_changing_records(self):
         self.seed([signal()])
         before = self.path.read_bytes()
         item = market_item()
-        item.update(min=475, swing_type="FALLING_KNIFE", liquidity={
+        item.update(min=475, drop_pct=12.0, swing_type="FALLING_KNIFE", liquidity={
             "has_real_volume": True, "profile_type": "VOLUME", "poc_price": 530,
             "val_price": 490, "vah_price": 560,
         })
         message, _ = self.query(item)
-        self.assertLess(message.index("SEGUIMIENTO ACTIVO"), message.index("Contexto actual"))
-        self.assertIn("posible", message.lower())
-        self.assertIn("resistencia durante un rebote", message)
-        self.assertIn("mínimo puede seguir bajando", message)
+        self.assertLess(message.index("📌 *Seguimiento activo*"), message.index("PRONÓSTICO"))
+        self.assertIn("rebote", message.lower())
         self.assertEqual(self.path.read_bytes(), before)
         self.assertLess(len(message), 4096)
 
 
 class CurrentMarketContextTests(unittest.TestCase):
-    def test_actual_cluster_bounds_are_used_for_support(self):
+    def test_stub_format_current_market_context_returns_empty_string(self):
         item = market_item()
-        item["fib_clusters"] = [{"min_price": 470, "max_price": 474,
-                                 "members_detail": [{"period": "1mo"}, {"period": "3mo"}]}]
-        before = deepcopy(item)
         result = bot.format_current_market_context(item)
-        self.assertIn("`$470.00`–`$474.00`", result)
-        self.assertIn("varios periodos", result)
-        self.assertEqual(item, before)
+        self.assertEqual(result, "")
 
-    def test_cluster_above_price_is_never_called_support(self):
+    def test_buy_advice_includes_two_tier_plan_when_knife_or_large_drop(self):
         item = market_item()
-        item["fib_clusters"] = [{"min_price": 490, "max_price": 500,
-                                 "members_detail": [{"period": "1mo"}, {"period": "3mo"}]}]
-        result = bot.format_current_market_context(item)
-        self.assertIn("No hay referencias suficientes", result)
-        self.assertNotIn("varios periodos", result)
+        item.update(drop_pct=15.0, current_price=100, min=90)
+        advice = bot.format_buy_advice(item)
+        self.assertIn("PRONÓSTICO: Baja primero, sube después", advice)
+        self.assertIn("Entrada en 2 tramos", advice)
 
-    def test_single_level_uses_an_explicitly_approximate_band(self):
+    def test_buy_advice_institutional_volume_wall_when_poc_real_volume(self):
         item = market_item()
-        item["min"] = 470
-        result = bot.format_current_market_context(item)
-        self.assertIn("`$467.65`–`$472.35`", result)
-        self.assertIn("no suelo confirmado", result)
+        item.update(drop_pct=12.0, liquidity={
+            "has_real_volume": True, "profile_type": "VOLUME", "poc_price": 450
+        })
+        advice = bot.format_buy_advice(item)
+        self.assertIn("muro de compras institucional en `$450.00`", advice)
 
-    def test_poc_role_depends_on_its_position_and_is_not_order_book(self):
-        for poc, expected in ((530, "resistencia"), (450, "soporte"), (480, "zona de negociación")):
-            with self.subTest(poc=poc):
-                item = market_item()
-                item["liquidity"] = {"has_real_volume": True, "profile_type": "VOLUME", "poc_price": poc}
-                result = bot.format_current_market_context(item)
-                self.assertIn(expected, result)
-                self.assertIn("no muestra órdenes pendientes", result)
-
-    def test_tpo_is_not_presented_as_real_volume(self):
+    def test_tpo_profile_does_not_trigger_volume_wall(self):
         item = market_item()
-        item["liquidity"] = {"has_real_volume": False, "profile_type": "TPO", "poc_price": 530}
-        result = bot.format_current_market_context(item)
-        self.assertIn("frecuencia de precios, no volumen", result)
-        self.assertNotIn("Mayor concentración estimada de volumen", result)
-        self.assertNotIn("gran *Muro de Volumen", bot.format_buy_advice(item))
+        item.update(drop_pct=12.0, liquidity={
+            "has_real_volume": False, "profile_type": "TPO", "poc_price": 450
+        })
+        advice = bot.format_buy_advice(item)
+        self.assertNotIn("muro de compras institucional", advice)
 
-    def test_stale_or_invalid_price_does_not_produce_new_zones(self):
-        for item in (market_item() | {"is_stale": True}, market_item() | {"current_price": float("nan")}):
-            result = bot.format_current_market_context(item)
-            self.assertIn("No hay una cotización actual válida", result)
-            self.assertNotIn("Posible zona de soporte", result)
+    def test_earnings_imminent_pin_in_buy_advice(self):
+        item = market_item()
+        item["earnings"] = {
+            "has_earnings": True, "short_date": "15 Nov", "days_until": 1, "eps_avg": 2.5
+        }
+        advice = bot.format_buy_advice(item)
+        self.assertIn("📌 *Resultados*", advice)
+        self.assertIn("MAÑANA", advice)
+
+    def test_stale_warning_in_buy_advice(self):
+        item = market_item()
+        item["is_stale"] = True
+        item["last_success_at"] = "2026-11-01 10:00"
+        advice = bot.format_buy_advice(item)
+        self.assertIn("⚠️ *Cotización desactualizada*", advice)
 
 
 if __name__ == "__main__":

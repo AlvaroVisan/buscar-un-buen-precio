@@ -206,7 +206,7 @@ def journal_tracking_context(item, _chat_id=None):
     try:
         tracking = journal_manager.get_tracking_signal(ticker)
     except Exception:
-        return ""
+        return "⚠️ No se puede consultar el historial del Diario.\n\n"
     entry = tracking.get("entry")
     if not entry or not tracking.get("is_active"):
         return ""  # Cero texto si no hay seguimiento activo
@@ -1279,18 +1279,20 @@ def handle_historial(bot_token, chat_id):
         active = stats.get("active_count", 0)
         closed = stats.get("closed_count", 0)
         win_rate = stats.get("win_rate_pct", 0.0)
+        loss_rate = stats.get("loss_rate_pct", 0.0)
         won = stats.get("total_won", 0)
         lost = stats.get("total_lost", 0)
         avg_win = stats.get("avg_win_pct", 0.0)
+        avg_loss = stats.get("avg_loss_pct", 0.0)
 
         lines = [
             "📔 *DIARIO DE TRADING & HISTORIAL*",
             "Seguimiento automático único. `/ver TICKER` muestra la señal registrada antes de la lectura actual.",
             "━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            f"🎯 *Tasa de Acierto (Win Rate)*: `{win_rate:.1f}%`",
+            f"🎯 *Balance de Acierto*: `{win_rate:.1f}%` Ganadas | `{loss_rate:.1f}%` en Stop",
             f"📊 *Operaciones Totales*: `{total}` ({active} activas, {closed} cerradas)",
-            f"🏆 *Cerradas en Ganancia*: `{won}` (Promedio: `+{avg_win:.1f}%`)",
-            f"🛑 *Cerradas en Stop*: `{lost}`",
+            f"🏆 *Ganadas (+)*: `{won}` (`{win_rate:.1f}%`, Retorno medio: `+{avg_win:.1f}%`)",
+            f"🛑 *En Stop Loss (-)*: `{lost}` (`{loss_rate:.1f}%`, Pérdida media: `{avg_loss:.1f}%`)",
             "━━━━━━━━━━━━━━━━━━━━━━━━━━"
         ]
 

@@ -135,5 +135,57 @@ class JournalExitTests(unittest.TestCase):
                 self.assertEqual(trade["final_return_pct"], expected_return)
 
 
+class JournalRemovalAndStatsTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "journal.json"
+        patcher = patch.object(journal, "JOURNAL_PATH", str(self.path))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_stats_calculates_win_and_loss_rates(self):
+        entries = [
+            {"id": "1", "status": "TP2_ALCANZADO", "result": "GANADA", "final_return_pct": 10.0},
+            {"id": "2", "status": "STOP_EJECUTADO", "result": "PERDIDA", "final_return_pct": -5.0},
+            {"id": "3", "status": "ACTIVA", "result": "EN_CURSO", "current_return_pct": 2.0},
+        ]
+        stats = journal.calculate_journal_stats(entries)
+        self.assertEqual(stats["total_opportunities"], 3)
+        self.assertEqual(stats["active_count"], 1)
+        self.assertEqual(stats["closed_count"], 2)
+        self.assertEqual(stats["total_won"], 1)
+        self.assertEqual(stats["total_lost"], 1)
+        self.assertEqual(stats["win_rate_pct"], 50.0)
+        self.assertEqual(stats["loss_rate_pct"], 50.0)
+        self.assertEqual(stats["avg_win_pct"], 10.0)
+        self.assertEqual(stats["avg_loss_pct"], -5.0)
+
+    def test_remove_single_journal_entry(self):
+        entries = [
+            {"id": "e1", "status": "STOP_EJECUTADO", "result": "PERDIDA", "final_return_pct": -5.0},
+            {"id": "e2", "status": "ACTIVA", "result": "EN_CURSO", "current_return_pct": 2.0},
+        ]
+        self.path.write_text(json.dumps({"entries": entries}), encoding="utf-8")
+        updated = journal.remove_journal_entry(entry_id="e1")
+        self.assertEqual(len(updated["entries"]), 1)
+        self.assertEqual(updated["entries"][0]["id"], "e2")
+        self.assertEqual(updated["stats"]["closed_count"], 0)
+
+    def test_remove_clear_closed_entries(self):
+        entries = [
+            {"id": "e1", "status": "STOP_EJECUTADO", "result": "PERDIDA", "final_return_pct": -5.0},
+            {"id": "e2", "status": "TP2_ALCANZADO", "result": "GANADA", "final_return_pct": 12.0},
+            {"id": "e3", "status": "ACTIVA", "result": "EN_CURSO", "current_return_pct": 2.0},
+            {"id": "e4", "status": "TP1_ALCANZADO", "result": "EN_CURSO", "current_return_pct": 6.0},
+        ]
+        self.path.write_text(json.dumps({"entries": entries}), encoding="utf-8")
+        updated = journal.remove_journal_entry(clear_closed=True)
+        # Solo quedan activas (ACTIVA y TP1_ALCANZADO)
+        self.assertEqual([e["id"] for e in updated["entries"]], ["e3", "e4"])
+        self.assertEqual(updated["stats"]["active_count"], 2)
+        self.assertEqual(updated["stats"]["closed_count"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

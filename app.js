@@ -14,6 +14,7 @@ let currentPortfolioClosePos = null;
 let pendingDeleteTicker = null;
 let alertSoundEnabled = localStorage.getItem("alertSoundEnabled") !== "false";
 let previousAlertTickers = new Set();
+let journalCurrentFilter = "ACTIVE"; // 'ACTIVE' | 'CLOSED' | 'ALL'
 
 document.addEventListener("DOMContentLoaded", () => {
   initApp();
@@ -97,6 +98,64 @@ function setupEventListeners() {
     btnRefreshJournal.addEventListener("click", () => {
       loadAndRenderJournal();
       showToast("Diario de trading actualizado 🔄");
+    });
+  }
+
+  // Filtros de estado del Diario: En seguimiento, Cerradas, Todas
+  const journalFilterBtns = document.querySelectorAll(".journal-filter-btn");
+  journalFilterBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      journalCurrentFilter = btn.dataset.filter || "ACTIVE";
+      journalFilterBtns.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      loadAndRenderJournal();
+    });
+  });
+
+  // Limpiar todas las oportunidades cerradas del Diario
+  const btnClearClosedJournal = document.getElementById("btnClearClosedJournal");
+  if (btnClearClosedJournal) {
+    btnClearClosedJournal.addEventListener("click", async () => {
+      if (confirm("¿Quitar todas las oportunidades cerradas del listado? El balance histórico de aciertos y fallos se conservará intacto.")) {
+        try {
+          const resp = await fetch("/api/journal/remove", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clear_closed: true })
+          });
+          if (!resp.ok) throw new Error("Error en servidor al limpiar cerradas");
+          await loadAndRenderJournal();
+          showToast("Oportunidades cerradas retiradas de la lista 🧹");
+        } catch (e) {
+          showToast("Error al limpiar cerradas: " + e.message);
+        }
+      }
+    });
+  }
+
+  // Delegación de eventos para quitar entradas individuales del Diario
+  const jEntriesContainer = document.getElementById("journalEntriesContainer");
+  if (jEntriesContainer) {
+    jEntriesContainer.addEventListener("click", async (e) => {
+      const removeBtn = e.target.closest(".btn-remove-journal");
+      if (removeBtn && removeBtn.dataset.id) {
+        e.preventDefault();
+        const entryId = removeBtn.dataset.id;
+        if (confirm("¿Quitar esta oportunidad cerrada del diario?")) {
+          try {
+            const resp = await fetch("/api/journal/remove", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: entryId })
+            });
+            if (!resp.ok) throw new Error("Error al retirar la entrada");
+            await loadAndRenderJournal();
+            showToast("Oportunidad retirada del diario 🗑️");
+          } catch (err) {
+            showToast("Error: " + err.message);
+          }
+        }
+      }
     });
   }
 
@@ -3049,6 +3108,8 @@ async function loadAndRenderJournal() {
     const stats = jData.stats || {};
     const entries = jData.entries || [];
 
+    const activeEntries = entries.filter(e => ["ACTIVA", "TP1_ALCANZADO"].includes(e.status));
+    const closedEntries = entries.filter(e => !["ACTIVA", "TP1_ALCANZADO"].includes(e.status));
 
     const elWinRate = document.getElementById("jStatWinRate");
     const elWinRateSub = document.getElementById("jStatWinRateSub");
@@ -3057,29 +3118,57 @@ async function loadAndRenderJournal() {
     const elWon = document.getElementById("jStatWon");
     const elAvgWin = document.getElementById("jStatAvgWin");
     const elLost = document.getElementById("jStatLost");
+    const elAvgLoss = document.getElementById("jStatAvgLoss");
 
-    if (elWinRate) elWinRate.textContent = `${(stats.win_rate_pct || 0).toFixed(1)}%`;
-    if (elWinRateSub) elWinRateSub.textContent = `${stats.closed_count || 0} operaciones cerradas`;
+    const winRate = (stats.win_rate_pct || 0).toFixed(1);
+    const lossRate = (stats.loss_rate_pct !== undefined ? stats.loss_rate_pct : (stats.closed_count ? (stats.total_lost / stats.closed_count * 100) : 0)).toFixed(1);
+
+    if (elWinRate) elWinRate.textContent = `${winRate}%`;
+    if (elWinRateSub) elWinRateSub.textContent = `${winRate}% Ganadas · ${lossRate}% en Stop`;
     if (elTotal) elTotal.textContent = `${stats.total_opportunities || 0}`;
-    if (elActiveSub) elActiveSub.textContent = `${stats.active_count || 0} activas en seguimiento`;
+    if (elActiveSub) elActiveSub.textContent = `${stats.active_count || activeEntries.length} activas en seguimiento`;
     if (elWon) elWon.textContent = `${stats.total_won || 0}`;
-    if (elAvgWin) elAvgWin.textContent = `Retorno medio: +${(stats.avg_win_pct || 0).toFixed(1)}%`;
+    if (elAvgWin) elAvgWin.textContent = `Acierto: ${winRate}% • Media: +${(stats.avg_win_pct || 0).toFixed(1)}%`;
     if (elLost) elLost.textContent = `${stats.total_lost || 0}`;
+    if (elAvgLoss) elAvgLoss.textContent = `Fallo: ${lossRate}% • Media: ${(stats.avg_loss_pct || 0).toFixed(1)}%`;
+
+    const countActiveEl = document.getElementById("jCountActive");
+    const countClosedEl = document.getElementById("jCountClosed");
+    const countAllEl = document.getElementById("jCountAll");
+    if (countActiveEl) countActiveEl.textContent = activeEntries.length;
+    if (countClosedEl) countClosedEl.textContent = closedEntries.length;
+    if (countAllEl) countAllEl.textContent = entries.length;
+
+    document.querySelectorAll(".journal-filter-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.filter === journalCurrentFilter);
+    });
 
     const journalBadge = document.getElementById("journalStatsPill");
-    if (journalBadge) journalBadge.textContent = `Win Rate: ${(stats.win_rate_pct || 0).toFixed(1)}%`;
+    if (journalBadge) journalBadge.textContent = `Win Rate: ${winRate}%`;
 
-    if (entries.length === 0) {
+    let filteredEntries = entries;
+    if (journalCurrentFilter === "ACTIVE") {
+      filteredEntries = activeEntries;
+    } else if (journalCurrentFilter === "CLOSED") {
+      filteredEntries = closedEntries;
+    }
+
+    if (filteredEntries.length === 0) {
+      const emptyMsg = journalCurrentFilter === "ACTIVE"
+        ? "No hay oportunidades activas en seguimiento en este momento."
+        : (journalCurrentFilter === "CLOSED"
+          ? "No hay oportunidades cerradas registradas."
+          : "Aún no hay señales registradas en el diario.");
       container.innerHTML = `
         <div class="journal-empty-box">
-          <p style="font-size: 1.1rem; font-weight: 600; color: #f4efe6; margin-bottom: 8px;">Aún no hay señales registradas en el diario.</p>
+          <p style="font-size: 1.1rem; font-weight: 600; color: #f4efe6; margin-bottom: 8px;">${emptyMsg}</p>
           <p style="font-size: 0.85rem; color: #a89f91; margin: 0;">Cada vez que un activo entre en la <strong>Zona Áurea (61.8%)</strong> o su <strong>Score de Confluencia sea ≥ 70</strong>, se registrará aquí automáticamente para medir la rentabilidad alcanzada.</p>
         </div>
       `;
       return;
     }
 
-    container.innerHTML = entries.map(e => {
+    container.innerHTML = filteredEntries.map(e => {
       let badgeClass = "j-badge-active";
       let badgeLabel = "🔵 En Seguimiento";
       if (e.status === "TP2_ALCANZADO") {
@@ -3111,6 +3200,7 @@ async function loadAndRenderJournal() {
         decimals: (typeof e.decimals === "number") ? e.decimals : ((matchedLive && matchedLive.decimals) || 2)
       };
       const originalStop = e.initial_stop_loss ?? (["ACTIVA", "STOP_EJECUTADO"].includes(e.status) ? e.stop_loss : null);
+      const isClosed = !["ACTIVA", "TP1_ALCANZADO"].includes(e.status);
 
       return `
         <div class="journal-entry-card">
@@ -3157,10 +3247,11 @@ async function loadAndRenderJournal() {
             <span style="font-size: 0.68rem; color: #756c60;">Máx: +${maxRet.toFixed(1)}%</span>
           </div>
 
-          <div>
+          <div class="j-entry-actions">
             <a href="${tvUrl}" target="_blank" class="btn btn-secondary btn-sm" title="Abrir gráfico en TradingView">
               📊 Gráfico
             </a>
+            ${isClosed ? `<button type="button" class="btn btn-secondary btn-sm btn-danger-soft btn-remove-journal" data-id="${e.id}" title="Quitar del diario">🗑️ Quitar</button>` : ""}
           </div>
         </div>
       `;

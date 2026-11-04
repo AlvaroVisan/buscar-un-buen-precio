@@ -2905,6 +2905,49 @@ input:checked + .slider-toggle:before {
 .journal-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.journal-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.journal-filter-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.journal-filter-btn:hover {
+  color: #f2ede4;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.journal-filter-btn.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f2ede4;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.j-entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .btn-danger-soft {

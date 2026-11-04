@@ -350,9 +350,9 @@
       <!-- Stats KPIs -->
       <div class="journal-kpi-grid">
         <div class="journal-kpi-card highlight-winrate">
-          <span class="j-kpi-label">🎯 Acierto de señales automáticas</span>
+          <span class="j-kpi-label">🎯 Balance de Acierto</span>
           <div class="j-kpi-val" id="jStatWinRate">0.0%</div>
-          <span class="j-kpi-sub" id="jStatWinRateSub">0 operaciones cerradas</span>
+          <span class="j-kpi-sub" id="jStatWinRateSub">0.0% Ganadas · 0.0% en Stop</span>
         </div>
         <div class="journal-kpi-card">
           <span class="j-kpi-label">📦 Oportunidades Registradas</span>
@@ -360,29 +360,43 @@
           <span class="j-kpi-sub" id="jStatActiveSub">0 activas en seguimiento</span>
         </div>
         <div class="journal-kpi-card highlight-success">
-          <span class="j-kpi-label">🏆 Operaciones Ganadas (TP)</span>
+          <span class="j-kpi-label">🏆 Ganadas (+)</span>
           <div class="j-kpi-val text-green" id="jStatWon">0</div>
-          <span class="j-kpi-sub" id="jStatAvgWin">Retorno medio: +0.0%</span>
+          <span class="j-kpi-sub" id="jStatAvgWin">Acierto: 0.0% • Media: +0.0%</span>
         </div>
         <div class="journal-kpi-card highlight-danger">
-          <span class="j-kpi-label">🛑 Operaciones en Stop</span>
+          <span class="j-kpi-label">🛑 En Stop Loss (-)</span>
           <div class="j-kpi-val text-red" id="jStatLost">0</div>
-          <span class="j-kpi-sub">Pérdida acotada estrictamente</span>
+          <span class="j-kpi-sub" id="jStatAvgLoss">Fallo: 0.0% • Media: -0.0%</span>
         </div>
       </div>
 
       <!-- Journal Header & Controls -->
       <div class="journal-toolbar">
         <div>
-          <h3 class="journal-heading">Historial Cronológico de Oportunidades</h3>
-          <p class="journal-subheading">Registros automáticos de cada entrada en Zona Áurea o Score ≥ 70 con cálculo continuo de retorno</p>
+          <h3 class="journal-heading">Historial de Oportunidades</h3>
+          <p class="journal-subheading">Registros automáticos en Zona Áurea o Score ≥ 70 con cálculo continuo de retorno</p>
+        </div>
+        <div class="journal-filter-group" id="journalFilterGroup">
+          <button class="journal-filter-btn active" id="btnJFilterActive" data-filter="ACTIVE" type="button">
+            🟢 En seguimiento (<span id="jCountActive">0</span>)
+          </button>
+          <button class="journal-filter-btn" id="btnJFilterClosed" data-filter="CLOSED" type="button">
+            📁 Cerradas (<span id="jCountClosed">0</span>)
+          </button>
+          <button class="journal-filter-btn" id="btnJFilterAll" data-filter="ALL" type="button">
+            Todas (<span id="jCountAll">0</span>)
+          </button>
         </div>
         <div class="journal-actions">
-          <button id="btnRefreshJournal" class="btn btn-secondary btn-sm">
+          <button id="btnClearClosedJournal" class="btn btn-secondary btn-sm" title="Quitar todas las oportunidades cerradas de la lista" type="button">
+            🧹 Limpiar cerradas
+          </button>
+          <button id="btnRefreshJournal" class="btn btn-secondary btn-sm" type="button">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
             Refrescar
           </button>
-          <button id="btnResetJournal" class="btn btn-secondary btn-sm btn-danger-soft">
+          <button id="btnResetJournal" class="btn btn-secondary btn-sm btn-danger-soft" type="button">
             🗑️ Resetear señales
           </button>
         </div>

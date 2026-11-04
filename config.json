@@ -60,6 +60,11 @@
       "tab": "TSMC",
       "ticker": "TSM",
       "name": "Taiwan Semiconductor Manufacturing Company"
+    },
+    {
+      "tab": "Monster",
+      "ticker": "MNST",
+      "name": "Monster Beverage Corporation"
     }
   ]
 }

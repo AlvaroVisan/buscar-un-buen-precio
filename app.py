@@ -444,7 +444,7 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                     "last_updated": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "stats": {
                         "total_opportunities": 0, "active_count": 0, "closed_count": 0,
-                        "win_rate_pct": 0.0, "total_won": 0, "total_lost": 0,
+                        "win_rate_pct": 0.0, "loss_rate_pct": 0.0, "total_won": 0, "total_lost": 0,
                         "avg_win_pct": 0.0, "avg_loss_pct": 0.0
                     },
                     "entries": []
@@ -459,6 +459,23 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        if route == "/api/journal/remove":
+            try:
+                import journal_manager
+                entry_id = post_data.get("id")
+                clear_closed = bool(post_data.get("clear_closed", False))
+                updated = journal_manager.remove_journal_entry(entry_id=entry_id, clear_closed=clear_closed)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "journal": updated}, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"))
             return
 
         if route == "/api/assets/validate":

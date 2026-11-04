@@ -85,7 +85,8 @@ def save_journal(data):
 
 def calculate_journal_stats(entries):
     """
-    Calcula métricas clave de rendimiento: Tasa de acierto (Win Rate), operaciones ganadas/perdidas.
+    Calcula métricas clave de rendimiento: Tasa de acierto positiva (Win Rate),
+    tasa de fallo/pérdida negativa (Loss Rate), operaciones ganadas/perdidas y retornos medios.
     """
     total = len(entries)
     active = [e for e in entries if e.get("status") in ("ACTIVA", "TP1_ALCANZADO")]
@@ -98,6 +99,7 @@ def calculate_journal_stats(entries):
     lost = [e for e in closed if e.get("result") == "PERDIDA"]
 
     win_rate = round((len(won) / len(closed)) * 100, 1) if closed else 0.0
+    loss_rate = round((len(lost) / len(closed)) * 100, 1) if closed else 0.0
 
     win_returns = [e.get("final_return_pct", 0) for e in won if e.get("final_return_pct") is not None]
     loss_returns = [e.get("final_return_pct", 0) for e in lost if e.get("final_return_pct") is not None]
@@ -110,11 +112,32 @@ def calculate_journal_stats(entries):
         "active_count": len(active),
         "closed_count": len(closed),
         "win_rate_pct": win_rate,
+        "loss_rate_pct": loss_rate,
         "total_won": len(won),
         "total_lost": len(lost),
         "avg_win_pct": avg_win,
         "avg_loss_pct": avg_loss
     }
+
+
+def remove_journal_entry(entry_id=None, clear_closed=False):
+    """
+    Elimina una oportunidad del diario por ID o limpia todas las cerradas.
+    Recalcula las estadísticas de acierto/pérdida de forma atómica.
+    """
+    journal = load_journal()
+    entries = journal.get("entries", [])
+
+    if clear_closed:
+        entries = [e for e in entries if e.get("status") in ("ACTIVA", "TP1_ALCANZADO")]
+    elif entry_id:
+        entries = [e for e in entries if str(e.get("id")) != str(entry_id)]
+
+    journal["entries"] = entries
+    journal["stats"] = calculate_journal_stats(entries)
+    journal["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    save_journal(journal)
+    return journal
 
 
 def _evaluate_price_point(trade, high_p, low_p, close_p, event_date_str):

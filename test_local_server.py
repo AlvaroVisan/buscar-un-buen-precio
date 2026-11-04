@@ -81,6 +81,10 @@ class LocalServerTests(unittest.TestCase):
         with patch("journal_manager.save_journal") as save:
             self.assertEqual(self.request("POST", "/api/journal/reset", {"Origin": origin})[0], 200)
             save.assert_called_once()
+        with patch("journal_manager.remove_journal_entry", return_value={"entries": []}) as rem:
+            status, _, body = self.request("POST", "/api/journal/remove", {"Origin": origin, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json"}, '{"clear_closed":true}')
+            self.assertEqual(status, 200)
+            rem.assert_called_once_with(entry_id=None, clear_closed=True)
 
     def test_private_files_are_blocked_for_get_and_head(self):
         for method in ("GET", "HEAD"):
