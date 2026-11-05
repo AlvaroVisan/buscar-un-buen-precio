@@ -4844,3 +4844,76 @@ body { padding-bottom: 88px; }
 #scenarioOverview .journal-kpi-card { min-width: 0; overflow-wrap: anywhere; text-align: left; }
 #scenarioOverview p { line-height: 1.6; }
 #scenarioOverview .journal-kpi-card p { font-size: .9rem; font-weight: 400; color: var(--text-secondary); }
+
+
+/* Selector rápido de frecuencia de auto-actualización (15m / 30m / 1h) */
+.sync-freq-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+}
+
+.sync-freq-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--text-muted, #888);
+  font-weight: 500;
+  user-select: none;
+}
+
+.sync-freq-label svg {
+  color: var(--text-muted, #888);
+  flex-shrink: 0;
+}
+
+.sync-freq-pills {
+  display: inline-flex;
+  align-items: center;
+  background: #151515;
+  border: 1px solid #262626;
+  border-radius: 7px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.sync-freq-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #a3a3a3);
+  padding: 5px 10px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  font-family: inherit;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.sync-freq-btn:hover {
+  color: var(--text-primary, #f5f5f5);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sync-freq-btn.active {
+  background: #343434;
+  color: #fff;
+  font-weight: 600;
+}
+
+.sync-freq-btn:focus-visible {
+  outline: 2px solid #eee;
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .sync-freq-wrapper {
+    order: 6;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

@@ -18,6 +18,7 @@ let pendingDeleteTicker = null;
 let alertSoundEnabled = localStorage.getItem("alertSoundEnabled") !== "false";
 let previousAlertTickers = new Set();
 let journalCurrentFilter = "ACTIVE"; // 'ACTIVE' | 'CLOSED' | 'ALL'
+let currentSchedulerConfig = { enabled: true, interval_minutes: 30, smart_hours_only: false };
 
 document.addEventListener("DOMContentLoaded", () => {
   initApp();
@@ -39,6 +40,14 @@ async function loadClientConfig() {
       const cfg = await resp.json();
       if (cfg && cfg.google_sheet_url) {
         googleSheetUrl = cfg.google_sheet_url;
+      }
+      if (cfg && cfg.scheduler) {
+        currentSchedulerConfig = cfg.scheduler;
+        if (cfg.scheduler.enabled) {
+          updateSyncFreqUI(cfg.scheduler.interval_minutes);
+        } else {
+          updateSyncFreqUI(null);
+        }
       }
     }
   } catch (e) {
@@ -67,6 +76,17 @@ function setupEventListeners() {
       await syncMarketData(currentPeriod);
     });
   }
+
+  // Botones rápidos de frecuencia de actualización automática (15 mins / 30 mins / 1 hora)
+  const syncFreqBtns = document.querySelectorAll(".sync-freq-btn");
+  syncFreqBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mins = parseInt(btn.dataset.minutes, 10);
+      if (mins) {
+        setAutoSyncFrequency(mins);
+      }
+    });
+  });
 
   // --- Selector de Modo de Operación (Compra / Venta / Diario / Cartera Real) ---
   const btnModeBuy = document.getElementById("btnModeBuy");
@@ -669,8 +689,11 @@ async function openTelegramModal() {
       if (syncIntervalSelect) {
         if (!data.enabled) {
           syncIntervalSelect.value = "0";
+          updateSyncFreqUI(null);
         } else {
-          syncIntervalSelect.value = String(data.interval_minutes || 30);
+          const inv = data.interval_minutes || 30;
+          syncIntervalSelect.value = String(inv);
+          updateSyncFreqUI(inv);
         }
       }
     }
@@ -786,6 +809,16 @@ async function saveTelegramSettingsAction() {
     });
 
     if (respTg.ok && respSched.ok) {
+      if (interval_val > 0) {
+        updateSyncFreqUI(interval_val);
+      } else {
+        updateSyncFreqUI(null);
+      }
+      currentSchedulerConfig = {
+        enabled: interval_val > 0,
+        interval_minutes: interval_val > 0 ? interval_val : 30,
+        smart_hours_only
+      };
       const modal = document.getElementById("telegramModal");
       if (modal) modal.style.display = "none";
       const intervalMsg = interval_val > 0 ? `Auto-sync cada ${interval_val} min` : "Auto-sync pausado";
@@ -1027,6 +1060,60 @@ function startLivePolling() {
       // Manejar caídas temporales de red silenciosamente
     }
   }, 20000);
+}
+
+function updateSyncFreqUI(mins) {
+  const target = mins ? parseInt(mins, 10) : null;
+  const btns = document.querySelectorAll(".sync-freq-btn");
+  btns.forEach(btn => {
+    const m = parseInt(btn.dataset.minutes, 10);
+    const isActive = target !== null && m === target;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+async function setAutoSyncFrequency(mins) {
+  const m = parseInt(mins, 10);
+  if (!m || m <= 0) return;
+
+  // Actualización visual inmediata de los botones
+  updateSyncFreqUI(m);
+
+  const smartHours = (currentSchedulerConfig && typeof currentSchedulerConfig.smart_hours_only === "boolean")
+    ? currentSchedulerConfig.smart_hours_only
+    : false;
+
+  try {
+    const resp = await fetch("/api/scheduler/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        enabled: true,
+        interval_minutes: m,
+        smart_hours_only: smartHours
+      })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && data.scheduler) {
+        currentSchedulerConfig = data.scheduler;
+      }
+      const label = m === 60 ? "1 hora" : `${m} mins`;
+      showToast(`⏱️ Frecuencia automática ajustada a cada ${label}`);
+
+      // Sincronizar select del modal si está presente
+      const syncIntervalSelect = document.getElementById("syncIntervalSelect");
+      if (syncIntervalSelect) {
+        syncIntervalSelect.value = String(m);
+      }
+    } else {
+      showToast("No se pudo guardar la frecuencia de actualización.");
+    }
+  } catch (err) {
+    showToast("Error de conexión al cambiar la frecuencia.");
+  }
 }
 
 async function syncMarketData(periodToSync) {

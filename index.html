@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <meta name="theme-color" content="#090909">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261105-v11">
+  <link rel="stylesheet" href="style.css?v=20261105-v12">
 </head>
 <body>
   <div class="app-container">
@@ -91,6 +91,19 @@
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Selector rápido de frecuencia de auto-actualización (15m / 30m / 1h) -->
+        <div class="sync-freq-wrapper" id="syncFreqWrapper" title="Frecuencia de actualización automática de precios">
+          <span class="sync-freq-label" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Auto:
+          </span>
+          <div class="sync-freq-pills" id="syncFreqPills" role="group" aria-label="Frecuencia de auto-actualización de precios">
+            <button type="button" class="sync-freq-btn" data-minutes="15" title="Actualizar precios automáticamente cada 15 minutos">15 mins</button>
+            <button type="button" class="sync-freq-btn active" data-minutes="30" title="Actualizar precios automáticamente cada 30 minutos">30 mins</button>
+            <button type="button" class="sync-freq-btn" data-minutes="60" title="Actualizar precios automáticamente cada 1 hora">1 hora</button>
           </div>
         </div>
 
@@ -1125,7 +1138,7 @@
     <p id="currencyNotice" class="currency-notice">Conversión orientativa con el cambio diario de referencia del BCE, consultado a través de <a href="https://frankfurter.dev/" target="_blank" rel="noopener noreferrer">Frankfurter</a>. No es una cotización en tiempo real. Tu bróker puede aplicar otro cambio y comisiones.</p>
   </dialog>
   <script src="euro_view.js?v=20261105-1"></script>
-  <script src="app.js?v=20261105-v11"></script>
+  <script src="app.js?v=20261105-v12"></script>
   <script src="currency.js?v=20261105-2"></script>
   <script src="business.js?v=20261105-business-3"></script>
 </body>
