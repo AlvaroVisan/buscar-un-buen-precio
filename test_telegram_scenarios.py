@@ -21,7 +21,7 @@ class TelegramScenariosTests(unittest.TestCase):
             patcher = patch.object(module, key, str(self.root / filename))
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.data = {"entries": [], "watches": {"AAA": dict(since="2026-01-01", breakout=105)}, "accumulation": []}
+        self.data = {"entries": [], "watches": {"AAA": dict(since="2026-01-01", breakout=105, rules_version=2, confirmations=0)}, "accumulation": []}
         self.item = dict(ticker="AAA", tab="AAA", current_price=100, score=95, currency="$", fib_levels={"61.8%": 110})
         self.config = {"telegram": dict(enabled=True, bot_token="fake", chat_id="test-a,test-b"), "scheduler": {"smart_hours_only": False}}
         self.send = patch.object(bot, "send_telegram_message", return_value=(True, {})).start()

@@ -395,6 +395,8 @@ def update_journal_with_market_data(market_data_list, histories=None):
             new_entry = {
                 "id": f"opp_{ticker}_{int(time.time())}",
                 "strategy": "confirmation",
+                "confirmation_level": journal.get("watches", {}).get(ticker, {}).get("breakout"),
+                "confirmation_closes": journal.get("watches", {}).get(ticker, {}).get("confirmations", 0),
                 "simulated_budget": 1000,
                 "max_drawdown_pct": 0,
                 "ticker": ticker,

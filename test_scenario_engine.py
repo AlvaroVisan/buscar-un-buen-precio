@@ -20,13 +20,54 @@ def item(price=105):
                 currency="$", fib_levels={"61.8%": 110, "38.2%": 125}, max=140)
 
 
+def pending_watch():
+    return dict(since="2026-01-01", breakout=101, rules_version=2,
+                level_since="2026-01-01", last_breakout_day="2026-01-05", confirmations=1)
+
+
 class ScenarioTests(unittest.TestCase):
+    def test_old_distant_roof_is_replaced_without_retrospective_entries(self):
+        state = {"entries": [], "watches": {"TEST": dict(since="2026-01-01", breakout=514.61)}}
+        bars = history([510, 480, 440, 430, 420, 416])
+        self.assertEqual(advance(state, [item(416)], {"TEST": bars}, "2026-01-07 12:00:00"), set())
+        watch = state["watches"]["TEST"]
+        self.assertEqual(watch["breakout"], 421)
+        self.assertEqual(watch["confirmations"], 0)
+        bars = history([510, 480, 440, 430, 420, 416, 410])
+        advance(state, [item(410)], {"TEST": bars}, "2026-01-08 12:00:00")
+        self.assertEqual(watch["breakout"], 417)
+
+    def test_same_candle_cannot_count_twice_and_first_close_freezes_level(self):
+        from scenario_engine import advance_watch
+        watch = {"since": "2026-01-05"}
+        advance_watch(watch, [(str(t)[:10], r) for t, r in history([100]*4).iterrows()], 100, "2026-01-05")
+        bars = history([100]*5 + [105])
+        bars.iloc[-1, bars.columns.get_loc("High")] = 120
+        rows = [(str(t)[:10], r) for t, r in bars.iterrows()]
+        self.assertFalse(advance_watch(watch, rows, 105, "2026-01-07"))
+        self.assertEqual(watch["breakout"], 101)
+        self.assertEqual(watch["confirmations"], 1)
+        self.assertFalse(advance_watch(watch, rows, 105, "2026-01-07"))
+        self.assertEqual(watch["confirmations"], 1)
+        rows = [(str(t)[:10], r) for t, r in history([100]*5 + [105, 106]).iterrows()]
+        self.assertTrue(advance_watch(watch, rows, 106, "2026-01-08"))
+        self.assertEqual(watch["breakout"], 101)
+
+    def test_failed_breakout_and_wicks_reset_the_counter(self):
+        from scenario_engine import advance_watch
+        watch = pending_watch()
+        bars = history([100]*5 + [100])
+        bars.iloc[-1, bars.columns.get_loc("High")] = 110
+        self.assertFalse(advance_watch(watch, [(str(t)[:10], r) for t, r in bars.iterrows()], 100, "2026-01-07"))
+        self.assertEqual(watch["confirmations"], 0)
+        self.assertEqual(watch["breakout"], 110)
+
     def test_no_entry_from_falling_price_or_unfinished_candle(self):
         state = {"entries": []}
         bars = history([110, 108, 106, 104, 102, 130])
         self.assertEqual(advance(state, [item(102)], {"TEST": bars}, "2026-01-06 12:00:00"), set())
         self.assertEqual(state["accumulation"], [])
-        self.assertEqual(state["watches"]["TEST"]["breakout"], 107)
+        self.assertEqual(state["watches"]["TEST"]["breakout"], 105)
         self.assertEqual(advance(state, [item(130)], {"TEST": bars}, "2026-01-06 16:00:00"), set())
 
     def test_later_close_confirms_and_stop_requires_new_structure(self):
@@ -34,17 +75,21 @@ class ScenarioTests(unittest.TestCase):
         bars = history([100, 100, 100, 100])
         advance(state, [item()], {"TEST": bars}, "2026-01-05 12:00:00")
         bars = history([100, 100, 100, 100, 100, 105])
-        self.assertEqual(advance(state, [item()], {"TEST": bars}, "2026-01-07 12:00:00"), {"TEST"})
+        self.assertEqual(advance(state, [item()], {"TEST": bars}, "2026-01-07 12:00:00"), set())
+        self.assertEqual(state["watches"]["TEST"]["confirmations"], 1)
+        bars = history([100, 100, 100, 100, 100, 105, 106])
+        self.assertEqual(advance(state, [item(106)], {"TEST": bars}, "2026-01-08 12:00:00"), {"TEST"})
         self.assertEqual(len(state["accumulation"]), 1)
-        state["entries"].append(dict(ticker="TEST", status="STOP_EJECUTADO", closed_date="2026-01-07 12:01:00"))
-        self.assertEqual(advance(state, [item()], {"TEST": bars}, "2026-01-07 12:02:00"), set())
-        self.assertEqual(state["watches"]["TEST"]["since"], "2026-01-07 12:02:00")
+        state["entries"].append(dict(ticker="TEST", status="STOP_EJECUTADO", closed_date="2026-01-08 12:01:00"))
+        self.assertEqual(advance(state, [item()], {"TEST": bars}, "2026-01-08 12:02:00"), set())
+        self.assertEqual(state["watches"]["TEST"]["since"], "2026-01-08 12:02:00")
 
     def test_weak_market_blocks_stocks(self):
-        state = {"entries": [], "watches": {"TEST": dict(since="2026-01-02", breakout=101)}}
+        state = {"entries": [], "watches": {"TEST": {**pending_watch(), "last_breakout_day": "2026-01-24"}}}
         histories = {"TEST": history([100] * 24 + [105]), "^GSPC": history(list(range(130, 105, -1)))}
         self.assertEqual(advance(state, [item()], histories, "2026-01-26 12:00:00"), set())
         self.assertIn("bloqueada", state["watches"]["TEST"]["market_context"])
+        self.assertEqual(state["watches"]["TEST"]["confirmations"], 2)
 
     def test_accumulation_limit_average_and_fixed_invalidation(self):
         campaign = dict(ticker="TEST", currency="$", status="ACTIVA", budget=1000,
@@ -92,7 +137,7 @@ class ScenarioTests(unittest.TestCase):
         from test_journal_manager import open_trade
         with tempfile.TemporaryDirectory() as temp, patch.object(journal, "JOURNAL_PATH", str(Path(temp) / "journal.json")):
             legacy = open_trade("TEST", 120)
-            journal.save_journal({"entries": [legacy], "watches": {"TEST": dict(since="2026-01-01", breakout=101)}})
+            journal.save_journal({"entries": [legacy], "watches": {"TEST": pending_watch()}})
             result = journal.update_journal_with_market_data([item()], {"TEST": history([100, 100, 100, 100, 100, 105])})
             self.assertEqual(len(result["entries"]), 1)
             self.assertEqual(result["entries"][0]["status"], "STOP_EJECUTADO")
@@ -101,7 +146,7 @@ class ScenarioTests(unittest.TestCase):
     def test_integration_preserves_legacy_and_opens_only_after_confirmation(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(journal, "JOURNAL_PATH", str(Path(temp) / "journal.json")):
             old = dict(id="old", ticker="OLD", status="STOP_EJECUTADO", result="PERDIDA", final_return_pct=-5)
-            state = {"entries": [copy.deepcopy(old)], "watches": {"TEST": dict(since="2026-01-01", breakout=101)}}
+            state = {"entries": [copy.deepcopy(old)], "watches": {"TEST": pending_watch()}}
             journal.save_journal(state)
             result = journal.update_journal_with_market_data([item()], {"TEST": history([100, 100, 100, 100, 100, 105])})
             self.assertEqual(result["entries"][-1], old)
@@ -115,7 +160,7 @@ class ScenarioTests(unittest.TestCase):
         from test_journal_manager import open_trade
         with tempfile.TemporaryDirectory() as temp, patch.object(journal, "JOURNAL_PATH", str(Path(temp) / "journal.json")):
             legacy = open_trade("TEST", 100)
-            journal.save_journal({"entries": [legacy], "watches": {"TEST": dict(since="2026-01-01", breakout=101)}})
+            journal.save_journal({"entries": [legacy], "watches": {"TEST": pending_watch()}})
             bars = {"TEST": history([100, 100, 100, 100, 100, 105])}
             result = journal.update_journal_with_market_data([item()], bars)
             self.assertEqual(len(result["entries"]), 2)

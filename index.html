@@ -413,7 +413,7 @@
         </div>
       </div>
 
-      <p class="journal-method-note">Simulación prospectiva. Fibonacci o score ≥ 70 activan vigilancia. Confirmación exige un cierre diario posterior sobre el máximo de las tres sesiones previas a la vigilancia y tendencia corta ascendente. Después de un stop se reinicia la vigilancia. Stop con margen mínimo de 2 ATR y beneficio/riesgo mínimo de 1,5 hasta TP1. Salidas: 50 % en TP1 y resto en TP2 o entrada. Acumulación: presupuesto de 1.000 unidades de la divisa de cada activo, tres tramos iguales; nuevas compras al menos un 5 % por debajo de la anterior, en otra sesión y con recuperación confirmada. Invalidación y objetivo fijos. Sin comisiones. No son operaciones reales ni probabilidades de éxito.</p>
+      <p class="journal-method-note">Simulación prospectiva. Fibonacci o score ≥ 70 activan vigilancia. El techo cercano sigue los máximos de las dos últimas sesiones cerradas hasta el primer cierre por encima. Después se fija: se exigen dos cierres consecutivos sobre ese mismo techo y tendencia corta favorable. Una caída bajo el techo al cierre reinicia el contador. Después de un stop se reinicia la vigilancia. Stop con margen mínimo de 2 ATR y beneficio/riesgo mínimo de 1,5 hasta TP1. Salidas: 50 % en TP1 y resto en TP2 o entrada. Acumulación: presupuesto de 1.000 unidades de la divisa de cada activo, tres tramos iguales; nuevas compras al menos un 5 % por debajo de la anterior, en otra sesión y con recuperación confirmada. Invalidación y objetivo fijos. Sin comisiones. No son operaciones reales ni probabilidades de éxito.</p>
 
       <div id="journalArchiveNotice" class="journal-archive-notice" role="status" hidden><span id="journalArchiveMessage"></span><button id="btnUndoJournalArchive" type="button" class="btn btn-secondary btn-sm">Deshacer</button></div>
 
@@ -1123,7 +1123,7 @@
     <p id="currencyRateStatus" class="currency-muted" role="status">Consulta el cambio al abrir el conversor.</p><button id="refreshCurrencyRate" type="button" class="btn btn-secondary">Actualizar cambio</button>
     <p id="currencyNotice" class="currency-notice">Conversión orientativa con el cambio diario de referencia del BCE, consultado a través de <a href="https://frankfurter.dev/" target="_blank" rel="noopener noreferrer">Frankfurter</a>. No es una cotización en tiempo real. Tu bróker puede aplicar otro cambio y comisiones.</p>
   </dialog>
-  <script src="app.js?v=20261105-v8"></script>
+  <script src="app.js?v=20261105-v9"></script>
   <script src="currency.js?v=20261104-1"></script>
   <script src="business.js?v=20261102-business-2"></script>
 </body>

@@ -7,11 +7,20 @@ No registran compras reales en Cartera ni reconstruyen entradas anteriores.
 
 ## Confirmación
 
-Fibonacci 61,8 % o score >= 70 activan vigilancia. Se fija el máximo de las tres
-últimas sesiones cerradas como nivel de recuperación. Una sesión posterior al día
-de vigilancia debe cerrar sobre ese nivel, con precio actual todavía sobre él y
-cierre sobre la media de cuatro sesiones. Cuando hay veinte sesiones disponibles,
-también se exige cerrar sobre su media. Las velas del día actual no confirman.
+Fibonacci 61,8 % o score >= 70 activan vigilancia. El techo local es el máximo de
+las dos últimas sesiones cerradas. Mientras no haya un cierre por encima, se
+actualiza con las sesiones recientes: no queda anclado al precio previo a una
+caída. En cada sesión nueva se compara su cierre contra el techo de las dos
+sesiones anteriores, sin incluir la vela que intenta romperlo.
+
+Tras el primer cierre por encima se fija el techo. Se exigen dos cierres
+consecutivos de sesiones distintas sobre ese mismo nivel, con cotización actual
+todavía encima y cierre sobre la media de cuatro sesiones. Un cierre en o bajo
+el techo reinicia el contador y permite actualizarlo. Repetir sincronizaciones
+con la misma vela no suma confirmaciones. Las velas del día actual no confirman.
+Ya no se exige al activo recuperar la media de veinte sesiones; el filtro general
+del S&P 500 se mantiene. Las vigilancias antiguas migran prospectivamente a estas
+reglas, con contador cero, sin cambiar operaciones ya registradas.
 
 Para acciones, si está disponible el S&P 500, un cierre del índice bajo su media
 de veinte sesiones bloquea compras. Sin ese índice se indica contexto sin confirmar;

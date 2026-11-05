@@ -2,6 +2,31 @@
 import math
 
 
+def advance_watch(watch, bars, price, now):
+    """Techo móvil hasta el primer cierre; dos sesiones sobre el mismo nivel."""
+    if watch.get("rules_version") != 2:
+        # Migración prospectiva: no convertir velas previas en señales nuevas.
+        watch.update(rules_version=2, level_since=now[:10],
+                     breakout=max(float(r["High"]) for _, r in bars[-2:]),
+                     confirmations=0, last_breakout_day=bars[-1][0])
+    for index, (day, bar) in enumerate(bars):
+        if day <= max(watch["level_since"], watch["last_breakout_day"]):
+            continue
+        if index < 2:
+            continue
+        if watch["confirmations"] == 0:
+            watch["breakout"] = max(float(r["High"]) for _, r in bars[index - 2:index])
+        if float(bar["Close"]) > watch["breakout"]:
+            watch["confirmations"] = min(2, watch["confirmations"] + 1)
+        else:
+            watch["confirmations"] = 0
+            watch["breakout"] = max(float(r["High"]) for _, r in bars[max(0, index - 1):index + 1])
+        watch["last_breakout_day"] = day
+    if watch["confirmations"] == 0:
+        watch["breakout"] = max(float(r["High"]) for _, r in bars[-2:])
+    return watch["confirmations"] >= 2 and price >= watch["breakout"]
+
+
 def advance(journal, items, histories, now):
     watches = journal.setdefault("watches", {})
     campaigns = journal.setdefault("accumulation", [])
@@ -34,7 +59,7 @@ def advance(journal, items, histories, now):
             watches.pop(ticker)
             watch = None
         if watch is None and qualified and len(bars) >= 4:
-            watch = {"since": now, "breakout": max(float(r["High"]) for _, r in bars[-3:]), "state": "VIGILANCIA"}
+            watch = {"since": now, "state": "VIGILANCIA"}
             watches[ticker] = watch
         ready = False
         rebound = False
@@ -45,10 +70,9 @@ def advance(journal, items, histories, now):
             rebound = close > float(bars[-2][1]["Close"])
             # Tendencia corta ascendente y recuperación de estructura, con datos cerrados.
             trend = close > sum(float(r["Close"]) for _, r in bars[-4:]) / 4
-            if len(bars) >= 20:
-                trend = trend and close >= sum(float(r["Close"]) for _, r in bars[-20:]) / 20
-            ready = bool(watch and day > watch["since"][:10] and day > last_stop[:10]
-                         and close > watch["breakout"] and trend and price >= watch["breakout"] and not market_blocked)
+            double_close = advance_watch(watch, bars, price, now) if watch else False
+            ready = bool(watch and double_close and day > last_stop[:10]
+                         and trend and not market_blocked)
         if watch:
             watch["state"] = "CONFIRMADA" if ready else "VIGILANCIA"
             watch["current_price"] = price

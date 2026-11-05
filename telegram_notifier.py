@@ -479,8 +479,11 @@ def format_buy_advice(item, period="3mo"):
         entry = watch.get('breakout') if watch else None
         if _usable_price(entry):
             targets = sorted(set(v for v in ((item.get('fib_levels') or {}).get('38.2%'), risk.get('take_profit_1'), risk.get('take_profit_2'), item.get('max')) if _usable_price(v) and v > max(entry, price)))
-            recovery = "recupera" if price < entry else "se mantiene sobre"
-            lines.append(f"La entrada la empezaría a ver si {recovery} `{_fmt_price(entry, item)}` y aguanta hasta cerrar el día. Si amaga un rebote y vuelve a caer, seguimos fuera.")
+            if watch.get('rules_version') == 2:
+                hits = watch.get('confirmations', 0)
+                lines.append(f"Nuestro techo cercano está en `{_fmt_price(entry, item)}`. Quiero que cierre por encima dos sesiones seguidas: lleva {hits} de 2. Tras el primero, no movemos el listón. Si lo pierde al cierre, empezamos de nuevo.")
+            else:
+                lines.append("Estoy esperando que la próxima revisión actualice los picos recientes antes de marcar una entrada.")
             if targets:
                 lines.append(f"Desde ahí, el primer techo que miraría está en `{_fmt_price(targets[0], item)}`" + (f" y, si rompe con fuerza, el siguiente en `{_fmt_price(targets[-1], item)}`." if len(targets) > 1 else "."))
             else:
@@ -489,7 +492,7 @@ def format_buy_advice(item, period="3mo"):
                 lines.append("Ya ha recuperado terreno, pero la compra aún no ha pasado todos los filtros. De momento, no damos el paso.")
         else:
             lines.append("Aún no tengo una entrada clara. Prefiero esperar a la próxima revisión antes que darte un precio por darlo.")
-        lines.append("Cuando el rebote pase el filtro y quede una entrada registrada, ahí sí damos el paso. Después de una salida con pérdida, no volvemos a entrar sin una señal nueva.")
+        lines.append("Cuando el rebote supere nuestro techo reciente dos veces al cierre y el mercado y el riesgo acompañen, ahí sí damos el paso. Después de una salida con pérdida, no volvemos a entrar sin una señal nueva.")
     if campaign:
         n = len(campaign['tranches'])
         lines.append(f"📚 *Compras por partes: {n} de 3.* El precio medio está en `{_fmt_price(campaign['average_price'], item)}`; la jugada lleva {campaign.get('return_pct', 0):+.1f}%.")
