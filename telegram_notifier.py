@@ -443,6 +443,17 @@ def _plain_results_note(item):
     return f"📌 *Resultados*: {escape_md(when)}. Puede moverse más de la cuenta."
 
 
+def format_stabilization_context(item):
+    context = item.get("stabilization") or {}
+    if not context or item.get("is_stale"):
+        return ""
+    text = f"🧭 *{escape_md(context.get('label', 'Cómo se está moviendo'))}*. {escape_md(context.get('summary', ''))}"
+    if context.get("support") is not None and context.get("resistance") is not None:
+        text += (f" Franja de los últimos {context.get('window_minutes', 60)} minutos: "
+                 f"`{_fmt_price(context['support'], item)}`–`{_fmt_price(context['resistance'], item)}`.")
+    return text + " Es contexto, no una señal para comprar."
+
+
 def format_buy_advice(item, period="3mo"):
     """Lectura en lenguaje cotidiano; la decisión sigue viniendo del Diario."""
     ticker = item.get("ticker", "")
@@ -456,6 +467,9 @@ def format_buy_advice(item, period="3mo"):
         return "\n\n".join(lines + ["No puedo comprobar el seguimiento ahora. No hay entrada verificable; de momento, esperaría."])
     trade, campaign, watch = (context[key] for key in ("confirmation", "accumulation", "watch"))
     risk = item.get("risk_mgmt") or {}
+    stabilization = format_stabilization_context(item)
+    if stabilization:
+        lines.append(stabilization)
     if trade:
         entry, stop = trade['entry_price'], trade['stop_loss']
         margin = item.get('atr_14') or entry * .01
@@ -474,6 +488,8 @@ def format_buy_advice(item, period="3mo"):
         falling = item.get('swing_type') == 'FALLING_KNIFE' or item.get('drop_pct', 0) >= 10 or item.get('is_above_sma') is False
         if weak_market:
             lines.append("⏳ *Yo aquí esperaría.* El mercado viene flojo y puede arrastrarla más abajo.")
+        elif (item.get('stabilization') or {}).get('state') in ('LATERAL', 'FORMING_BASE'):
+            lines.append("⏳ *Está empezando a asentarse, pero todavía esperaría.* Que se calme ayuda; para entrar seguimos necesitando que rompa y confirme nuestro techo.")
         elif falling:
             lines.append("⏳ *Yo aquí esperaría: todavía puede quedar bajada.* Que esté barata frente a hace unos días no quiere decir que ya haya terminado de caer.")
         else:
@@ -523,6 +539,9 @@ def format_sell_advice(item, period="3mo"):
         return format_buy_advice(item, period)
     lines = [f"👀 *{escape_md(item.get('tab', item.get('ticker', '')))}* está en `{_fmt_price(price, item)}`.",
              "🟠 *Aquí no me lanzaría a comprar.* Está cerca de la parte alta y puede tomarse un respiro."]
+    stabilization = format_stabilization_context(item)
+    if stabilization:
+        lines.append(stabilization)
     top = item.get('max')
     if _usable_price(top) and top >= price:
         lines.append(f"El techo que vigilaría está en `{_fmt_price(top, item)}`. Si lo rompe y aguanta, puede seguir subiendo; si vuelve a rechazarse ahí, esperaría otra bajada.")

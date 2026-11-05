@@ -1819,6 +1819,15 @@ function renderFilteredCards() {
   }
 }
 
+function renderStabilizationContext(item) {
+  const context = item.stabilization;
+  if (!context) return '';
+  const old = item.is_stale || context.state === 'STALE';
+  const range = context.support != null && context.resistance != null
+    ? `<span>Franja de ${context.window_minutes} min: ${formatPrice(context.support, item)} — ${formatPrice(context.resistance, item)}</span>` : '';
+  return `<details class="stabilization-context" data-stabilization="${escapeHtml(context.state)}"><summary>🧭 ${old ? 'Lectura anterior · ' : ''}${escapeHtml(context.label)}</summary>${range}<p>${escapeHtml(context.summary)}</p><small>${context.as_of ? `Lectura: ${escapeHtml(context.as_of)} · ` : ''}Es contexto, no una señal de entrada.</small></details>`;
+}
+
 function createAssetCard(item) {
   const card = document.createElement("article");
   card.className = "asset-card";
@@ -2048,6 +2057,7 @@ function createAssetCard(item) {
       </div>
     </div>
 
+    ${renderStabilizationContext(item)}
     ${intelPillsHtml}
 
     <!-- Banner de Señal Principal -->
@@ -2249,6 +2259,7 @@ function createAssetCard(item) {
       ${intelPillsHtml}
 
       <!-- Banner de Señal de Venta -->
+      ${renderStabilizationContext(item)}
       <div class="signal-banner" style="background: rgba(225, 29, 72, 0.15); border: 1px solid rgba(225, 29, 72, 0.35); color: #fda4af;">
         <span>${sell.sell_signal}</span>
         <span style="font-size: 0.75rem; opacity: 0.85;">${sell.dist_to_high_pct <= 2 ? 'En Resistencia Máxima' : `A ${sell.dist_to_high_pct.toFixed(1)}% del techo`}</span>

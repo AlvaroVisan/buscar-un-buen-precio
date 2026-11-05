@@ -168,3 +168,29 @@ el usuario selecciona EUR en la escala de precios, según permita el símbolo.
 Comprobaciones: `python -m unittest`, `node test_euro_view.js` y sintaxis de los
 scripts modificados. Las pruebas HTTP verifican el retorno de precios EUR a USD
 al guardar; las pruebas de navegador usan APIs y posiciones ficticias.
+
+## Contexto de estabilización
+
+`stabilization_context.py` describe los últimos 60–90 minutos con velas de 15
+minutos completas, descargadas durante la actualización de mercado. Se necesitan
+al menos ocho velas contiguas: cuatro de comparación y cuatro de lectura (60 min).
+Con diez o más se usan seis de lectura (90 min). No se cruzan huecos ni sesiones,
+no se cuenta una vela en formación y una lectura de más de 45 minutos se marca
+como anterior. Una descarga fallida conserva la cotización diaria y devuelve
+contexto insuficiente, sin inventar un suelo.
+
+La lectura compara la amplitud media de las velas con las cuatro precedentes,
+la anchura total de la franja, el desplazamiento neto y su proporción respecto al
+recorrido de los cierres. Comprueba también si los mínimos de la segunda mitad
+son claramente inferiores a los de la primera (tolerancia 0,1 %). Una compresión
+sin mínimos descendentes puede indicar intento de suelo; con 90 minutos y poco
+desplazamiento, lateralización. Una caída direccional sigue siendo caída aunque
+se estrechen sus velas. Se distinguen también rebote y precio que sale de la franja.
+
+Son umbrales descriptivos iniciales, no probabilidades calibradas: contracción
+de amplitud hasta 0,8 o velas muy pequeñas; franja hasta 2,5 % para lateralización
+y 4 % para intento de suelo, junto a condiciones de dirección. El objeto
+`stabilization` conserva métricas, suelo, techo, fecha y `is_entry_signal=false`.
+El bot y las tarjetas muestran esta lectura como contexto; **no** modifica score,
+confirmaciones horarias, stops, objetivos, compras por tramos ni dispara alertas.
+Los límites de la franja se presentan en euros con el mismo cambio que el resto.

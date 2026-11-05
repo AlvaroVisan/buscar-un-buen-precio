@@ -4917,3 +4917,8 @@ body { padding-bottom: 88px; }
     justify-content: flex-end;
   }
 }
+.stabilization-context { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--card-border, #333); border-radius: 10px; color: var(--text-secondary, #aaa); font-size: .78rem; line-height: 1.5; overflow-wrap: anywhere; }
+.stabilization-context summary { color: var(--text-primary, #eee); cursor: pointer; font-weight: 600; }
+.stabilization-context p { margin: 8px 0; }
+.stabilization-context span, .stabilization-context small { display: block; margin-top: 8px; }
+.stabilization-context small { opacity: .8; }

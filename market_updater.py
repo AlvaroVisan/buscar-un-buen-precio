@@ -1398,16 +1398,17 @@ def detect_fibonacci_clusters(timeframes, current_price, currency, decimals, tol
     return clusters[:3]
 
 
-def fetch_rebound_bars(ticker_object, now=None):
-    """Velas horarias completas; un fallo no invalida la cotización diaria."""
+def fetch_rebound_bars(ticker_object, now=None, interval="60m"):
+    """Velas intradía completas; un fallo no invalida la cotización diaria."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
     try:
-        hourly = ticker_object.history(period="5d", interval="60m")
+        hourly = ticker_object.history(period="5d", interval=interval)
         rows = []
         for stamp, row in hourly.sort_index().iterrows():
             if stamp.tzinfo is None:
                 continue
-            end = stamp.to_pydatetime().astimezone(datetime.timezone.utc) + datetime.timedelta(hours=1)
+            duration = datetime.timedelta(minutes=15) if interval == "15m" else datetime.timedelta(hours=1)
+            end = stamp.to_pydatetime().astimezone(datetime.timezone.utc) + duration
             if end > now:
                 continue
             values = {key: float(row[key]) for key in ("High", "Low", "Close")}
@@ -1557,6 +1558,8 @@ def fetch_asset_data(asset, period="3mo", return_history=False, quiet=False):
             if all(math.isfinite(float(row[key])) and float(row[key]) > 0 for key in ("Open", "High", "Low", "Close"))
         ]
         asset_payload["rebound_bars"] = fetch_rebound_bars(t)
+        from stabilization_context import analyze_stabilization
+        asset_payload["stabilization"] = analyze_stabilization(fetch_rebound_bars(t, interval="15m"), current_price)
     return (asset_payload, hist) if return_history else asset_payload
 
 

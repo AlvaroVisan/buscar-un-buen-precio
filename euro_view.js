@@ -2,7 +2,7 @@
 window.EuroView = (() => {
   let quote = null, loadedAt = 0;
   const moneyKeys = new Set(('price min max range atr_14 sma_200 stop_loss initial_stop_loss trailing_stop atr_trailing_stop take_profit_1 take_profit_2 tp1 tp2 ssl_pool_ref ext_127 ext_161 center min_price max_price breakout confirmation_level invalidation target budget simulated_budget invested invested_val market_val pnl pnl_abs pnl_at_sl_abs pnl_at_tp_abs realized_pnl_abs avg_entry exit_price amount average_price peak_equity eps_avg TotalRevenue NetIncome OperatingCashFlow FreeCashFlow TotalDebt CashCashEquivalentsAndShortTermInvestments').split(' '));
-  const monetary = (key, parent) => moneyKeys.has(key) || /(?:_price|_stop_loss|_per_share)$/.test(key) || ['custom_sl', 'custom_tp', 'effective_sl', 'effective_tp'].includes(key) || parent === 'fib_levels' || (parent === 'rebound_bars' || parent === 'chart_bars') && ['Open', 'High', 'Low', 'Close'].includes(key);
+  const monetary = (key, parent) => moneyKeys.has(key) || /(?:_price|_stop_loss|_per_share)$/.test(key) || ['custom_sl', 'custom_tp', 'effective_sl', 'effective_tp'].includes(key) || parent === 'stabilization' && ['support', 'resistance'].includes(key) || parent === 'fib_levels' || (parent === 'rebound_bars' || parent === 'chart_bars') && ['Open', 'High', 'Low', 'Close'].includes(key);
   const isUsd = currency => currency === '$' || currency === 'USD';
   const isEur = currency => currency === '€' || currency === 'EUR';
   const factor = currency => quote && isUsd(currency) ? 1 / quote.rate : 1;

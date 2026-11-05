@@ -62,6 +62,11 @@ class TelegramScenariosTests(unittest.TestCase):
         self.assertNotIn("Compra aquí", advice)
         self.assertEqual(Path(journal.JOURNAL_PATH).read_bytes(), before)
 
+    def test_lateral_context_does_not_send_an_entry_alert(self):
+        self.item['stabilization'] = {'state': 'LATERAL', 'is_entry_signal': False}
+        self.assertEqual(self.dispatch()['sent'], 0)
+        self.send.assert_not_called()
+
     def test_delivered_event_is_not_repeated_after_restart_or_cooldown(self):
         self.confirm()
         self.assertEqual(self.dispatch()["sent"], 1)
