@@ -22,12 +22,21 @@ class QuoteFailureTests(unittest.TestCase):
             self.addCleanup(p.stop)
 
     def update(self, fetch):
+        order = []
         with patch.object(market, 'load_config', return_value=self.config), patch.object(market, 'fetch_asset_data', side_effect=fetch), patch.object(market, 'fetch_cnn_fear_and_greed', return_value={}), patch.object(market, 'evaluate_market_hours', return_value={}), patch.object(market, 'print_summary_table'), patch.object(telegram_notifier, 'dispatch_telegram_alerts') as alerts, patch.object(journal_manager, 'update_journal_with_market_data') as journal:
+            journal.side_effect = lambda *args, **kwargs: order.append("journal")
+            alerts.side_effect = lambda *args, **kwargs: order.append("alerts")
             result = market.run_updater(sync_sheets=False)
+            self.assertEqual(order, ["journal", "alerts"])
             self.assertEqual(json.loads(self.path.read_text(encoding='utf-8')), result)
             self.assertTrue(all(not it.get('is_stale') for it in alerts.call_args.args[0]['data']))
             self.assertTrue(all(not it.get('is_stale') for it in journal.call_args.args[0]))
             return result
+
+    def test_journal_failure_suppresses_alerts(self):
+        with patch.object(market, 'load_config', return_value=self.config), patch.object(market, 'fetch_asset_data', return_value=({'ticker': 'AAA', 'current_price': 100}, None)), patch.object(market, 'fetch_cnn_fear_and_greed', return_value={}), patch.object(market, 'evaluate_market_hours', return_value={}), patch.object(market, 'print_summary_table'), patch.object(telegram_notifier, 'dispatch_telegram_alerts') as alerts, patch.object(journal_manager, 'update_journal_with_market_data', side_effect=OSError('simulated journal failure')):
+            market.run_updater(sync_sheets=False)
+            alerts.assert_not_called()
 
     def test_failure_retains_price_and_date_then_recovers(self):
         self.path.write_text(json.dumps({'timestamp': '2026-01-01 12:00:00', 'data': [{'ticker': 'AAA', 'current_price': 110}]}), encoding='utf-8')

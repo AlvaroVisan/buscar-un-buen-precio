@@ -70,3 +70,27 @@ Estas reglas son hipótesis para comparar prospectivamente, no mejoras demostrad
 Validación: `python -m unittest` y `node --check app.js`. Las regresiones de los
 escenarios viven en `test_scenario_engine.py`; las pruebas usan archivos temporales
 y no envían mensajes ni modifican Cartera.
+
+## Telegram
+
+El bot consulta el mismo estado persistido. `/ver TICKER` y `/compra TICKER`
+distinguen vigilancia, entrada confirmada y campaña de acumulación. No generan
+entradas al consultar. El análisis técnico de venta y la calculadora de riesgo
+son lecturas hipotéticas; no sustituyen los niveles congelados del Diario.
+
+`/alertas` muestra vigilancia y escenarios activos. `/diario` y sus filtros
+muestran Confirmación; `/diario anterior` conserva los registros previos y
+`/acumulacion` muestra las campañas. Los botones mantienen el escenario elegido.
+
+Los avisos automáticos se evalúan después de guardar el Diario. Solo notifican
+entradas confirmadas y tramos registrados, no candidatos por score o Fibonacci.
+Los identificadores de evento se conservan en la caché privada por destinatario:
+no se repite un evento al reiniciar o superar cuatro horas; un tramo nuevo puede
+avisarse inmediatamente. Un destinatario fallido se reintenta sin repetir el
+aviso a los que ya lo recibieron. Se conservan horario inteligente, habilitación
+de Telegram y opciones generales de notificación (ambas desactivadas silencian
+avisos). El antiguo `min_score` del bot ya no valida compras ni filtra eventos
+registrados: las condiciones de entrada pertenecen al motor de escenarios.
+
+Las pruebas de Telegram usan envíos simulados y archivos temporales. Los mensajes
+ya enviados no se reescriben al actualizar el bot.

@@ -2,7 +2,7 @@
 telegram_notifier.py
 Módulo de notificaciones y bot interactivo para Telegram en 'Buscar un buen precio'.
 Proporciona:
-1. Alertas automáticas push cuando un activo entra en la Zona Áurea (61.8%) o alcanza alta confluencia.
+1. Alertas de entradas confirmadas y tramos registrados por el Diario.
 2. Bot interactivo bidireccional (comandos /resumen, /alertas, /ver <ticker>, /sync, /periodo).
 """
 
@@ -35,7 +35,7 @@ def escape_md(val):
 
 
 def _load_alerts_cache():
-    """Carga la caché de cooldown de alertas desde disco y limpia entradas expiradas."""
+    """Conserva eventos entregados entre reinicios; expira solo el formato antiguo."""
     if not os.path.exists(ALERTS_CACHE_PATH):
         return {}
     try:
@@ -46,7 +46,7 @@ def _load_alerts_cache():
             now = time.time()
             return {
                 k: v for k, v in raw.items()
-                if isinstance(v, dict) and (now - v.get("timestamp", 0)) < ALERT_COOLDOWN_SECONDS
+                if isinstance(v, dict) and ("events" in v or (now - v.get("timestamp", 0)) < ALERT_COOLDOWN_SECONDS)
             }
     except Exception:
         return {}
@@ -221,7 +221,8 @@ def journal_tracking_context(item, _chat_id=None):
     stop_str = _fmt_price(stop_p, entry) if isinstance(stop_p, (int, float)) else "--"
     sign = "+" if ret >= 0 else ""
 
-    return f"📌 *Seguimiento activo*: Entrada en `{entry_str}` (P&L: *{sign}{ret:.2f}%*) · Salida si cae de `{stop_str}`\n\n"
+    scenario = "Confirmación" if entry.get("strategy") == "confirmation" else "Historial anterior"
+    return f"📌 *Seguimiento activo*: Entrada en `{entry_str}` (P&L: *{sign}{ret:.2f}%*) · Salida si cae de `{stop_str}` · {scenario}\n\n"
 
 
 def format_current_market_context(item, period=None):
@@ -342,10 +343,11 @@ def setup_bot_commands(bot_token):
         url = f"https://api.telegram.org/bot{bot_token.strip()}/setMyCommands"
         cmds = [
             {"command": "resumen", "description": "📊 Precios y Scores de todos los activos"},
-            {"command": "alertas", "description": "🎯 Oportunidades en Zona Áurea / Alta Confluencia"},
+            {"command": "alertas", "description": "🎯 Vigilancia, confirmaciones y campañas activas"},
             {"command": "ver", "description": "🔍 Analizar un activo (ej: /ver AMD)"},
             {"command": "cartera", "description": "💼 Mi Cartera Real, PnL abierto y alertas SL/TP"},
             {"command": "historial", "description": "📔 Diario de trading y tasa de acierto"},
+            {"command": "acumulacion", "description": "📚 Campañas simuladas y compras por tramos"},
             {"command": "actualizar", "description": "🔄 Actualizar mercado y Google Sheets"},
             {"command": "herramientas", "description": "🧰 Análisis técnico y gestión de activos"},
             {"command": "ayuda", "description": "ℹ️ Ayuda y lista de comandos"}
@@ -425,112 +427,54 @@ def find_asset_item(query):
 
 
 def format_buy_advice(item, period="3mo"):
-    """
-    Construye un pronóstico directo y plan de ejecución táctico (se moja):
-    1. Pronóstico: ¿Sube, baja, o baja primero para luego rebotar?
-    2. Contexto de inercia y suelo.
-    3. Plan táctico de ejecución (entrada en 2 tramos, objetivos y stop).
-    4. Pines de aviso relevante (Resultados / Earnings).
-    """
+    """Describe el estado persistido: consultar no crea ni confirma entradas."""
     ticker = item.get("ticker", "")
-    tab = escape_md(item.get("tab", ticker))
-    price = item.get("current_price", 0)
-    drop = item.get("drop_pct", 0)
-    p_max = item.get("max", price)
-    p_min = item.get("min", price)
-    score = item.get("score", 0)
-    swing_type = item.get("swing_type", "")
-
-    risk = item.get("risk_mgmt") or {}
-    liq = item.get("liquidity") or {}
-    earnings = item.get("earnings") or {}
-
-    poc_p = liq.get("poc_price", 0) if liq.get("has_real_volume") and liq.get("profile_type") == "VOLUME" else 0
-    ssl_p = liq.get("ssl_pool_price", 0)
-    floor_p = ssl_p if (ssl_p and ssl_p < price) else (p_min if (p_min and p_min < price) else price * 0.95)
-
-    sl = risk.get("ssl_stop_loss") or risk.get("stop_loss") or (price * 0.95)
-    tp1 = risk.get("take_profit_1") or (price * 1.10)
-    tp2 = risk.get("take_profit_2") or p_max
-
-    gain_tp1 = risk.get("reward_1_pct", ((tp1 - price) / price * 100) if price > 0 else 0)
-    gain_tp2 = risk.get("reward_2_pct", ((tp2 - price) / price * 100) if price > 0 else 0)
-    loss_pct = ((price - sl) / price * 100) if price > 0 else 0
-
-    has_imminent_earnings = earnings.get("has_earnings") and (earnings.get("days_until") is not None and earnings.get("days_until") <= 2)
-
-    # 1. PRONÓSTICO DIRECTO Y TRAYECTORIA
-    if drop >= 10.0 or swing_type == "FALLING_KNIFE" or has_imminent_earnings:
-        forecast_title = "🔮 *PRONÓSTICO: Baja primero, sube después.*"
-        earn_clause = " y la tensión previa de resultados" if has_imminent_earnings else ""
-        vol_clause = f" (muro de compras institucional en `{_fmt_price(poc_p, item)}`)" if poc_p > 0 else ""
-        explanation = (
-            f"Tras una corrección del *-{drop:.1f}%* desde sus máximos de `{_fmt_price(p_max, item)}`{earn_clause}, "
-            f"la inercia presiona a testear el suelo en torno a `{_fmt_price(floor_p, item)}`{vol_clause}. "
-            f"Desde esa zona de soporte, la proyección estadística apunta a un *rebote potente hacia `{_fmt_price(tp1, item)}` (+{gain_tp1:.1f}%)*."
-        )
-        plan_bullets = (
-            f"🎯 *Plan de ejecución (Cómo se juega esto):*\n"
-            f"• *Entrada en 2 tramos*: 50% de tu posición ahora en `{_fmt_price(price, item)}`, y guardas el otro 50% por si visita `{_fmt_price(floor_p, item)}` para cargar más barato.\n"
-            f"• *Objetivo de beneficio*: Salida en `{_fmt_price(tp1, item)}` *(+{gain_tp1:.1f}%)*, con margen hacia `{_fmt_price(tp2, item)}` *(+{gain_tp2:.1f}%)*.\n"
-            f"• *Dónde nos salimos si sale mal*: Si perfora los `{_fmt_price(sl, item)}` *(-{loss_pct:.1f}%)*, el pronóstico se anula y cerramos la posición sin dudar."
-        )
-        header_icon = "🟢"
-    elif score >= 65 and drop >= 4.0:
-        forecast_title = "🔮 *PRONÓSTICO: SUBE.*"
-        explanation = (
-            f"*{tab}* ha conseguido frenar en el soporte de `{_fmt_price(floor_p, item)}` tras retroceder un *-{drop:.1f}%*. "
-            f"El volumen vendedor se ha secado y la proyección apunta a un rebote directo hacia `{_fmt_price(tp1, item)}` *(+{gain_tp1:.1f}%)*."
-        )
-        plan_bullets = (
-            f"🎯 *Plan de ejecución:*\n"
-            f"• *Entrada directa*: Compra aquí en `{_fmt_price(price, item)}`.\n"
-            f"• *Objetivo*: `{_fmt_price(tp1, item)}` *(+{gain_tp1:.1f}%)*, y segundo impulso a `{_fmt_price(tp2, item)}` *(+{gain_tp2:.1f}%)*.\n"
-            f"• *Dónde nos salimos si sale mal*: Si pierde los `{_fmt_price(sl, item)}` *(-{loss_pct:.1f}%)*, cortamos para proteger capital."
-        )
-        header_icon = "🟢"
+    lines = [f"🎯 *{escape_md(item.get('tab', ticker))}* · `{_fmt_price(item.get('current_price', 0), item)}`"]
+    if item.get("is_stale"):
+        lines.append("⚠️ *Cotización desactualizada*. No se valida una entrada con estos datos.")
+    try:
+        context = journal_manager.get_scenario_context(ticker)
+    except (OSError, ValueError, TypeError, KeyError):
+        return "\n".join(lines + ["⚠️ No se puede consultar el Diario. No hay entrada verificable."])
+    trade, campaign, watch = (context[key] for key in ("confirmation", "accumulation", "watch"))
+    if trade:
+        lines.extend(["✅ *PRONÓSTICO: entrada confirmada registrada (simulación).*",
+                      f"Entrada `{_fmt_price(trade['entry_price'], trade)}` · Stop `{_fmt_price(trade['stop_loss'], trade)}`",
+                      f"TP1 `{_fmt_price(trade['tp1'], trade)}` · TP2 `{_fmt_price(trade['tp2'], trade)}`",
+                      "50 % sale en TP1; el resto pasa a stop en entrada y sale en TP2 o entrada. No es una orden nueva de compra."])
     else:
-        forecast_title = "🔮 *PRONÓSTICO: AÚN NO ENTRAR.*"
-        explanation = (
-            f"*{tab}* cotiza en `{_fmt_price(price, item)}` sin descuento técnico suficiente o sin suelo confirmado. "
-            f"Entrar ahora tiene un riesgo innecesario. Lo sensato es esperar a que caiga hacia la zona de `{_fmt_price(floor_p, item)}` antes de arriesgar dinero."
-        )
-        plan_bullets = (
-            f"🎯 *Plan de acción:*\n"
-            f"• *No compres todavía*: Mantente al margen hasta que el precio visite `{_fmt_price(floor_p, item)}`.\n"
-            f"• *Vigilar*: Si frena en ese suelo, se abrirá la ventana de rebote hacia `{_fmt_price(tp1, item)}`."
-        )
-        header_icon = "🟡"
-
-    # Pines con información relevante adicional (Resultados)
-    pins = []
-    if earnings.get("has_earnings") and earnings.get("short_date"):
-        ed = earnings.get("short_date")
-        du = earnings.get("days_until")
-        eps = earnings.get("eps_avg")
-        eps_txt = f" (beneficio previsto: `${eps}`/acc)" if eps is not None else ""
-        if du == 0:
-            when = "HOY"
-        elif du == 1:
-            when = "MAÑANA"
-        elif du is not None and du <= 5:
-            when = f"en {du} días ({ed})"
+        lines.extend(["⏳ *PRONÓSTICO: esperar confirmación del rebote.*",
+                      "La caída y el score activan vigilancia; no autorizan una entrada ni una ampliación."])
+        if watch:
+            lines.append(f"Vigilancia desde {escape_md(watch['since'])} · Recuperar `{_fmt_price(watch['breakout'], item)}` en una sesión posterior cerrada, con tendencia y riesgo válidos.")
+            lines.append(escape_md(watch.get("market_context", "Mercado sin confirmar")))
+            if watch.get("state") == "CONFIRMADA":
+                lines.append("Estructura recuperada; sin entrada registrada todavía. El filtro de riesgo u otros requisitos pueden impedirla.")
         else:
-            when = f"el {ed}"
-        pins.append(f"📌 *Resultados*: Presenta cuentas *{when}*{eps_txt}. Atención a la volatilidad extrema.")
-
-    pins_str = ("\n\n" + "\n".join(pins)) if pins else ""
-
-    msg = (
-        f"{header_icon} *{tab}* · `{_fmt_price(price, item)}`\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{forecast_title}\n\n"
-        f"{explanation}\n\n"
-        f"{plan_bullets}"
-        f"{pins_str}"
-    )
-    stale_warn = f"⚠️ *Cotización desactualizada* ({escape_md(item.get('last_success_at') or '')})\n\n" if item.get("is_stale") else ""
-    return stale_warn + msg
+            lines.append("Sin vigilancia registrada. Se evaluará en la próxima actualización de mercado.")
+        lines.append("Después de un stop se exige vigilancia y estructura nuevas.")
+    if campaign:
+        n = len(campaign['tranches'])
+        lines.extend([f"📚 *Acumulación simulada · {n}/3 tramos*",
+                      f"Última compra simulada: {escape_md(campaign['tranches'][-1]['date'])} a `{_fmt_price(campaign['tranches'][-1]['price'], item)}`",
+                      f"Invertido {campaign['invested']:.2f} / {campaign['budget']:.2f} {escape_md(campaign.get('currency', '$'))} · Unidades {campaign['shares']:.4f}",
+                      f"Precio medio `{_fmt_price(campaign['average_price'], item)}` · Resultado {campaign.get('return_pct', 0):+.2f}%",
+                      f"Invalidación fija `{_fmt_price(campaign['invalidation'], item)}` · Objetivo `{_fmt_price(campaign['target'], item)}`"])
+        if n < 3:
+            lines.append(f"Siguiente tramo solo con precio ≤ `{_fmt_price(campaign['tranches'][-1]['price'] * .95, item)}`, recuperación confirmada en otra sesión, tendencia válida y sin bloqueo de mercado. Bajar por sí solo no activa la compra.")
+        else:
+            lines.append("Presupuesto agotado: no se añaden más tramos.")
+    else:
+        lines.append("📚 Sin campaña de acumulación activa. Máximo tres tercios de un presupuesto simulado de 1.000 por activo y divisa; requiere confirmación inicial.")
+    liquidity = item.get("liquidity") or {}
+    if liquidity.get("has_real_volume") and liquidity.get("profile_type") == "VOLUME" and liquidity.get("poc_price"):
+        lines.append(f"Volumen histórico: POC `{_fmt_price(liquidity['poc_price'], item)}`. No acredita órdenes institucionales pendientes.")
+    earnings = item.get("earnings") or {}
+    if earnings.get("has_earnings") and earnings.get("short_date"):
+        when = "HOY" if earnings.get("days_until") == 0 else "MAÑANA" if earnings.get("days_until") == 1 else earnings['short_date']
+        lines.append(f"📌 *Resultados*: {escape_md(when)}. Atención a la volatilidad.")
+    lines.append("Simulación sin operaciones reales. El score no es una probabilidad de éxito.")
+    return "\n\n".join(lines)
 
 
 def format_sell_advice(item, period="3mo"):
@@ -556,15 +500,15 @@ def format_sell_advice(item, period="3mo"):
     f50 = fibs.get("50.0%", p_min)
     prot_pct = ((price - t_stop) / price * 100) if price > 0 else 0
 
-    forecast_title = "🔮 *PRONÓSTICO: BAJA (Toca recoger).* "
+    forecast_title = "🔎 *LECTURA TÉCNICA: riesgo de retroceso.* "
     explanation = (
         f"*{tab}* acumula un alza del *+{gain_low:.1f}%* desde mínimos y está a solo un *{dist_hi:.1f}%* de su techo en `{_fmt_price(p_max, item)}`. "
-        f"El impulso comprador está agotado y el escenario más probable es un retroceso hacia el soporte de `{_fmt_price(f50, item)}`."
+        f"La cercanía a máximos permite vigilar un posible retroceso hacia `{_fmt_price(f50, item)}`; no demuestra que vaya a ocurrir."
     )
     plan_bullets = (
         f"🎯 *Plan de acción:*\n"
-        f"• *No comprar*: El tren de subida ya ha salido y el riesgo aquí es máximo.\n"
-        f"• *Asegurar ganancias*: Toma beneficios parciales o pon un stop de protección en `{_fmt_price(t_stop, item)}` *(-{prot_pct:.1f}%)* para blindar lo ganado si el precio se gira."
+        f"• Referencia técnica actual de protección: `{_fmt_price(t_stop, item)}` *(-{prot_pct:.1f}%)*.\n"
+        f"• Esta lectura no cambia los stops, objetivos ni tramos registrados en el Diario. No ejecuta ventas reales."
     )
 
     pins = []
@@ -594,6 +538,13 @@ def format_sell_advice(item, period="3mo"):
         f"{pins_str}"
     )
     stale_warn = f"⚠️ *Cotización desactualizada* ({escape_md(item.get('last_success_at') or '')})\n\n" if item.get("is_stale") else ""
+    try:
+        campaign = journal_manager.get_scenario_context(ticker)["accumulation"]
+        if campaign:
+            msg += (f"\n\n📚 *Acumulación simulada*: {len(campaign['tranches'])}/3 tramos · Media `{_fmt_price(campaign['average_price'], item)}`"
+                    f" · Invalidación fija `{_fmt_price(campaign['invalidation'], item)}` · Objetivo `{_fmt_price(campaign['target'], item)}`. No se amplía por una bajada aislada.")
+    except (OSError, ValueError, TypeError, KeyError):
+        msg += "\n\n⚠️ No se puede consultar la acumulación del Diario."
     return stale_warn + msg
 
 
@@ -666,7 +617,6 @@ def dispatch_telegram_alerts(market_payload, config):
     if not bot_token or not chat_ids:
         return {"sent": 0, "status": "Faltan credenciales de Telegram"}
 
-    min_score = tg_config.get("min_score", 70)
     notify_golden = tg_config.get("notify_on_golden_zone", True)
     notify_confluence = tg_config.get("notify_on_high_confluence", True)
     period = market_payload.get("period", config.get("period", "3mo"))
@@ -682,35 +632,48 @@ def dispatch_telegram_alerts(market_payload, config):
 
     for item in market_payload.get("data", []):
         ticker = item.get("ticker")
+        if item.get("is_stale"):
+            continue
         # Con Horario Inteligente activo, silenciar alertas push de bolsa cerrada (manteniendo Cripto 24/7)
         if smart_hours and not mh["equities_open"] and not market_updater.is_crypto_ticker(ticker):
             continue
 
         current_price = item.get("current_price", 0)
-        fib_golden = item.get("fib_levels", {}).get("61.8%", 0)
         score = item.get("score", 0)
 
-        is_golden = current_price <= fib_golden
-        is_high_score = score >= min_score
-
-        qualifies = (notify_golden and is_golden) or (notify_confluence and is_high_score)
-        if not qualifies:
+        try:
+            context = journal_manager.get_scenario_context(ticker)
+        except (OSError, ValueError, TypeError, KeyError):
+            continue
+        trade, campaign = context["confirmation"], context["accumulation"]
+        events = []
+        if trade:
+            events.append("confirmation:" + str(trade["id"]))
+        if campaign:
+            events.append("accumulation:" + str(campaign["tranches"][0]["date"]) + ":" + str(len(campaign["tranches"])))
+        signature = "|".join(events)
+        if not signature or not (notify_golden or notify_confluence):
             continue
 
         # Comprobar cooldown persistido en disco
         last_alert = alerts_cache.get(ticker)
-        if last_alert:
-            elapsed = now - last_alert.get("timestamp", 0)
-            if elapsed < ALERT_COOLDOWN_SECONDS:
-                continue
+        delivered_events = set((last_alert or {}).get("events", []))
+        deliveries = dict((last_alert or {}).get("deliveries", {}))
+        if not deliveries and delivered_events:
+            deliveries = {cid: sorted(delivered_events) for cid in chat_ids}
+        if all(set(events).issubset(set(deliveries.get(cid, []))) for cid in chat_ids):
+            continue
 
         # Enviar alerta con botonera Inline interactiva a todos los destinatarios autorizados
         alert_text = format_telegram_alert(item, period=period)
         delivered_to_any = False
         for cid in chat_ids:
+            if set(events).issubset(set(deliveries.get(cid, []))):
+                continue
             inline_kb = build_buy_advice_inline_keyboard(ticker, period)
             ok, res = send_telegram_message(bot_token, cid, journal_tracking_context(item, cid) + alert_text, reply_markup=inline_kb)
             if ok:
+                deliveries[cid] = sorted(set(deliveries.get(cid, [])).union(events))
                 delivered_to_any = True
                 print(f"[Telegram Notifier] 📲 Alerta enviada para {ticker} ({item.get('tab')}) al chat {cid}")
                 if isinstance(res, dict) and "message_id" in res:
@@ -723,6 +686,9 @@ def dispatch_telegram_alerts(market_payload, config):
             sent_count += 1
             alerts_cache[ticker] = {
                 "timestamp": now,
+                "event": signature,
+                "events": sorted(delivered_events.union(events)),
+                "deliveries": deliveries,
                 "price": current_price,
                 "score": score
             }
@@ -742,12 +708,13 @@ def handle_start_or_help(bot_token, chat_id):
     msg = (
         "🤖 *ASISTENTE FIBONACCI*\n\n"
         "📊 /resumen — Todos los activos: precios y puntuación.\n"
-        "🎯 /alertas — Solo los que cumplen los filtros de oportunidad.\n"
+        "🎯 /alertas — Vigilancia, confirmaciones y campañas activas.\n"
         "🔍 /ver TICKER — Análisis según la situación del activo.\n"
         "También puedes escribir directamente el ticker, por ejemplo `AMD`.\n"
         "Desde su ficha puedes abrir Compra, Venta, Fibonacci y Riesgo.\n\n"
         "💼 /cartera — Tus posiciones y PnL abierto.\n"
-        "📔 /historial — Resultados de las señales del diario.\n"
+        "📔 /diario — Confirmación; `/diario anterior` conserva el historial previo.\n"
+        "📚 /acumulacion — Campañas simuladas y compras por tramos.\n"
         "📔 `/ver AMD` muestra primero si hay seguimiento activo y sus niveles originales.\n"
         "🔄 /actualizar — Actualizar mercado y Google Sheets.\n\n"
         "🧰 /herramientas — Análisis especializado y gestión de activos.\n"
@@ -761,7 +728,7 @@ def handle_herramientas(bot_token, chat_id):
     msg = (
         "🧰 *HERRAMIENTAS*\n\n"
         "*Análisis de un activo*\n"
-        "• `/compra AMD` — Entrada, stop y objetivos.\n"
+        "• `/compra AMD` — Estado de confirmación, entrada y tramos registrados.\n"
         "• `/venta AMD` — Plan de salida y trailing stop.\n"
         "• `/fibo AMD` — Niveles y botones de periodo.\n"
         "• `/riesgo AMD 100` — Tamaño de posición para arriesgar 100.\n\n"
@@ -835,67 +802,32 @@ def handle_resumen(bot_token, chat_id):
     except Exception as e:
         send_telegram_message(bot_token, chat_id, f"❌ Error al generar resumen: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
+def _read_scenario_journal():
+    if not os.path.exists(journal_manager.JOURNAL_PATH):
+        return {"entries": [], "watches": {}, "accumulation": []}
+    with open(journal_manager.JOURNAL_PATH, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def handle_alertas(bot_token, chat_id):
-    """
-    Muestra exclusivamente los activos que están en Zona Áurea (61.8%) o con alta confluencia.
-    """
-    if not os.path.exists(LATEST_DATA_PATH):
-        send_telegram_message(
-            bot_token, chat_id,
-            "⚠️ Aún no hay datos calculados. Pulsa *🔄 Sincronizar* primero.",
-            reply_markup=TELEGRAM_MAIN_KEYBOARD
-        )
-        return
-
+    """Radar del estado persistido; las consultas no registran operaciones."""
     try:
-        with open(LATEST_DATA_PATH, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-
-        items = payload.get("data", [])
-        opportunities = []
-        for it in items:
-            price = it.get("current_price", 0)
-            fib_golden = it.get("fib_levels", {}).get("61.8%", 0)
-            score = it.get("score", 0)
-            if (fib_golden > 0 and price <= fib_golden) or score >= 70:
-                opportunities.append(it)
-
-        if not opportunities:
-            msg = (
-                "🎯 *RADAR DE OPORTUNIDADES*\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "✅ Ningún activo está actualmente en Zona Áurea (61.8%) ni con Score ≥ 70.\n\n"
-                "Todos cotizan por encima de las zonas de compra recomendadas. El mercado no presenta sobreventas extremas en tu lista."
-            )
-            send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
-            return
-
-        lines = [
-            f"🎯 *OPORTUNIDADES DETECTADAS ({len(opportunities)})*",
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        ]
-
-        for it in opportunities:
-            ticker = it.get("ticker", "")
-            tab = escape_md(it.get("tab", ticker))
-            price = it.get("current_price", 0)
-            drop = it.get("drop_pct", 0)
-            score = it.get("score", 0)
-            fib_golden = it.get("fib_levels", {}).get("61.8%", 0)
-            rsi = it.get("rsi")
-            rsi_str = f"{rsi:.1f}" if isinstance(rsi, (int, float)) else "--"
-
-            lines.append(
-                f"🔥 *{tab}* (`{ticker}`) — Score: *{score}/100*\n"
-                f"• Precio: `{_fmt_price(price, it)}` (-{drop:.1f}% desc) | RSI: `{rsi_str}`\n"
-                f"• Zona Áurea: `{_fmt_price(fib_golden, it)}` → `/compra {ticker}`\n"
-            )
-
-        lines.append("💡 _Pulsa un comando `/compra TICKER` para ver el plan operativo de entrada y Stop Loss._")
-        msg = "\n".join(lines)
-        send_telegram_message(bot_token, chat_id, msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
-    except Exception as e:
-        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar alertas: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+        data = _read_scenario_journal()
+        trades = [e for e in data.get("entries", []) if e.get("strategy") == "confirmation" and e.get("status") in ("ACTIVA", "TP1_ALCANZADO")]
+        campaigns = [c for c in data.get("accumulation", []) if c.get("status") == "ACTIVA"]
+        watches = data.get("watches", {})
+        lines = ["🎯 *RADAR DE ESCENARIOS*", f"Confirmadas activas: {len(trades)} · Campañas activas: {len(campaigns)} · Vigilados: {len(watches)}",
+                 "Estado de la última actualización del Diario; vigilancia no equivale a comprar."]
+        for trade in trades[:6]:
+            lines.append(f"✅ {escape_md(trade['ticker'])} · Entrada confirmada registrada · `/ver {escape_md(trade['ticker'])}`")
+        for campaign in campaigns[:6]:
+            lines.append(f"📚 {escape_md(campaign['ticker'])} · Acumulación {len(campaign['tranches'])}/3 · Media `{_fmt_price(campaign['average_price'], campaign)}`")
+        for ticker, watch in list(watches.items())[:8]:
+            lines.append(f"⏳ {escape_md(ticker)} · Vigilancia · Recuperar `{_fmt_price(watch['breakout'])}` · {escape_md(watch.get('market_context', 'Mercado sin confirmar'))}")
+        lines.append("Detalle y registros restantes: `/diario`, `/diario anterior`, `/acumulacion` o panel web. Fibonacci y score por sí solos no activan compras.")
+        send_telegram_message(bot_token, chat_id, "\n\n".join(lines), reply_markup=TELEGRAM_MAIN_KEYBOARD)
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        send_telegram_message(bot_token, chat_id, "⚠️ No se puede consultar el estado del Diario. No hay entradas verificables.", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
 
 def handle_compra(bot_token, chat_id, query=""):
@@ -917,7 +849,7 @@ def handle_compra(bot_token, chat_id, query=""):
                     others = [f"`/compra {it.get('ticker')}`" for it in top[1:] if it.get("ticker")]
                     others_txt = f"\n\n📌 *Otras oportunidades destacadas:* {' | '.join(others)}" if others else ""
                     period = best.get("period") or payload.get("period", "3mo")
-                    text = journal_tracking_context(best, chat_id) + f"🏆 *OPORTUNIDAD DESTACADA #1 DEL MERCADO:*\n\n{format_buy_advice(best, period)}{others_txt}"
+                    text = journal_tracking_context(best, chat_id) + f"🔎 *ACTIVO CON MAYOR SCORE · NO IMPLICA ENTRADA:*\n\n{format_buy_advice(best, period)}{others_txt}"
                     kb = build_buy_advice_inline_keyboard(best_t, period)
                     send_telegram_message(bot_token, chat_id, text, reply_markup=kb)
                     return
@@ -1170,6 +1102,7 @@ def handle_riesgo(bot_token, chat_id, raw_args):
         f"💡 _Regla de oro: No aumentes tu posición sin desplazar antes el Stop Loss a precio de entrada (Break-Even)._\n\n"
         f"[📊 Abrir Gráfico en TradingView]({tv_url})"
     )
+    msg = "Cálculo hipotético con niveles técnicos actuales: no confirma una entrada ni cambia el Diario.\n\n" + msg
     send_telegram_message(bot_token, chat_id, journal_tracking_context(matched_item, chat_id) + msg, reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
 def handle_venta(bot_token, chat_id, query=""):
@@ -1264,168 +1197,50 @@ def handle_venta(bot_token, chat_id, query=""):
     except Exception as e:
         send_telegram_message(bot_token, chat_id, f"❌ Error al consultar modo venta: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
-def handle_historial(bot_token, chat_id, filter_mode="ALL"):
-    """
-    Diario de Trading y Rendimiento del algoritmo.
-    Muestra la tasa de acierto (Win Rate), desglose de operaciones ganadas en TP y cerradas en Stop Loss.
-    """
+def handle_historial(bot_token, chat_id, filter_mode="ALL", scenario="confirmation"):
+    """Resultados separados y filtros aplicados dentro de cada escenario."""
     try:
-        import journal_manager
-        j_data = journal_manager.load_journal()
-        stats = j_data.get("stats", {})
-        entries = j_data.get("entries", [])
-
-        total = stats.get("total_opportunities", len(entries))
-        active_entries = [e for e in entries if e.get("status") in ("ACTIVA", "TP1_ALCANZADO")]
-        won_entries = [e for e in entries if e.get("result") == "GANADA" or e.get("status") in ("TP2_ALCANZADO", "BREAKEVEN_EJECUTADO")]
-        lost_entries = [e for e in entries if e.get("result") == "PERDIDA" or e.get("status") == "STOP_EJECUTADO"]
-        closed_entries = [e for e in entries if e.get("status") not in ("ACTIVA", "TP1_ALCANZADO")]
-
-        active = stats.get("active_count", len(active_entries))
-        closed = stats.get("closed_count", len(closed_entries))
-        win_rate = stats.get("win_rate_pct", 0.0)
-        loss_rate = stats.get("loss_rate_pct", 0.0)
-        won = stats.get("total_won", len(won_entries))
-        lost = stats.get("total_lost", len(lost_entries))
-        avg_win = stats.get("avg_win_pct", 0.0)
-        avg_loss = stats.get("avg_loss_pct", 0.0)
-
-        f_mode = str(filter_mode or "ALL").upper()
-
-        if closed == 0:
-            bal_str = "0.0%"
-        elif won == 0 and lost > 0:
-            bal_str = f"-{loss_rate:.1f}%"
-        elif won > 0 and lost == 0:
-            bal_str = f"+{win_rate:.1f}%"
-        else:
-            net_bal = win_rate - loss_rate
-            sign = "+" if net_bal > 0 else ""
-            bal_str = f"{sign}{net_bal:.1f}%"
-
-        lines = [
-            "📔 *DIARIO DE TRADING & HISTORIAL*",
-            "Seguimiento automático único. `/ver TICKER` muestra la señal registrada antes de la lectura actual.",
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            f"🎯 *Balance de Acierto*: `{bal_str}` ({win_rate:.1f}% Ganadas | {loss_rate:.1f}% en Stop)",
-            f"📊 *Operaciones Totales*: `{total}` ({active} activas, {closed} cerradas)",
-            f"🏆 *Ganadas (+)*: `{won}` (`{win_rate:.1f}%`, Retorno medio: `+{avg_win:.1f}%`)",
-            f"🛑 *En Stop Loss (-)*: `{lost}` (`{loss_rate:.1f}%`, Pérdida media: `{avg_loss:.1f}%`)",
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        ]
-
-        if not entries:
-            lines.append("ℹ️ Aún no hay registros en el diario. Las oportunidades se guardarán automáticamente cada vez que un activo entre en Zona Áurea (61.8%) o alcance Confluencia ≥ 70.")
-        elif f_mode == "WON":
-            lines.append(f"🏆 *REGISTRO DE OPERACIONES GANADAS (TP) ({len(won_entries)}):*\n")
-            if not won_entries:
-                lines.append("Aún no hay operaciones cerradas en Take Profit.")
-            for e in won_entries:
-                tab = escape_md(e.get("tab", e.get("ticker", "")))
-                ticker = e.get("ticker", "")
-                entry_p = e.get("entry_price", 0)
-                ret = e.get("final_return_pct", e.get("current_return_pct", 0.0))
-                sig_date = e.get("signal_date", "").split()[0]
-                cls_date = (e.get("closed_date") or "").split()[0]
-                cls_info = f" ➔ Cierre: `{cls_date}`" if cls_date else ""
-                reason = escape_md(e.get("exit_reason") or "Take Profit alcanzado con éxito")
-                status = "🟢 TP2 Ganada" if e.get("status") == "TP2_ALCANZADO" else "🟢 Break-Even (+TP1)"
-                lines.append(
-                    f"• *{tab}* (`{ticker}`) — {status} (*+{ret:.1f}%*)\n"
-                    f"  Entrada: `{_fmt_price(entry_p, e)}` ({sig_date}){cls_info}\n"
-                    f"  📝 _{reason}_\n"
-                )
-        elif f_mode == "LOST":
-            lines.append(f"🛑 *REGISTRO DE OPERACIONES EN STOP LOSS ({len(lost_entries)}):*\n")
-            if not lost_entries:
-                lines.append("No hay operaciones cerradas en Stop Loss.")
-            for e in lost_entries:
-                tab = escape_md(e.get("tab", e.get("ticker", "")))
-                ticker = e.get("ticker", "")
-                entry_p = e.get("entry_price", 0)
-                stop_p = e.get("stop_loss", 0)
-                ret = e.get("final_return_pct", e.get("current_return_pct", 0.0))
-                sig_date = e.get("signal_date", "").split()[0]
-                cls_date = (e.get("closed_date") or "").split()[0]
-                cls_info = f" ➔ Cierre: `{cls_date}`" if cls_date else ""
-                reason = escape_md(e.get("exit_reason") or f"Stop Loss alcanzado en {_fmt_price(stop_p, e)}")
-                lines.append(
-                    f"• *{tab}* (`{ticker}`) — 🔴 Stop Ejecutado (*{ret:.1f}%*)\n"
-                    f"  Entrada: `{_fmt_price(entry_p, e)}` ({sig_date}){cls_info} | Stop: `{_fmt_price(stop_p, e)}`\n"
-                    f"  📝 _{reason}_\n"
-                )
-        elif f_mode == "ACTIVE":
-            lines.append(f"🟢 *DETALLE DE OPERACIONES EN SEGUIMIENTO ({len(active_entries)}):*\n")
-            if not active_entries:
-                lines.append("No hay operaciones activas en este momento.")
-            for e in active_entries:
-                tab = escape_md(e.get("tab", e.get("ticker", "")))
-                ticker = e.get("ticker", "")
-                entry_p = e.get("entry_price", 0)
-                curr_p = e.get("current_price", entry_p)
-                stop_p = e.get("stop_loss", 0)
-                ret = e.get("current_return_pct", 0.0)
-                sig_date = e.get("signal_date", "").split()[0]
-                sign = "+" if ret >= 0 else ""
-                status_txt = "🟡 TP1 (Stop en BE)" if e.get("status") == "TP1_ALCANZADO" else "🔵 En Seguimiento"
-                advice = f"\n  💡 _{escape_md(e.get('advice'))}_" if e.get("advice") else ""
-                lines.append(
-                    f"• *{tab}* (`{ticker}`) — {status_txt}\n"
-                    f"  Entrada: `{_fmt_price(entry_p, e)}` ({sig_date}) | Actual: `{_fmt_price(curr_p, e)}` (P&L: *{sign}{ret:.1f}%*)\n"
-                    f"  Stop: `{_fmt_price(stop_p, e)}` | TP1: `{_fmt_price(e.get('tp1'), e)}`{advice}\n"
-                )
-        else:
-            if active_entries:
-                lines.append(f"🟢 *En Seguimiento Activo ({len(active_entries)}):*")
-                for e in active_entries[:4]:
-                    tab = escape_md(e.get("tab", e.get("ticker", "")))
-                    ret = e.get("current_return_pct", 0.0)
-                    sign = "+" if ret >= 0 else ""
-                    lines.append(f"• *{tab}*: Entrada `{_fmt_price(e.get('entry_price'), e)}` | P&L: *{sign}{ret:.1f}%* | Stop: `{_fmt_price(e.get('stop_loss'), e)}`")
-                if len(active_entries) > 4:
-                    lines.append(f"  _...y {len(active_entries) - 4} más (pulsa '🟢 Activas' para verlas todas)_")
-                lines.append("")
-
-            if won_entries:
-                lines.append(f"🏆 *Ganadas en Take Profit ({len(won_entries)}):*")
-                for e in won_entries[:3]:
-                    tab = escape_md(e.get("tab", e.get("ticker", "")))
-                    ret = e.get("final_return_pct", 0.0)
-                    reason = escape_md(e.get("exit_reason") or "TP alcanzado")
-                    lines.append(f"• *{tab}*: *+{ret:.1f}%* — _{reason}_")
-                if len(won_entries) > 3:
-                    lines.append(f"  _...y {len(won_entries) - 3} más (pulsa '🏆 Ganadas' abajo)_")
-                lines.append("")
-
-            if lost_entries:
-                lines.append(f"🛑 *En Stop Loss ({len(lost_entries)}):*")
-                for e in lost_entries[:3]:
-                    tab = escape_md(e.get("tab", e.get("ticker", "")))
-                    ret = e.get("final_return_pct", 0.0)
-                    reason = escape_md(e.get("exit_reason") or "Stop alcanzado")
-                    lines.append(f"• *{tab}*: *{ret:.1f}%* — _{reason}_")
-                if len(lost_entries) > 3:
-                    lines.append(f"  _...y {len(lost_entries) - 3} más (pulsa '🛑 En Stop' abajo)_")
-                lines.append("")
-
-        lines.append("💡 _Visualiza el gráfico y estadísticas completas abriendo http://localhost:5050 en tu navegador._")
-        msg = "\n".join(lines)
-
-        keyboard = {
-            "inline_keyboard": [
-                [
-                    {"text": f"🟢 Activas ({len(active_entries)})", "callback_data": "hist:ACTIVE"},
-                    {"text": f"🏆 TP Ganadas ({len(won_entries)})", "callback_data": "hist:WON"},
-                    {"text": f"🛑 En Stop ({len(lost_entries)})", "callback_data": "hist:LOST"}
-                ],
-                [
-                    {"text": "📋 Ver Todo el Historial", "callback_data": "hist:ALL"}
-                ]
-            ]
-        }
-        send_telegram_message(bot_token, chat_id, msg, reply_markup=keyboard)
-    except Exception as e:
-        send_telegram_message(bot_token, chat_id, f"❌ Error al consultar historial: {escape_md(e)}", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+        data = _read_scenario_journal()
+        names = {"confirmation": "Confirmación", "legacy": "Historial anterior", "accumulation": "Acumulación"}
+        scenario = scenario if scenario in names else "confirmation"
+        mode = str(filter_mode).upper()
+        all_entries = data.get("entries", [])
+        lines = ["📔 *DIARIO DE TRADING & HISTORIAL*", "Simulaciones independientes; no son operaciones reales."]
+        for key in ("confirmation", "legacy"):
+            stats = journal_manager.calculate_journal_stats([e for e in all_entries if e.get("strategy", "legacy") == key])
+            lines.append(f"*{names[key]}*: {stats['active_count']} activas · {stats['closed_count']} cerradas · Acierto {stats['win_rate_pct']:.1f}%")
+        campaigns = data.get("accumulation", [])
+        lines.append(f"*Acumulación*: {sum(c.get('status') == 'ACTIVA' for c in campaigns)} activas · {sum(c.get('status') == 'CERRADA' for c in campaigns)} cerradas")
+        lines.append(f"*Escenario: {names[scenario]}*")
+        entries = campaigns if scenario == "accumulation" else [e for e in all_entries if e.get("strategy", "legacy") == scenario]
+        def active(e):
+            return e.get("status") in ("ACTIVA", "TP1_ALCANZADO")
+        def won(e):
+            return e.get("pnl", 0) > 0 if scenario == "accumulation" else e.get("result") == "GANADA"
+        titles = {"WON": "REGISTRO DE OPERACIONES GANADAS", "LOST": "REGISTRO DE OPERACIONES EN STOP LOSS", "ACTIVE": "OPERACIONES EN SEGUIMIENTO", "CLOSED": "OPERACIONES CERRADAS", "ALL": "TODOS LOS REGISTROS"}
+        visible = [e for e in entries if mode == "ALL" or (mode == "ACTIVE" and active(e)) or (mode == "CLOSED" and not active(e)) or (mode == "WON" and not active(e) and won(e)) or (mode == "LOST" and not active(e) and not won(e))]
+        lines.append(titles.get(mode, titles['ALL']))
+        if not visible:
+            lines.append("Sin registros para este filtro. Una zona interesante pasa a vigilancia y requiere confirmación posterior; no reconstruimos compras anteriores.")
+        for entry in visible[:8]:
+            ticker = escape_md(entry['ticker'])
+            if scenario == "accumulation":
+                lines.append(f"📚 *{ticker}* · {escape_md(entry['status'])} · {len(entry['tranches'])}/3 tramos\n"
+                             f"Media `{_fmt_price(entry['average_price'], entry)}` · Capital {entry['invested']:.2f}/{entry['budget']:.2f} {escape_md(entry.get('currency', '$'))}\n"
+                             f"Resultado {entry.get('pnl', 0):+.2f} ({entry.get('return_pct', 0):+.2f}% invertido) · Caída máxima {entry.get('max_drawdown_pct', 0):.2f}%\n"
+                             f"Invalidación `{_fmt_price(entry['invalidation'], entry)}` · Objetivo `{_fmt_price(entry['target'], entry)}`")
+            else:
+                ret = entry.get('final_return_pct') if entry.get('final_return_pct') is not None else entry.get('current_return_pct', 0)
+                lines.append(f"• *{ticker}* · {escape_md(entry['status'])} · {ret:+.1f}%\nEntrada `{_fmt_price(entry.get('entry_price'), entry)}` · Stop `{_fmt_price(entry.get('stop_loss'), entry)}` · TP1 `{_fmt_price(entry.get('tp1'), entry)}`")
+        if len(visible) > 8:
+            lines.append(f"Mostrando 8 de {len(visible)}. Consulta el resto en el panel web.")
+        lines.append("`/diario` · `/diario anterior` · `/acumulacion`. Las consultas no ejecutan compras ni amplían posiciones.")
+        keyboard = {"inline_keyboard": [
+            [{"text": names[key], "callback_data": f"hist:ALL:{key}"} for key in names],
+            [{"text": label, "callback_data": f"hist:{key}:{scenario}"} for key, label in (("ACTIVE", "Activas"), ("WON", "Ganadas"), ("LOST", "Pérdidas"), ("CLOSED", "Cerradas"))]]}
+        send_telegram_message(bot_token, chat_id, "\n\n".join(lines), reply_markup=keyboard)
+    except (OSError, ValueError, TypeError, KeyError):
+        send_telegram_message(bot_token, chat_id, "⚠️ No se puede consultar el Diario; el archivo se conserva sin modificar.", reply_markup=TELEGRAM_MAIN_KEYBOARD)
 
 
 def handle_sync(bot_token, chat_id):
@@ -1775,7 +1590,7 @@ def process_callback_query(bot_token, chat_id, callback_id, data_str):
     elif action == "hist":
         mode = parts[1].upper() if len(parts) >= 2 else "ALL"
         answer_callback_query(bot_token, callback_id, f"Diario ({mode})")
-        handle_historial(bot_token, chat_id, filter_mode=mode)
+        handle_historial(bot_token, chat_id, filter_mode=mode, scenario=parts[2] if len(parts) > 2 else "confirmation")
     else:
         answer_callback_query(bot_token, callback_id, "Acción recibida")
 
@@ -1944,9 +1759,17 @@ def process_user_telegram_command(bot_token, chat_id, raw_text):
         handle_del_asset(bot_token, chat_id, parts[1] if len(parts) > 1 else "")
         return
 
+    if command in ("/acumulacion", "/acumulación"):
+        handle_historial(bot_token, chat_id, scenario="accumulation")
+        return
+
     if command in ("/historial", "/diario", "/journal", "/stats", "/seguimiento", "/seguimientos") or cmd in ("📔 historial", "historial", "diario", "seguimiento", "seguimientos"):
         arg = text.split(maxsplit=1)[1].strip().lower() if len(text.split(maxsplit=1)) > 1 else ""
-        if arg in ("tp", "ganadas", "won", "ganada"):
+        if arg in ("anterior", "legacy"):
+            handle_historial(bot_token, chat_id, scenario="legacy")
+        elif arg in ("acumulacion", "acumulación"):
+            handle_historial(bot_token, chat_id, scenario="accumulation")
+        elif arg in ("tp", "ganadas", "won", "ganada"):
             handle_historial(bot_token, chat_id, filter_mode="WON")
         elif arg in ("sl", "stop", "stops", "perdidas", "lost", "perdida"):
             handle_historial(bot_token, chat_id, filter_mode="LOST")

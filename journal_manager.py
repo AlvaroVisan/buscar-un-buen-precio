@@ -75,6 +75,21 @@ def get_tracking_signal(ticker):
     return {"entry": selected, "is_active": bool(active)}
 
 
+def get_scenario_context(ticker):
+    """Consulta sin escrituras del mismo estado que consume el panel."""
+    if not os.path.exists(JOURNAL_PATH):
+        return {"confirmation": None, "accumulation": None, "watch": None}
+    with open(JOURNAL_PATH, encoding="utf-8") as handle:
+        data = json.load(handle)
+    ticker = str(ticker).upper()
+    matches = [e for e in data.get("entries", []) if str(e.get("ticker", "")).upper() == ticker
+               and e.get("strategy") == "confirmation" and e.get("status") in ("ACTIVA", "TP1_ALCANZADO")]
+    campaigns = [c for c in data.get("accumulation", []) if str(c.get("ticker", "")).upper() == ticker and c.get("status") == "ACTIVA"]
+    return {"confirmation": max(matches, key=lambda e: e.get("signal_date", ""), default=None),
+            "accumulation": campaigns[0] if campaigns else None,
+            "watch": data.get("watches", {}).get(ticker)}
+
+
 def save_journal(data):
     """
     Guarda el historial de oportunidades en journal.json de manera atómica.
@@ -422,5 +437,6 @@ def update_journal_with_market_data(market_data_list, histories=None):
     journal["scenario_stats"] = {name: calculate_journal_stats([e for e in entries if e.get("strategy", "legacy") == name])
                                  for name in ("legacy", "confirmation")}
     journal["last_updated"] = now_str
-    save_journal(journal)
+    if not save_journal(journal):
+        raise OSError("No se pudo guardar la actualización del Diario")
     return journal

@@ -171,17 +171,21 @@ class JournalTrackingTests(unittest.TestCase):
 
 
 class CurrentMarketContextTests(unittest.TestCase):
+    def setUp(self):
+        context = patch.object(journal, "get_scenario_context", return_value={"confirmation": None, "accumulation": None, "watch": None})
+        context.start()
+        self.addCleanup(context.stop)
     def test_stub_format_current_market_context_returns_empty_string(self):
         item = market_item()
         result = bot.format_current_market_context(item)
         self.assertEqual(result, "")
 
-    def test_buy_advice_includes_two_tier_plan_when_knife_or_large_drop(self):
+    def test_falling_price_requires_confirmation_instead_of_buying_now(self):
         item = market_item()
         item.update(drop_pct=15.0, current_price=100, min=90)
         advice = bot.format_buy_advice(item)
-        self.assertIn("PRONÓSTICO: Baja primero, sube después", advice)
-        self.assertIn("Entrada en 2 tramos", advice)
+        self.assertIn("esperar confirmación", advice)
+        self.assertNotIn("Entrada en 2 tramos", advice)
 
     def test_buy_advice_institutional_volume_wall_when_poc_real_volume(self):
         item = market_item()
@@ -189,7 +193,8 @@ class CurrentMarketContextTests(unittest.TestCase):
             "has_real_volume": True, "profile_type": "VOLUME", "poc_price": 450
         })
         advice = bot.format_buy_advice(item)
-        self.assertIn("muro de compras institucional en `$450.00`", advice)
+        self.assertIn("POC `$450.00`", advice)
+        self.assertIn("No acredita órdenes institucionales", advice)
 
     def test_tpo_profile_does_not_trigger_volume_wall(self):
         item = market_item()
@@ -245,6 +250,8 @@ class HistorialCommandTests(unittest.TestCase):
                 "stop_loss": 450, "tp1": 550, "signal_date": "2026-11-02 10:00:00"
             }
         ]
+        for entry in entries:
+            entry["strategy"] = "confirmation"
         self.path.write_text(json.dumps({"entries": entries, "stats": journal.calculate_journal_stats(entries)}), encoding="utf-8")
 
         # 1. Test filtro GANADAS (WON)

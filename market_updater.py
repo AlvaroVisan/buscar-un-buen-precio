@@ -1717,19 +1717,22 @@ def run_updater(target_period=None, sync_sheets=True, custom_webhook=None):
         elif not webhook_url:
             print("\nℹ️ [Nota]: No hay webhook configurado para Google Sheets.")
 
-        # Enviar alertas a Telegram si está configurado
-        try:
-            import telegram_notifier
-            telegram_notifier.dispatch_telegram_alerts({**payload, "data": [it for it in results if not it.get("is_stale")]}, config)
-        except Exception as e:
-            print(f"⚠️ [Telegram] Error procesando alertas: {e}")
-
         # Sincronizar Historial de Oportunidades y Diario de Trading (Módulo 3)
+        journal_updated = False
         try:
             import journal_manager
             journal_manager.update_journal_with_market_data([it for it in results if not it.get("is_stale")], histories=histories_by_ticker)
+            journal_updated = True
         except Exception as e:
             print(f"⚠️ [Journal] Error actualizando diario de trading: {e}")
+
+        # Enviar alertas a Telegram si está configurado
+        try:
+            import telegram_notifier
+            if journal_updated:
+                telegram_notifier.dispatch_telegram_alerts({**payload, "data": [it for it in results if not it.get("is_stale")]}, config)
+        except Exception as e:
+            print(f"⚠️ [Telegram] Error procesando alertas: {e}")
 
         return payload
 
