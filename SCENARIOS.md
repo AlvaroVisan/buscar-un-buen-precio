@@ -142,3 +142,29 @@ se admite un cambio de referencia de hasta siete días (fines de semana y festiv
 Sin un cambio válido se mantienen las monedas originales con aviso; no se cambia
 solo el símbolo. En ese caso tampoco se dimensiona una compra con presupuesto EUR
 para un activo USD. Las pruebas usan respuestas y envíos simulados.
+
+## Vista en euros del panel
+
+`GET /api/fx` comparte el cambio de `euro_display.py` con el navegador. `euro_view.js`
+crea copias de presentación para tarjetas, periodos, Fibonacci, riesgo, Diario,
+Cartera y estados financieros de Ver negocio. Convierte solo campos monetarios:
+unidades, volumen, RSI, score, ratios y porcentajes conservan sus valores. Los
+índices se muestran en puntos. Los importes USD y EUR de Cartera se agregan en EUR
+después de convertir; otras monedas no se suman sin conversión.
+
+Los formularios y calculadoras trabajan con los importes mostrados. Compras y
+ventas envían `input_currency=EUR` y el cambio de la vista; el servidor deshace
+esa conversión al guardar en la moneda original. Esto evita escribir precios
+en euros como si fueran dólares. Sin un cambio válido no se permite esa escritura.
+Las respuestas originales, cotizaciones guardadas e historiales no se reescriben.
+
+Los gráficos internos usan hasta 252 velas diarias guardadas en `chart_bars`, con
+fallback a las velas horarias disponibles. La conversión visual utiliza el cambio
+de referencia actual para toda la serie: no reconstruye las variaciones históricas
+EUR/USD ni equivale a recalcular el análisis sobre una serie EUR histórica. Las
+herramientas completas siguen accesibles mediante un enlace a TradingView; allí
+el usuario selecciona EUR en la escala de precios, según permita el símbolo.
+
+Comprobaciones: `python -m unittest`, `node test_euro_view.js` y sintaxis de los
+scripts modificados. Las pruebas HTTP verifican el retorno de precios EUR a USD
+al guardar; las pruebas de navegador usan APIs y posiciones ficticias.

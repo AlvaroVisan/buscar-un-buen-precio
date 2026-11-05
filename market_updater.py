@@ -1551,6 +1551,11 @@ def fetch_asset_data(asset, period="3mo", return_history=False, quiet=False):
         "timeframes": timeframes
     }
     if return_history:
+        asset_payload["chart_bars"] = [
+            {"time": stamp.strftime("%Y-%m-%d"), **{key: float(row[key]) for key in ("Open", "High", "Low", "Close")}}
+            for stamp, row in hist.tail(252).iterrows()
+            if all(math.isfinite(float(row[key])) and float(row[key]) > 0 for key in ("Open", "High", "Low", "Close"))
+        ]
         asset_payload["rebound_bars"] = fetch_rebound_bars(t)
     return (asset_payload, hist) if return_history else asset_payload
 

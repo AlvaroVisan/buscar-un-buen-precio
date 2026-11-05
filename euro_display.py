@@ -19,6 +19,25 @@ _last_attempt = 0
 _MONEY = re.compile(r"(?P<currency>[$€])(?P<amount>-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)")
 
 
+def native_inputs(values, currency, rate):
+    """Deshace exactamente el cambio con el que se rellenó el formulario web."""
+    if currency in ("€", "EUR"):
+        factor = 1
+    elif currency in ("$", "USD") and isinstance(rate, (float, int)) and not isinstance(rate, bool) and math.isfinite(rate) and rate > 0:
+        factor = rate
+    else:
+        raise ValueError("No hay un cambio válido para guardar precios en euros")
+    result = []
+    for value in values:
+        if value in (None, ""):
+            result.append(None)
+        elif isinstance(value, (float, int)) and not isinstance(value, bool) and math.isfinite(value):
+            result.append(value * factor)
+        else:
+            raise ValueError("El precio debe ser un número finito")
+    return result
+
+
 def _valid(quote):
     try:
         stamp = date.fromisoformat(quote["date"])

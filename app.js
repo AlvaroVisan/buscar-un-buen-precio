@@ -11,6 +11,9 @@ let currentSellAsset = null;
 let currentCalcSlMode = "FIBO"; // 'FIBO' | 'ATR'
 let portfolioData = null;
 let currentPortfolioClosePos = null;
+let chartPreviousFocus = null;
+let currentPortfolioInputMeta = {};
+let currentPortfolioCloseInputMeta = {};
 let pendingDeleteTicker = null;
 let alertSoundEnabled = localStorage.getItem("alertSoundEnabled") !== "false";
 let previousAlertTickers = new Set();
@@ -24,6 +27,7 @@ async function initApp() {
   setupEventListeners();
   setupModalEventListeners();
   loadClientConfig();
+  await EuroView.init();
   await loadMarketData();
   startLivePolling();
 }
@@ -625,6 +629,8 @@ function closeFullscreenChart() {
   const container = document.getElementById("fullscreenChartContainer");
   if (chartModal) chartModal.style.display = "none";
   if (container) container.innerHTML = "";
+  if (chartPreviousFocus?.isConnected) chartPreviousFocus.focus();
+  chartPreviousFocus = null;
 }
 
 async function openTelegramModal() {
@@ -906,7 +912,7 @@ async function submitAddAssetAction() {
 
     const data = await resp.json();
     if (resp.ok) {
-      marketData = data;
+      marketData = EuroView.market(data);
       closeAllModals();
       renderDashboard(marketData);
       showToast(`¡Activo ${tab} (${ticker}) añadido y calculado con éxito!`);
@@ -950,7 +956,7 @@ async function confirmDeleteAssetAction() {
 
     const data = await resp.json();
     if (resp.ok) {
-      marketData = data;
+      marketData = EuroView.market(data);
       const removedTicker = pendingDeleteTicker;
       closeAllModals();
       renderDashboard(marketData);
@@ -982,7 +988,7 @@ async function loadMarketData() {
     }
 
     if (response.ok) {
-      marketData = await response.json();
+      marketData = EuroView.market(await response.json());
       if (marketData && marketData.period) {
         currentPeriod = marketData.period;
         updatePeriodPillsUI(currentPeriod);
@@ -1002,8 +1008,9 @@ function startLivePolling() {
     try {
       const resp = await fetch("/api/data");
       if (resp.ok) {
-        const fresh = await resp.json();
-        if (fresh && fresh.timestamp && (!marketData || fresh.timestamp !== marketData.timestamp)) {
+        await EuroView.init();
+        const fresh = EuroView.market(await resp.json());
+        if (fresh && fresh.timestamp && (!marketData || fresh.timestamp !== marketData.timestamp || fresh.__eur_fx !== marketData.__eur_fx)) {
           console.log(`[Live Polling] 🔄 Nuevos datos detectados (${fresh.timestamp}). Actualizando dashboard...`);
           marketData = fresh;
           if (marketData.period) {
@@ -1043,7 +1050,7 @@ async function syncMarketData(periodToSync) {
     });
 
     if (resp.ok) {
-      marketData = await resp.json();
+      marketData = EuroView.market(await resp.json());
       currentPeriod = marketData.period || period;
       updatePeriodPillsUI(currentPeriod);
       renderDashboard(marketData);
@@ -2397,67 +2404,43 @@ function toggleMiniChart(ticker, cardElement, tabName) {
 }
 
 function loadTradingViewMiniWidget(containerEl, ticker) {
-  const tvSymbol = getTradingViewSymbol(ticker);
-  const periodToTvRange = { "1mo": "1M", "3mo": "3M", "6mo": "6M", "1y": "12M" };
-  const tvDateRange = periodToTvRange[currentPeriod] || "3M";
-  containerEl.innerHTML = "";
-
-  const widgetContainer = document.createElement("div");
-  widgetContainer.className = "tradingview-widget-container";
-  widgetContainer.style.width = "100%";
-  widgetContainer.style.height = "220px";
-
-  const widgetSlot = document.createElement("div");
-  widgetSlot.className = "tradingview-widget-container__widget";
-  widgetSlot.style.width = "100%";
-  widgetSlot.style.height = "220px";
-  widgetContainer.appendChild(widgetSlot);
-
-  const script = document.createElement("script");
-  script.type = "text/javascript";
-  script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
-  script.async = true;
-  script.text = JSON.stringify({
-    symbol: tvSymbol,
-    width: "100%",
-    height: "220",
-    locale: "es",
-    dateRange: tvDateRange,
-    colorTheme: "dark",
-    isTransparent: true,
-    autosize: true,
-    largeChartUrl: ""
-  });
-
-  widgetContainer.appendChild(script);
-  containerEl.appendChild(widgetContainer);
+  const item = marketData?.data?.find(asset => asset.ticker === ticker);
+  EuroView.chart(containerEl, item, currentPeriod);
 }
 
 function openFullscreenChart(ticker, tabName) {
-  const tvSymbol = getTradingViewSymbol(ticker);
-  const titleEl = document.getElementById("fullscreenChartTitle");
-  const subtitleEl = document.getElementById("fullscreenChartSubtitle");
+  const item = marketData?.data?.find(asset => asset.ticker === ticker);
+  const title = document.getElementById("fullscreenChartTitle");
+  const subtitle = document.getElementById("fullscreenChartSubtitle");
   const container = document.getElementById("fullscreenChartContainer");
   const modal = document.getElementById("fullscreenChartModal");
-
-  if (titleEl) {
-    titleEl.textContent = `${tabName || ticker} (${ticker}) — Gráfico Técnico Avanzado`;
+  chartPreviousFocus = document.activeElement;
+  if (modal) modal.style.display = 'flex';
+  if (modal && !modal.dataset.focusBound) {
+    modal.dataset.focusBound = 'true';
+    modal.addEventListener('keydown', event => {
+      if (event.key !== 'Tab') return;
+      const controls = [...modal.querySelectorAll('button, a[href]')].filter(node => !node.disabled);
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    });
   }
-  if (subtitleEl) {
-    subtitleEl.textContent = `TradingView en tiempo real con velas japonesas, volumen y herramientas de análisis interactivo`;
-  }
+  if (title) title.textContent = `${tabName || ticker} (${ticker}) — Gráfico en ${item?.currency || 'su divisa'}`;
+  if (subtitle) subtitle.textContent = "Misma divisa y cambio de referencia que las tarjetas. En TradingView externo puedes seleccionar EUR en la escala de precios.";
   if (container) {
-    container.innerHTML = `
-      <iframe src="https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSymbol)}&interval=D&theme=dark&style=1&timezone=Europe%2FMadrid&locale=es"
-              style="width: 100%; height: 100%; border: none; min-height: 520px;"
-              allowtransparency="true"
-              scrolling="no"
-              allowfullscreen>
-      </iframe>
-    `;
+    EuroView.chart(container, item, currentPeriod, true);
+    const link = document.createElement('a');
+    link.className = 'btn btn-secondary';
+    link.href = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(getTradingViewSymbol(ticker))}`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = 'Herramientas de TradingView ↗ (selecciona EUR en su escala)';
+    container.append(link);
   }
-  if (modal) modal.style.display = "flex";
+  document.getElementById('btnCloseFullscreenChart')?.focus();
 }
+
 
 function getTradingViewSymbol(ticker) {
   if (!ticker) return "SP:SPX";
@@ -2551,13 +2534,13 @@ function formatCurrency(val, decimals = 2) {
   if (val === null || val === undefined) return "—";
   if (typeof val !== "number") val = parseFloat(val) || 0;
   const d = (typeof decimals === "number" && decimals >= 0) ? decimals : 2;
-  return val.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  return val.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
 function formatPrice(val, item = null) {
-  const sym = (item && item.currency) ? item.currency : "$";
+  const sym = (item && item.currency) ? item.currency : EuroView.quote ? "€" : "$";
   const dec = (item && typeof item.decimals === "number") ? item.decimals : 2;
-  return `${sym}${formatCurrency(val, dec)}`;
+  return sym === "puntos" ? `${formatCurrency(val, dec)} puntos` : `${sym}${formatCurrency(val, dec)}`;
 }
 
 function showToast(message) {
@@ -2644,6 +2627,8 @@ function openPositionCalculator(item) {
   const minRiskUnit = ((item.decimals || 2) >= 4) ? 0.0001 : 0.01;
 
   document.getElementById("calcAssetTitle").textContent = `Calculadora de Riesgo: ${item.tab} (${item.ticker})`;
+  const currencyLabel = document.querySelector('#positionCalcModal .currency-symbol');
+  if (currencyLabel) currencyLabel.textContent = item.currency || '$';
   document.getElementById("calcAssetSubtitle").textContent = `Plan de gestión de capital institucional para ${item.name}`;
 
   const elAtrBadge = document.getElementById("calcAtrInfoBadge");
@@ -2816,6 +2801,7 @@ function registerCalcPlanIntoPortfolio() {
   openPortfolioModal({
     ticker: item.ticker,
     shares: effectiveShares,
+    input_meta: EuroView.inputMeta(item),
     avg_price: entry,
     custom_sl: activeStop.sl,
     custom_tp: tp2,
@@ -3169,7 +3155,7 @@ function renderScenarioOverview(data) {
   const campaigns = data.accumulation || [];
   const number = value => Number(value || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
   const confirmed = (data.entries || []).filter(e => e.strategy === "confirmation");
-  const comparison = confirmed.map(e => `<p class="journal-method-note">${escapeHtml(e.ticker)} · Capital simulado 1.000 ${escapeHtml(e.currency || "$")} · Resultado ${number((e.final_return_pct ?? e.current_return_pct ?? 0) * 10)} ${escapeHtml(e.currency || "$")} (${number(e.final_return_pct ?? e.current_return_pct)} %) · Caída máxima conservadora ${number(e.max_drawdown_pct)} %</p>`).join("");
+  const comparison = confirmed.map(e => `<p class="journal-method-note">${escapeHtml(e.ticker)} · Capital simulado ${number(e.simulated_budget || 1000)} ${escapeHtml(e.currency || "$")} · Resultado ${number((e.final_return_pct ?? e.current_return_pct ?? 0) * (e.simulated_budget || 1000) / 100)} ${escapeHtml(e.currency || "$")} (${number(e.final_return_pct ?? e.current_return_pct)} %) · Caída máxima conservadora ${number(e.max_drawdown_pct)} %</p>`).join("");
   host.innerHTML = accumulation ? `<p class="journal-method-note">Campañas independientes · ${campaigns.length} registradas · ${campaigns.filter(c => c.status === "CERRADA").length} cerradas · ${campaigns.filter(c => c.status === "CERRADA" && c.pnl > 0).length} con beneficio. Los importes se expresan en la divisa de cada activo y no se suman entre divisas. La caída máxima se mide sobre el presupuesto reservado en las observaciones disponibles.</p>` + campaigns.map(c => `
     <article class="journal-kpi-card"><h3>${escapeHtml(c.ticker)} · ${escapeHtml(c.status)}</h3>
       <p>${c.tranches.length}/3 tramos · Capital ${number(c.invested)} / ${number(c.budget)} ${escapeHtml(c.currency)}</p>
@@ -3178,7 +3164,7 @@ function renderScenarioOverview(data) {
       <p>Invalidación ${number(c.invalidation)} · Objetivo ${number(c.target)}</p>
       ${c.tranches.map(t => `<p>${escapeHtml(t.date)} · ${number(t.shares)} unidades a ${number(t.price)} · ${number(t.amount)} ${escapeHtml(c.currency)}</p>`).join("")}
     </article>`).join("") + (campaigns.length ? "" : '<p class="journal-method-note">Sin campañas todavía. Se necesita vigilancia y confirmación posterior; no se reconstruyen compras pasadas.</p>')
-    : journalScenario === "confirmation" ? `<p class="journal-method-note">${watches.length} activos vigilados. Techo de las dos últimas velas horarias completas; se fija tras el primer cierre por encima y exige un segundo cierre horario consecutivo. Si existe historia del S&P 500, bloquea compras de acciones cuando su último cierre está bajo la media de 20 sesiones. Sin historia del índice, el contexto se marca sin confirmar. No incluye un filtro sectorial.</p>` + watches.map(([ticker, w]) => `<p class="journal-method-note">${escapeHtml(ticker)} · ${escapeHtml(w.state)} · Techo cercano ${w.state === "SIN_DATOS_HORARIOS" ? "Pendiente de datos" : number(w.breakout)} · Cierres ${number(w.confirmations)}/2 · ${w.interval === "1h" ? "Velas de 1 hora" : "Pendiente de actualizar"} · Desde ${escapeHtml(w.since)} · ${escapeHtml(w.market_context || "Mercado sin confirmar")}</p>`).join("")
+    : journalScenario === "confirmation" ? `<p class="journal-method-note">${watches.length} activos vigilados. Techo de las dos últimas velas horarias completas; se fija tras el primer cierre por encima y exige un segundo cierre horario consecutivo. Si existe historia del S&P 500, bloquea compras de acciones cuando su último cierre está bajo la media de 20 sesiones. Sin historia del índice, el contexto se marca sin confirmar. No incluye un filtro sectorial.</p>` + watches.map(([ticker, w]) => `<p class="journal-method-note">${escapeHtml(ticker)} · ${escapeHtml(w.state)} · Techo cercano ${w.state === "SIN_DATOS_HORARIOS" ? "Pendiente de datos" : formatPrice(w.breakout, w)} · Cierres ${number(w.confirmations)}/2 · ${w.interval === "1h" ? "Velas de 1 hora" : "Pendiente de actualizar"} · Desde ${escapeHtml(w.since)} · ${escapeHtml(w.market_context || "Mercado sin confirmar")}</p>`).join("")
       : '<p class="journal-method-note">Reglas anteriores: zona Fibonacci o score ≥ 70. Se conservan entradas, cierres y seguimiento de posiciones abiertas.</p>';
   if (journalScenario === "confirmation") host.insertAdjacentHTML("beforeend", comparison);
 }
@@ -3190,7 +3176,7 @@ async function loadAndRenderJournal() {
   try {
     const resp = await fetch("/api/journal");
     if (!resp.ok) throw new Error("Error HTTP " + resp.status);
-    const jData = await resp.json();
+    const jData = EuroView.convert(await resp.json());
 
     renderScenarioOverview(jData);
     const allEntries = jData.entries || [];
@@ -3671,6 +3657,7 @@ function openPortfolioModalForAsset(item) {
   const risk = item.risk_mgmt || {};
   openPortfolioModal({
     ticker: item.ticker,
+    input_meta: EuroView.inputMeta(item),
     shares: "",
     avg_price: item.current_price,
     custom_sl: risk.stop_loss || "",
@@ -3683,6 +3670,8 @@ function openPortfolioModalForAsset(item) {
 function openPortfolioModal(prefill = null) {
   const modal = document.getElementById("portfolioModal");
   if (!modal) return;
+  const source = prefill?.input_meta ? null : [...(portfolioData?.positions || []), ...(marketData?.data || [])].find(item => item.ticker === prefill?.ticker);
+  currentPortfolioInputMeta = prefill?.input_meta || EuroView.inputMeta(source);
 
   // Poblar datalist de tickers en seguimiento
   const datalist = document.getElementById("pfTrackedTickersList");
@@ -3778,7 +3767,7 @@ async function submitPortfolioAction() {
     const resp = await fetch("/api/portfolio/upsert", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticker, shares, avg_price, custom_sl, custom_tp, notes, merge })
+      body: JSON.stringify({ ticker, shares, avg_price, custom_sl, custom_tp, notes, merge, ...currentPortfolioInputMeta })
     });
     const data = await resp.json();
     if (!resp.ok) {
@@ -3786,8 +3775,8 @@ async function submitPortfolioAction() {
       return;
     }
 
-    portfolioData = data;
-    renderPortfolioView(data);
+    portfolioData = EuroView.convert(data);
+    renderPortfolioView(portfolioData);
     const modal = document.getElementById("portfolioModal");
     if (modal) modal.style.display = "none";
     showToast(`💼 Posición en ${ticker} guardada en Mi Cartera Real`);
@@ -3803,6 +3792,7 @@ async function submitPortfolioAction() {
 
 function openPortfolioCloseModal(pos) {
   currentPortfolioClosePos = pos;
+  currentPortfolioCloseInputMeta = EuroView.inputMeta(pos);
   const modal = document.getElementById("portfolioCloseModal");
   if (!modal) return;
 
@@ -3884,7 +3874,7 @@ async function submitPortfolioCloseAction(rawDeleteOnly = false) {
     const resp = await fetch("/api/portfolio/remove", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticker: pos.ticker, sell_shares, sell_price })
+      body: JSON.stringify({ ticker: pos.ticker, sell_shares, sell_price, ...currentPortfolioCloseInputMeta })
     });
     const data = await resp.json();
     if (!resp.ok) {
@@ -3895,8 +3885,8 @@ async function submitPortfolioCloseAction(rawDeleteOnly = false) {
       return;
     }
 
-    portfolioData = data;
-    renderPortfolioView(data);
+    portfolioData = EuroView.convert(data);
+    renderPortfolioView(portfolioData);
     const modal = document.getElementById("portfolioCloseModal");
     if (modal) modal.style.display = "none";
     currentPortfolioClosePos = null;
@@ -3916,8 +3906,8 @@ async function loadAndRenderPortfolio() {
     const resp = await fetch("/api/portfolio");
     if (!resp.ok) return;
     const data = await resp.json();
-    portfolioData = data;
-    renderPortfolioView(data);
+    portfolioData = EuroView.convert(data);
+    renderPortfolioView(portfolioData);
   } catch (e) {
     // En modo archivo estático sin servidor Flask/HTTP, ignorar silenciosamente
   }
@@ -4103,6 +4093,7 @@ function renderPortfolioView(pf) {
         openPortfolioModal({
           ticker: pos.ticker,
           shares: "",
+          input_meta: EuroView.inputMeta(pos),
           avg_price: pos.current_price,
           custom_sl: pos.custom_sl || "",
           custom_tp: pos.custom_tp || "",
@@ -4116,6 +4107,7 @@ function renderPortfolioView(pf) {
           isEdit: true,
           ticker: pos.ticker,
           shares: pos.shares,
+          input_meta: EuroView.inputMeta(pos),
           avg_price: pos.avg_price,
           custom_sl: pos.custom_sl || "",
           custom_tp: pos.custom_tp || "",

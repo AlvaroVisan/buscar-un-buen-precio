@@ -113,7 +113,7 @@ function addBusinessButton(card, item) {
     try {
       const response = await fetch(`/api/business?ticker=${encodeURIComponent(ticker)}`, { signal: currentController.signal });
       if (!response.ok) throw new Error("No se pudo consultar esta empresa.");
-      const context = await response.json();
+      const context = EuroView.convert(await response.json());
       if (currentRequest === requestNumber) render(context);
     } catch (error) {
       if (currentRequest !== requestNumber) return;

@@ -1,0 +1,36 @@
+/* Ejecutar con node test_euro_view.js. Sin navegador, red ni datos reales. */
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const sandbox = {window: {}, document: {getElementById: () => null}, fetch: async () => ({ok: true, json: async () => ({base:'EUR', quote:'USD', rate:1.25, date:'2026-11-05'})})};
+vm.runInNewContext(fs.readFileSync('euro_view.js', 'utf8'), sandbox);
+(async () => {
+  const view = sandbox.window.EuroView;
+  await view.init();
+  const asset = {ticker:'AMD', currency:'$', current_price:125, shares:3, score:80, fib_levels:{'61.8%':100}, timeframes:{'1mo':{min:100,max:150}}, risk_mgmt:{risk_per_share:10,risk_pct:8}, chart_bars:[{Open:100,High:150,Low:90,Close:125}]};
+  const before = JSON.stringify(asset), converted = view.market({data:[asset]}).data[0];
+  assert.equal(converted.currency, '€');
+  assert.equal(converted.current_price, 100);
+  assert.equal(converted.fib_levels['61.8%'], 80);
+  assert.equal(converted.timeframes['1mo'].max, 120);
+  assert.equal(converted.risk_mgmt.risk_per_share, 8);
+  assert.equal(converted.risk_mgmt.risk_pct, 8);
+  assert.equal(converted.chart_bars[0].Close, 100);
+  assert.equal(converted.shares, 3);
+  assert.equal(converted.score, 80);
+  assert.equal(JSON.stringify(asset), before);
+  assert.equal(view.convert(view.convert(asset)).current_price, 100);
+  assert.equal(view.convert({ticker:'^GSPC',currency:'$',current_price:5000}).current_price, 5000);
+  assert.equal(view.convert({currency:'€',current_price:100}).current_price, 100);
+  const pf = view.convert({positions:[asset], summary:{totals_by_currency:{'$':{currency:'$',invested:125,market_val:150,pnl_abs:25,positions:1},'€':{currency:'€',invested:100,market_val:120,pnl_abs:20,positions:1}},realized_by_currency:{'$':25,'€':20}}});
+  assert.equal(pf.summary.primary_invested, 200);
+  assert.equal(pf.summary.primary_market_val, 240);
+  assert.equal(pf.summary.primary_pnl_abs, 40);
+  assert.equal(pf.summary.primary_realized_pnl, 40);
+  assert.equal(pf.summary.primary_pnl_pct, 20);
+  assert.equal(view.convert({watches:{AMD:{breakout:125}}}).watches.AMD.breakout, 100);
+  assert.equal(view.convert({financial_currency:'USD',details:[{rows:[{TotalRevenue:125}]}]}).details[0].rows[0].TotalRevenue, 100);
+  assert.equal(view.inputMeta().input_rate, 1.25);
+  assert.equal(view.inputMeta({__eur_rate:1.1}).input_rate, 1.1);
+  console.log('OK: conversión EUR, periodos, velas, índices, Cartera mixta, negocio e inputs; sin mutaciones ni doble conversión.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

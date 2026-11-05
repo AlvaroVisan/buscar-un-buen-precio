@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <meta name="theme-color" content="#090909">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261105-v10">
+  <link rel="stylesheet" href="style.css?v=20261105-v11">
 </head>
 <body>
   <div class="app-container">
@@ -196,6 +196,7 @@
     </div>
     </section>
 
+    <p id="euroDisplayNotice" class="journal-method-note" role="status">Consultando el cambio a euros…</p>
     <!-- Selector de Modo de Operación: Compra / Venta / Diario de Trading -->
     <nav class="mode-navigation-bar" id="marketWorkspace" aria-label="Vistas del panel">
       <div class="mode-tabs-wrapper">
@@ -560,7 +561,7 @@
   </div>
 
   <!-- Modal: Gráfico Avanzado a Pantalla Completa -->
-  <div id="fullscreenChartModal" class="modal-backdrop" style="display: none;">
+  <div id="fullscreenChartModal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="fullscreenChartTitle">
     <div class="modal-card modal-card-fullscreen">
       <div class="modal-header">
         <div class="modal-title-row">
@@ -572,7 +573,7 @@
             <p class="modal-subtitle" id="fullscreenChartSubtitle">Cotizaciones en tiempo real con velas japonesas, medias móviles y herramientas de análisis</p>
           </div>
         </div>
-        <button id="btnCloseFullscreenChart" class="modal-close-btn">&times;</button>
+        <button id="btnCloseFullscreenChart" class="modal-close-btn" aria-label="Cerrar gráfico">&times;</button>
       </div>
       <div class="modal-body modal-body-fullscreen" id="fullscreenChartContainer">
         <!-- Widget interactivo inyectado dinámicamente -->
@@ -1123,8 +1124,9 @@
     <p id="currencyRateStatus" class="currency-muted" role="status">Consulta el cambio al abrir el conversor.</p><button id="refreshCurrencyRate" type="button" class="btn btn-secondary">Actualizar cambio</button>
     <p id="currencyNotice" class="currency-notice">Conversión orientativa con el cambio diario de referencia del BCE, consultado a través de <a href="https://frankfurter.dev/" target="_blank" rel="noopener noreferrer">Frankfurter</a>. No es una cotización en tiempo real. Tu bróker puede aplicar otro cambio y comisiones.</p>
   </dialog>
-  <script src="app.js?v=20261105-v10"></script>
-  <script src="currency.js?v=20261104-1"></script>
-  <script src="business.js?v=20261102-business-2"></script>
+  <script src="euro_view.js?v=20261105-1"></script>
+  <script src="app.js?v=20261105-v11"></script>
+  <script src="currency.js?v=20261105-2"></script>
+  <script src="business.js?v=20261105-business-3"></script>
 </body>
 </html>

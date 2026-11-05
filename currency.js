@@ -39,7 +39,7 @@
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     try {
-      const response = await fetch("https://api.frankfurter.dev/v2/providers/ecb/rate/eur/usd", {
+      const response = await fetch("/api/fx", {
         signal: controller.signal, credentials: "omit", referrerPolicy: "no-referrer"
       });
       if (!response.ok) throw new Error("No disponible");

@@ -244,6 +244,16 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
             }, ensure_ascii=False).encode("utf-8"))
             return
 
+        if route == "/api/fx":
+            import euro_display
+            quote = euro_display.get_quote()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(json.dumps(quote or {"available": False}).encode("utf-8"))
+            return
+
         if route == "/api/portfolio":
             try:
                 pf_data = portfolio_manager.get_enriched_portfolio()
@@ -382,6 +392,14 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                     currency = currency or det_curr
                     decimals = det_dec if decimals is None else int(decimals)
 
+                if post_data.get("input_currency") == "EUR":
+                    import euro_display
+                    existing = next((p for p in portfolio_manager.load_portfolio().get("positions", []) if p.get("ticker") == ticker), None)
+                    if existing:
+                        currency = existing.get("currency", currency)
+                    avg_price, custom_sl, custom_tp = euro_display.native_inputs(
+                        (avg_price, custom_sl, custom_tp), currency, post_data.get("input_rate"))
+
                 portfolio_manager.upsert_position(
                     ticker=ticker,
                     shares=shares,
@@ -417,6 +435,12 @@ class FibonacciHandler(http.server.SimpleHTTPRequestHandler):
                 ticker = str(post_data.get("ticker", "")).strip().upper()
                 sell_shares = post_data.get("sell_shares")
                 sell_price = post_data.get("sell_price")
+                if post_data.get("input_currency") == "EUR" and sell_price is not None:
+                    import euro_display
+                    position = next((p for p in portfolio_manager.load_portfolio().get("positions", []) if p.get("ticker") == ticker), None)
+                    if position is None:
+                        raise ValueError("No se encuentra la posición para convertir la venta")
+                    sell_price = euro_display.native_inputs((sell_price,), position.get("currency", "$"), post_data.get("input_rate"))[0]
                 portfolio_manager.remove_or_reduce_position(
                     ticker=ticker,
                     sell_shares=sell_shares,

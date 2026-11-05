@@ -55,6 +55,41 @@ class LocalServerTests(unittest.TestCase):
             self.assertEqual(self.request("POST", "/api/journal/archive", {**headers, "Origin": "https://example.com"}, '{}')[0], 403)
             archive.assert_not_called()
 
+    def test_fx_endpoint_uses_shared_quote(self):
+        with patch('euro_display.get_quote', return_value=dict(base='EUR', quote='USD', rate=1.25, date='2026-11-05')):
+            status, _, body = self.request(path='/api/fx')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)['rate'], 1.25)
+
+    def test_euro_purchase_and_sale_are_saved_in_native_currency(self):
+        headers = {'Content-Type': 'application/json'}
+        body = dict(ticker='AMD', shares=2, avg_price=100, custom_sl=80, custom_tp=160, input_currency='EUR', input_rate=1.25)
+        with patch('portfolio_manager.load_portfolio', return_value={'positions': []}), patch('portfolio_manager.upsert_position') as upsert, patch('portfolio_manager.get_enriched_portfolio', return_value={}):
+            self.assertEqual(self.request('POST', '/api/portfolio/upsert', headers, json.dumps(body))[0], 200)
+        self.assertEqual(upsert.call_args.kwargs['avg_price'], 125)
+        self.assertEqual(upsert.call_args.kwargs['custom_sl'], 100)
+        self.assertEqual(upsert.call_args.kwargs['custom_tp'], 200)
+        self.assertEqual(upsert.call_args.kwargs['currency'], '$')
+        with patch('portfolio_manager.load_portfolio', return_value={'positions': [{'ticker': 'AMD', 'currency': '$'}]}), patch('portfolio_manager.remove_or_reduce_position') as remove, patch('portfolio_manager.get_enriched_portfolio', return_value={}):
+            sale = dict(ticker='AMD', sell_shares=1, sell_price=120, input_currency='EUR', input_rate=1.25)
+            self.assertEqual(self.request('POST', '/api/portfolio/remove', headers, json.dumps(sale))[0], 200)
+        self.assertEqual(remove.call_args.kwargs['sell_price'], 150)
+
+    def test_euro_purchase_without_rate_does_not_write(self):
+        with patch('portfolio_manager.load_portfolio', return_value={'positions': []}), patch('portfolio_manager.upsert_position') as upsert:
+            body = dict(ticker='AMD', shares=1, avg_price=100, input_currency='EUR')
+            status, _, _ = self.request('POST', '/api/portfolio/upsert', {'Content-Type': 'application/json'}, json.dumps(body))
+        self.assertEqual(status, 400)
+        upsert.assert_not_called()
+
+    def test_existing_native_euro_position_is_not_converted_again(self):
+        with patch('portfolio_manager.load_portfolio', return_value={'positions': [{'ticker': 'AMD', 'currency': '€'}]}), patch('portfolio_manager.upsert_position') as upsert, patch('portfolio_manager.get_enriched_portfolio', return_value={}):
+            body = dict(ticker='AMD', shares=1, avg_price=100, input_currency='EUR', input_rate=1.25)
+            status, _, _ = self.request('POST', '/api/portfolio/upsert', {'Content-Type': 'application/json'}, json.dumps(body))
+        self.assertEqual(status, 200)
+        self.assertEqual(upsert.call_args.kwargs['currency'], '€')
+        self.assertEqual(upsert.call_args.kwargs['avg_price'], 100)
+
     def test_local_panel_and_security_headers(self):
         self.assertEqual(self.server.server_address[0], "127.0.0.1")
         for host in ("localhost", "127.0.0.1"):
