@@ -514,7 +514,10 @@ def format_buy_advice(item, period="3mo"):
                 lines.append("Ya ha recuperado terreno, pero la compra aún no ha pasado todos los filtros. De momento, no damos el paso.")
         else:
             lines.append("Aún no tengo una entrada clara. Prefiero esperar a la próxima revisión antes que darte un precio por darlo.")
-        lines.append("Cuando el rebote supere nuestro techo reciente dos veces al cierre y el mercado y el riesgo acompañen, ahí sí damos el paso. Después de una salida con pérdida, no volvemos a entrar sin una señal nueva.")
+        if watch and watch.get('confirmations', 0) >= 2 and weak_market:
+            lines.append("Las dos velas por encima del techo ya se han cumplido (lleva 2 de 2), pero la entrada sigue en pausa porque el mercado general viene débil y hay riesgo de arrastre. Daremos el paso en cuanto la bolsa acompañe. Después de una salida con pérdida, no volvemos a entrar sin una señal nueva.")
+        else:
+            lines.append("Cuando el rebote supere nuestro techo reciente dos veces al cierre y el mercado y el riesgo acompañen, ahí sí damos el paso. Después de una salida con pérdida, no volvemos a entrar sin una señal nueva.")
     if campaign:
         n = len(campaign['tranches'])
         lines.append(f"📚 *Compras por partes: {n} de 3.* El precio medio está en `{_fmt_price(campaign['average_price'], item)}`; la jugada lleva {campaign.get('return_pct', 0):+.1f}%.")

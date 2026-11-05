@@ -12,7 +12,7 @@
   },
   "scheduler": {
     "enabled": true,
-    "interval_minutes": 30,
+    "interval_minutes": 15,
     "smart_hours_only": false
   },
   "assets": [
