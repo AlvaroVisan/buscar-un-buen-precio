@@ -1,12 +1,15 @@
 """Escenarios prospectivos; nunca reinterpretan operaciones históricas."""
 import math
+from datetime import datetime, timezone
 
 
-def advance_watch(watch, bars, price, now):
+def advance_watch(watch, bars, price, now, intraday=False):
     """Techo móvil hasta el primer cierre; dos sesiones sobre el mismo nivel."""
-    if watch.get("rules_version") != 2:
+    version = 3 if intraday else 2
+    stamp = datetime.fromisoformat(now).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S") if intraday else now[:10]
+    if watch.get("rules_version") != version:
         # Migración prospectiva: no convertir velas previas en señales nuevas.
-        watch.update(rules_version=2, level_since=now[:10],
+        watch.update(rules_version=version, interval="1h" if intraday else "1d", level_since=stamp,
                      breakout=max(float(r["High"]) for _, r in bars[-2:]),
                      confirmations=0, last_breakout_day=bars[-1][0])
     for index, (day, bar) in enumerate(bars):
@@ -46,6 +49,13 @@ def advance(journal, items, histories, now):
         hist = (histories or {}).get(ticker)
         bars = [] if hist is None else [(str(t)[:10], r) for t, r in hist.sort_index().iterrows() if str(t)[:10] < today]
         bars = [(d, r) for d, r in bars if all(math.isfinite(float(r[k])) and float(r[k]) > 0 for k in ("High", "Low", "Close"))]
+        intraday = "rebound_bars" in item
+        signal_bars = bars
+        if intraday:
+            utc_now = datetime.fromisoformat(now).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            unique = {r["time"]: r for r in item["rebound_bars"] if r["time"] <= utc_now
+                      and all(math.isfinite(float(r[k])) and float(r[k]) > 0 for k in ("High", "Low", "Close"))}
+            signal_bars = sorted(unique.items())
         risk = item.get("risk_mgmt", {})
         atr = float(item.get("atr_14") or risk.get("atr_14") or 0)
         qualified = price <= float(item.get("fib_levels", {}).get("61.8%", 0)) or item.get("score", 0) >= 70
@@ -58,7 +68,7 @@ def advance(journal, items, histories, now):
         if watch and reset_after > watch["since"]:
             watches.pop(ticker)
             watch = None
-        if watch is None and qualified and len(bars) >= 4:
+        if watch is None and qualified and len(signal_bars) >= 4:
             watch = {"since": now, "state": "VIGILANCIA"}
             watches[ticker] = watch
         ready = False
@@ -70,11 +80,15 @@ def advance(journal, items, histories, now):
             rebound = close > float(bars[-2][1]["Close"])
             # Tendencia corta ascendente y recuperación de estructura, con datos cerrados.
             trend = close > sum(float(r["Close"]) for _, r in bars[-4:]) / 4
-            double_close = advance_watch(watch, bars, price, now) if watch else False
-            ready = bool(watch and double_close and day > last_stop[:10]
-                         and trend and not market_blocked)
+        if len(signal_bars) >= 4:
+            signal_close = float(signal_bars[-1][1]["Close"])
+            signal_trend = signal_close > sum(float(r["Close"]) for _, r in signal_bars[-4:]) / 4
+            double_close = advance_watch(watch, signal_bars, price, now, intraday=intraday) if watch else False
+            ready = bool(watch and double_close and signal_trend and not market_blocked)
         if watch:
             watch["state"] = "CONFIRMADA" if ready else "VIGILANCIA"
+            if intraday and len(signal_bars) < 4:
+                watch["state"] = "SIN_DATOS_HORARIOS"
             watch["current_price"] = price
             watch["market_context"] = "Mercado débil: entrada bloqueada" if market_blocked else "Mercado favorable" if market_ok else "Mercado sin confirmar"
         if ready:
@@ -110,7 +124,7 @@ def advance(journal, items, histories, now):
                 buy(active, price, now)
             mark(active, exit_price if exit_price is not None else price)
             active["last_check"] = now
-        elif ready and watch["since"] > last_campaign_close and not any(c["ticker"] == ticker and c.get("closed_date", "")[:10] >= bars[-1][0] for c in campaigns):
+        elif ready and len(bars) >= 4 and watch["since"] > last_campaign_close and not any(c["ticker"] == ticker and c.get("closed_date", "")[:10] >= bars[-1][0] for c in campaigns):
             invalidation = min(float(r["Low"]) for _, r in bars[-4:]) - atr
             target = float(item.get("fib_levels", {}).get("38.2%") or 0)
             if all(math.isfinite(value) for value in (invalidation, target, atr)) and 0 < invalidation < price < target and atr > 0:

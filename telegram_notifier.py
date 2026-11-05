@@ -476,12 +476,13 @@ def format_buy_advice(item, period="3mo"):
         supports = [v for v in (item.get('min'), (item.get('liquidity') or {}).get('ssl_pool_price'), (item.get('fib_levels') or {}).get('61.8%'), risk.get('entry_price')) if _usable_price(v) and v < price]
         if supports:
             lines.append(f"Si sigue cayendo, vigilaría `{_fmt_price(max(supports), item)}` para ver si frena. Tocar ese precio no basta para comprar.")
-        entry = watch.get('breakout') if watch else None
+        entry = watch.get('breakout') if watch and watch.get('state') != 'SIN_DATOS_HORARIOS' else None
         if _usable_price(entry):
             targets = sorted(set(v for v in ((item.get('fib_levels') or {}).get('38.2%'), risk.get('take_profit_1'), risk.get('take_profit_2'), item.get('max')) if _usable_price(v) and v > max(entry, price)))
-            if watch.get('rules_version') == 2:
+            if watch.get('rules_version') in (2, 3):
                 hits = watch.get('confirmations', 0)
-                lines.append(f"Nuestro techo cercano está en `{_fmt_price(entry, item)}`. Quiero que cierre por encima dos sesiones seguidas: lleva {hits} de 2. Tras el primero, no movemos el listón. Si lo pierde al cierre, empezamos de nuevo.")
+                candles = "velas de una hora" if watch.get('interval') == '1h' else "sesiones"
+                lines.append(f"Nuestro techo cercano está en `{_fmt_price(entry, item)}`. Quiero dos {candles} seguidas cerrando por encima: lleva {hits} de 2. Tras la primera, no movemos el listón. Si lo pierde al cierre, empezamos de nuevo.")
             else:
                 lines.append("Estoy esperando que la próxima revisión actualice los picos recientes antes de marcar una entrada.")
             if targets:

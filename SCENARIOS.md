@@ -8,19 +8,25 @@ No registran compras reales en Cartera ni reconstruyen entradas anteriores.
 ## Confirmación
 
 Fibonacci 61,8 % o score >= 70 activan vigilancia. El techo local es el máximo de
-las dos últimas sesiones cerradas. Mientras no haya un cierre por encima, se
-actualiza con las sesiones recientes: no queda anclado al precio previo a una
-caída. En cada sesión nueva se compara su cierre contra el techo de las dos
-sesiones anteriores, sin incluir la vela que intenta romperlo.
+las dos últimas velas horarias completas. Se descargan cinco días de velas de
+60 minutos durante cada actualización y se guardan hasta 64 en `rebound_bars`,
+con hora de cierre UTC. Una vela no cuenta hasta que transcurre su hora completa.
+Mientras no haya un cierre por encima, el techo se actualiza con los picos recientes.
+En cada vela nueva se compara su cierre contra el techo de las dos anteriores,
+sin incluir la vela que intenta romperlo.
 
 Tras el primer cierre por encima se fija el techo. Se exigen dos cierres
-consecutivos de sesiones distintas sobre ese mismo nivel, con cotización actual
-todavía encima y cierre sobre la media de cuatro sesiones. Un cierre en o bajo
+consecutivos de velas horarias distintas sobre ese mismo nivel, con cotización actual
+todavía encima y cierre sobre la media de cuatro velas horarias. Un cierre en o bajo
 el techo reinicia el contador y permite actualizarlo. Repetir sincronizaciones
-con la misma vela no suma confirmaciones. Las velas del día actual no confirman.
+con la misma vela no suma confirmaciones. Las velas de hoy pueden confirmar si
+han terminado; una vela horaria aún en formación nunca cuenta. Sin datos horarios
+la cotización diaria se conserva, pero se bloquean nuevas confirmaciones. El
+fallback diario se mantiene solo para llamadas sin el contrato `rebound_bars`
+(compatibilidad de funciones y fixtures); el actualizador siempre envía ese campo.
 Ya no se exige al activo recuperar la media de veinte sesiones; el filtro general
 del S&P 500 se mantiene. Las vigilancias antiguas migran prospectivamente a estas
-reglas, con contador cero, sin cambiar operaciones ya registradas.
+reglas horarias (versión 3), con contador cero, sin cambiar operaciones ya registradas.
 
 Para acciones, si está disponible el S&P 500, un cierre del índice bajo su media
 de veinte sesiones bloquea compras. Sin ese índice se indica contexto sin confirmar;
@@ -61,9 +67,10 @@ Una campaña cerrada exige vigilancia nueva antes de comenzar otra.
 
 ## Interpretación y límites
 
-Los datos son velas diarias y observaciones periódicas, sin garantía de capturar
-todos los movimientos intradía. Las confirmaciones se retrasan deliberadamente
-hasta otra fecha de calendario, incluso si la sesión de hoy ya terminó. No se
+Las entradas usan velas horarias completas y las salidas conservan velas diarias
+y observaciones periódicas, sin garantía de capturar todos los movimientos intradía.
+La última vela corta de una sesión puede retrasarse hasta completar una hora desde
+su apertura. No se
 aplican rangos del día de compra para evitar usar extremos anteriores a ella.
 En sesiones posteriores se revisan rangos cerrados y precio observado. Si una
 vela toca stop y objetivo, gana prioridad el stop. Acumulación refleja gaps por

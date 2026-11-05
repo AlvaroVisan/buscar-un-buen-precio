@@ -1398,6 +1398,26 @@ def detect_fibonacci_clusters(timeframes, current_price, currency, decimals, tol
     return clusters[:3]
 
 
+def fetch_rebound_bars(ticker_object, now=None):
+    """Velas horarias completas; un fallo no invalida la cotización diaria."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    try:
+        hourly = ticker_object.history(period="5d", interval="60m")
+        rows = []
+        for stamp, row in hourly.sort_index().iterrows():
+            if stamp.tzinfo is None:
+                continue
+            end = stamp.to_pydatetime().astimezone(datetime.timezone.utc) + datetime.timedelta(hours=1)
+            if end > now:
+                continue
+            values = {key: float(row[key]) for key in ("High", "Low", "Close")}
+            if all(math.isfinite(value) and value > 0 for value in values.values()):
+                rows.append({"time": end.strftime("%Y-%m-%d %H:%M:%S"), **values})
+        return rows[-64:]
+    except Exception:
+        return []
+
+
 def fetch_asset_data(asset, period="3mo", return_history=False, quiet=False):
     tab = asset["tab"]
     ticker = asset["ticker"]
@@ -1530,6 +1550,8 @@ def fetch_asset_data(asset, period="3mo", return_history=False, quiet=False):
         "best_cluster": best_cluster,
         "timeframes": timeframes
     }
+    if return_history:
+        asset_payload["rebound_bars"] = fetch_rebound_bars(t)
     return (asset_payload, hist) if return_history else asset_payload
 
 
