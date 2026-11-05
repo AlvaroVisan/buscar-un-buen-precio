@@ -145,7 +145,9 @@ function setupEventListeners() {
   // Archivar conserva el resultado; borrar exige una confirmación explícita.
   const btnClearClosedJournal = document.getElementById("btnClearClosedJournal");
   if (btnClearClosedJournal) {
-    btnClearClosedJournal.addEventListener("click", () => archiveJournal({ clear_closed: true }));
+    btnClearClosedJournal.addEventListener("click", () => {
+      if (journalVisibleClosedIds.length) archiveJournal({ ids: journalVisibleClosedIds });
+    });
   }
   const undoArchive = document.getElementById("btnUndoJournalArchive");
   if (undoArchive) undoArchive.addEventListener("click", async () => {
@@ -3152,6 +3154,35 @@ function journalExitSummary(entry, fmtRef) {
   return "Salida simulada no registrada";
 }
 
+let journalScenario = "confirmation";
+let journalVisibleClosedIds = [];
+document.getElementById("journalScenario")?.addEventListener("change", event => {
+  journalScenario = event.target.value;
+  loadAndRenderJournal();
+});
+
+function renderScenarioOverview(data) {
+  const host = document.getElementById("scenarioOverview");
+  if (!host) return;
+  const watches = Object.entries(data.watches || {});
+  const accumulation = journalScenario === "accumulation";
+  const campaigns = data.accumulation || [];
+  const number = value => Number(value || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 });
+  const confirmed = (data.entries || []).filter(e => e.strategy === "confirmation");
+  const comparison = confirmed.map(e => `<p class="journal-method-note">${escapeHtml(e.ticker)} · Capital simulado 1.000 ${escapeHtml(e.currency || "$")} · Resultado ${number((e.final_return_pct ?? e.current_return_pct ?? 0) * 10)} ${escapeHtml(e.currency || "$")} (${number(e.final_return_pct ?? e.current_return_pct)} %) · Caída máxima conservadora ${number(e.max_drawdown_pct)} %</p>`).join("");
+  host.innerHTML = accumulation ? `<p class="journal-method-note">Campañas independientes · ${campaigns.length} registradas · ${campaigns.filter(c => c.status === "CERRADA").length} cerradas · ${campaigns.filter(c => c.status === "CERRADA" && c.pnl > 0).length} con beneficio. Los importes se expresan en la divisa de cada activo y no se suman entre divisas. La caída máxima se mide sobre el presupuesto reservado en las observaciones disponibles.</p>` + campaigns.map(c => `
+    <article class="journal-kpi-card"><h3>${escapeHtml(c.ticker)} · ${escapeHtml(c.status)}</h3>
+      <p>${c.tranches.length}/3 tramos · Capital ${number(c.invested)} / ${number(c.budget)} ${escapeHtml(c.currency)}</p>
+      <p>Precio medio ${number(c.average_price)} · Unidades ${number(c.shares)} · Cotización/salida ${number(c.current_price)}</p>
+      <p>Resultado ${number(c.pnl)} ${escapeHtml(c.currency)} (${number(c.return_pct)} % invertido; ${number(c.return_on_budget_pct)} % del presupuesto) · Caída máxima ${number(c.max_drawdown_pct)} %</p>
+      <p>Invalidación ${number(c.invalidation)} · Objetivo ${number(c.target)}</p>
+      ${c.tranches.map(t => `<p>${escapeHtml(t.date)} · ${number(t.shares)} unidades a ${number(t.price)} · ${number(t.amount)} ${escapeHtml(c.currency)}</p>`).join("")}
+    </article>`).join("") + (campaigns.length ? "" : '<p class="journal-method-note">Sin campañas todavía. Se necesita vigilancia y confirmación posterior; no se reconstruyen compras pasadas.</p>')
+    : journalScenario === "confirmation" ? `<p class="journal-method-note">${watches.length} activos vigilados. Confirmación con sesiones anteriores a hoy. Si existe historia del S&P 500, bloquea compras de acciones cuando su último cierre está bajo la media de 20 sesiones. Sin historia del índice, el contexto se marca sin confirmar. No incluye un filtro sectorial.</p>` + watches.map(([ticker, w]) => `<p class="journal-method-note">${escapeHtml(ticker)} · ${escapeHtml(w.state)} · Nivel a recuperar ${number(w.breakout)} · Desde ${escapeHtml(w.since)} · ${escapeHtml(w.market_context || "Mercado sin confirmar")}</p>`).join("")
+      : '<p class="journal-method-note">Reglas anteriores: zona Fibonacci o score ≥ 70. Se conservan entradas, cierres y seguimiento de posiciones abiertas.</p>';
+  if (journalScenario === "confirmation") host.insertAdjacentHTML("beforeend", comparison);
+}
+
 async function loadAndRenderJournal() {
   const container = document.getElementById("journalEntriesContainer");
   if (!container) return;
@@ -3161,11 +3192,17 @@ async function loadAndRenderJournal() {
     if (!resp.ok) throw new Error("Error HTTP " + resp.status);
     const jData = await resp.json();
 
-    const stats = jData.stats || {};
-    const entries = jData.entries || [];
+    renderScenarioOverview(jData);
+    const allEntries = jData.entries || [];
+    const entries = allEntries.filter(e => (e.strategy || "legacy") === journalScenario);
+    const stats = jData.scenario_stats?.[journalScenario] || (journalScenario === "legacy" && !jData.scenario_stats ? jData.stats : {}) || {};
+    document.querySelector(".journal-kpi-grid")?.toggleAttribute("hidden", journalScenario === "accumulation");
+    document.querySelector("#journalSection .journal-toolbar:has(.journal-heading)")?.toggleAttribute("hidden", journalScenario === "accumulation");
+    container.hidden = journalScenario === "accumulation";
 
     const activeEntries = entries.filter(e => ["ACTIVA", "TP1_ALCANZADO"].includes(e.status));
     const closedEntries = entries.filter(e => !["ACTIVA", "TP1_ALCANZADO"].includes(e.status));
+    journalVisibleClosedIds = closedEntries.filter(e => !e.archived).map(e => e.id);
     const wonEntries = entries.filter(e => e.result === "GANADA" || ["TP2_ALCANZADO", "BREAKEVEN_EJECUTADO"].includes(e.status));
     const lostEntries = entries.filter(e => e.result === "PERDIDA" || e.status === "STOP_EJECUTADO");
 

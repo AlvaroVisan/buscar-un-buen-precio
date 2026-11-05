@@ -1,14 +1,15 @@
 """
 journal_manager.py
 Módulo de gestión del Historial de Oportunidades y Diario de Trading Automático.
-Registra cada vez que un activo entra en Zona Áurea (61.8%) o supera confluencia técnica >= 70,
-y hace seguimiento de su evolución (Stop Loss, TP1, TP2, retorno máximo alcanzado).
+Registra entradas tras vigilancia y confirmación de estructura, conserva el historial
+y simula por separado acumulación por tramos con presupuesto limitado.
 """
 
 import os
 import json
 import time
 import threading
+import math
 from functools import wraps
 from datetime import datetime
 
@@ -133,6 +134,15 @@ def calculate_journal_stats(entries):
     }
 
 
+def journal_view(journal):
+    """Estadísticas por escenario al leer, también después de archivar o borrar."""
+    result = dict(journal)
+    entries = journal.get("entries", [])
+    result["scenario_stats"] = {name: calculate_journal_stats([e for e in entries if e.get("strategy", "legacy") == name])
+                                for name in ("legacy", "confirmation")}
+    return result
+
+
 @_locked
 def archive_journal_entries(entry_ids=None, clear_closed=False, archived=True):
     """Oculta/restaura cierres sin excluirlos de las estadísticas."""
@@ -204,6 +214,8 @@ def _evaluate_price_point(trade, high_p, low_p, close_p, event_date_str):
     min_seen = min(float(trade.get("min_price_seen", close_p)), low_p, close_p)
     trade["max_price_seen"] = round(max_seen, dec)
     trade["min_price_seen"] = round(min_seen, dec)
+    if trade.get("strategy") == "confirmation":
+        trade["max_drawdown_pct"] = round(min(trade.get("max_drawdown_pct", 0), (low_p / max_seen - 1) * 100), 2)
     trade["max_return_pct"] = round(((max_seen - entry_p) / entry_p) * 100, 2) if entry_p > 0 else 0.0
 
     # Evaluación conservadora: comprobar primero Stop Loss / Break-Even
@@ -257,7 +269,7 @@ def _evaluate_price_point(trade, high_p, low_p, close_p, event_date_str):
 def update_journal_with_market_data(market_data_list, histories=None):
     """
     Sincroniza el diario de trading:
-    1. Registra nuevas oportunidades (si un activo entra en Zona Áurea o Score >= 70) al precio real actual.
+    1. Activa vigilancia en zona Fibonacci o score >= 70; entra tras confirmación y filtro de riesgo.
     2. Actualiza el progreso de las operaciones activas revisando velas ocurridas desde la señal y precio actual.
     """
     journal = load_journal()
@@ -265,35 +277,26 @@ def update_journal_with_market_data(market_data_list, histories=None):
     now_dt = datetime.now()
     now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
     today_day = now_dt.strftime("%Y-%m-%d")
+    import scenario_engine
 
     # Mantener referencias a las operaciones: insertar señales al principio
     # de entries desplaza los índices, pero no cambia estos objetos.
     active_by_ticker = {}
     for e in entries:
         if e.get("status") in ("ACTIVA", "TP1_ALCANZADO"):
-            active_by_ticker[e.get("ticker")] = e
+            active_by_ticker.setdefault(e.get("ticker"), []).append(e)
 
     for item in market_data_list:
         ticker = item.get("ticker")
         current_price = float(item.get("current_price", 0))
-        if current_price <= 0:
+        if not math.isfinite(current_price) or current_price <= 0 or item.get("is_stale"):
             continue
-
-        fibs = item.get("fib_levels", {})
-        golden_price = float(fibs.get("61.8%", 0))
-        score = item.get("score", 0)
-        risk = item.get("risk_mgmt", {})
 
         dec = int(item.get("decimals", 2))
         curr_sym = item.get("currency", "$")
-        min_risk_unit = 0.0001 if dec >= 4 else 0.01
-
-        is_golden = current_price <= golden_price
-        is_high_score = score >= 70
 
         # Caso A: El activo ya tiene una oportunidad abierta en seguimiento
-        if ticker in active_by_ticker:
-            trade = active_by_ticker[ticker]
+        for trade in active_by_ticker.get(ticker, []):
             trade.setdefault("currency", curr_sym)
             trade.setdefault("decimals", dec)
             t_dec = int(trade.get("decimals", dec))
@@ -333,8 +336,22 @@ def update_journal_with_market_data(market_data_list, histories=None):
                 trade["current_return_pct"] = curr_ret
             trade["last_check"] = now_str
 
-        # Caso B: Nueva oportunidad detectada y no hay operación abierta actualmente para este ticker
-        elif is_golden or is_high_score:
+    # Evaluar cierres antes de decidir entradas: un stop de este ciclo ya bloquea reentrada.
+    allowed = scenario_engine.advance(journal, market_data_list, histories, now_str)
+    for item in market_data_list:
+        ticker = item.get("ticker")
+        current_price = float(item.get("current_price", 0))
+        if not math.isfinite(current_price) or current_price <= 0 or item.get("is_stale"):
+            continue
+        fibs = item.get("fib_levels", {})
+        score = item.get("score", 0)
+        risk = item.get("risk_mgmt", {})
+        dec = int(item.get("decimals", 2))
+        curr_sym = item.get("currency", "$")
+
+        # Cada escenario mantiene una sola posición abierta por ticker.
+        if ticker in allowed and not any(e.get("strategy") == "confirmation" or e.get("status") == "STOP_EJECUTADO"
+                                         for e in active_by_ticker.get(ticker, [])):
             # La entrada de una oportunidad activa siempre se registra al precio real de mercado en el momento de la señal
             entry_p = round(current_price, dec)
             default_sl = round(
@@ -342,26 +359,29 @@ def update_journal_with_market_data(market_data_list, histories=None):
                 dec
             )
 
-            if risk.get("entry_type") == "MARKET":
-                sl = round(float(risk.get("stop_loss", default_sl)), dec)
-                tp1 = round(float(risk.get("take_profit_1", max(fibs.get("38.2%", 0), entry_p * 1.05))), dec)
-                tp2 = round(float(risk.get("take_profit_2", max(item.get("max", 0), tp1 * 1.04))), dec)
-                rr_ratio = risk.get("rr_ratio_2", 2.0)
-            else:
-                raw_sl = float(risk.get("stop_loss", default_sl))
-                sl = round(raw_sl if raw_sl < entry_p else entry_p * 0.96, dec)
-                tp1 = round(max(float(fibs.get("38.2%", 0)), entry_p * 1.05), dec)
-                tp2 = round(max(float(item.get("max", 0)), tp1 * 1.04), dec)
-                risk_ps = max(min_risk_unit, entry_p - sl)
-                rr_ratio = round((tp2 - entry_p) / risk_ps, 2)
+            raw_sl = float(risk.get("stop_loss", default_sl))
+            sl = round(raw_sl if raw_sl < entry_p else entry_p * 0.96, dec)
 
-            signal_type = "ZONA_AUREA" if is_golden else "CONFLUENCIA_ALTA"
-            signal_label = "Zona Áurea (61.8%)" if is_golden else f"Confluencia Alta ({score}/100)"
-            if is_golden and is_high_score:
-                signal_label = f"Zona Áurea + Score {score}/100"
+            # Riesgo calculado desde la entrada efectiva y objetivos estructurales.
+            atr = float(item.get("atr_14") or risk.get("atr_14") or 0)
+            structural_target = float(fibs.get("38.2%") or 0)
+            structural_high = float(item.get("max") or 0)
+            if (not all(math.isfinite(value) for value in (atr, sl, structural_target, structural_high))
+                    or atr <= 0 or structural_target <= entry_p or structural_high <= structural_target):
+                continue
+            sl = round(min(sl, entry_p - 2 * atr), dec)
+            tp1, tp2 = round(structural_target, dec), round(structural_high, dec)
+            if sl <= 0 or (tp1 - entry_p) / (entry_p - sl) < 1.5:
+                continue
+            rr_ratio = round((tp2 - entry_p) / (entry_p - sl), 2)
+            signal_type = "CONFIRMACION"
+            signal_label = f"Recuperación confirmada · Score {score}/100"
 
             new_entry = {
                 "id": f"opp_{ticker}_{int(time.time())}",
+                "strategy": "confirmation",
+                "simulated_budget": 1000,
+                "max_drawdown_pct": 0,
                 "ticker": ticker,
                 "tab": item.get("tab", ticker),
                 "name": item.get("name", ticker),
@@ -371,7 +391,7 @@ def update_journal_with_market_data(market_data_list, histories=None):
                 "signal_type": signal_type,
                 "signal_label": signal_label,
                 "period": item.get("period"),
-                "stop_method": "ESTRUCTURAL",
+                "stop_method": "ESTRUCTURAL_ATR",
                 "score": score,
                 "rsi": item.get("rsi"),
                 "entry_price": entry_p,
@@ -394,10 +414,13 @@ def update_journal_with_market_data(market_data_list, histories=None):
                 "last_check": now_str
             }
             entries.insert(0, new_entry)  # Más reciente primero
-            active_by_ticker[ticker] = new_entry
+            active_by_ticker.setdefault(ticker, []).append(new_entry)
+            journal.get("watches", {}).pop(ticker, None)
 
     journal["entries"] = entries
     journal["stats"] = calculate_journal_stats(entries)
+    journal["scenario_stats"] = {name: calculate_journal_stats([e for e in entries if e.get("strategy", "legacy") == name])
+                                 for name in ("legacy", "confirmation")}
     journal["last_updated"] = now_str
     save_journal(journal)
     return journal

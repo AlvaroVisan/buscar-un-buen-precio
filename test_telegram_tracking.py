@@ -134,10 +134,12 @@ class JournalTrackingTests(unittest.TestCase):
 
     def test_new_signal_records_period_and_keeps_levels_when_market_changes(self):
         item = market_item()
-        result = journal.update_journal_with_market_data([item])
+        item.update(atr_14=5, max=570, fib_levels={"38.2%": 520})
+        with patch("scenario_engine.advance", return_value={"AMD"}):
+            result = journal.update_journal_with_market_data([item])
         original = deepcopy(result["entries"][0])
         self.assertEqual(original["period"], "1mo")
-        self.assertEqual(original["stop_method"], "ESTRUCTURAL")
+        self.assertEqual(original["stop_method"], "ESTRUCTURAL_ATR")
         self.assertEqual(original["initial_stop_loss"], 460)
         item["period"] = "1y"
         item["risk_mgmt"]["stop_loss"] = 430

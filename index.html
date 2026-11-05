@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <meta name="theme-color" content="#090909">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20261104-v9">
+  <link rel="stylesheet" href="style.css?v=20261105-v10">
 </head>
 <body>
   <div class="app-container">
@@ -347,6 +347,10 @@
 
     <!-- Sección de Diario de Trading & Rendimiento (Modo Diario) -->
     <section class="journal-section" id="journalSection" style="display: none;">
+      <div class="journal-toolbar">
+        <label>Escenario <select id="journalScenario"><option value="confirmation">Confirmación</option><option value="accumulation">Acumulación por tramos</option><option value="legacy">Historial anterior</option></select></label>
+      </div>
+      <div id="scenarioOverview" aria-live="polite"></div>
       <!-- Stats KPIs -->
       <div class="journal-kpi-grid">
         <div class="journal-kpi-card highlight-winrate" id="kpiCardJournalWinRate" title="Click para ver oportunidades en seguimiento" style="cursor: pointer;">
@@ -409,7 +413,7 @@
         </div>
       </div>
 
-      <p class="journal-method-note">Seguimiento simulado: se registra una señal al alcanzar o caer bajo el nivel Fibonacci del 61,8 % o un score ≥ 70. Se cierra el 50 % en TP1 y se mueve el stop del resto a la entrada; después, se cierra en TP2 o al volver a la entrada. La tasa de acierto muestra qué porcentaje de señales cerradas terminó con beneficio. Archivar conserva sus resultados en las estadísticas. No son operaciones de tu cartera real.</p>
+      <p class="journal-method-note">Simulación prospectiva. Fibonacci o score ≥ 70 activan vigilancia. Confirmación exige un cierre diario posterior sobre el máximo de las tres sesiones previas a la vigilancia y tendencia corta ascendente. Después de un stop se reinicia la vigilancia. Stop con margen mínimo de 2 ATR y beneficio/riesgo mínimo de 1,5 hasta TP1. Salidas: 50 % en TP1 y resto en TP2 o entrada. Acumulación: presupuesto de 1.000 unidades de la divisa de cada activo, tres tramos iguales; nuevas compras al menos un 5 % por debajo de la anterior, en otra sesión y con recuperación confirmada. Invalidación y objetivo fijos. Sin comisiones. No son operaciones reales ni probabilidades de éxito.</p>
 
       <div id="journalArchiveNotice" class="journal-archive-notice" role="status" hidden><span id="journalArchiveMessage"></span><button id="btnUndoJournalArchive" type="button" class="btn btn-secondary btn-sm">Deshacer</button></div>
 
@@ -1119,7 +1123,7 @@
     <p id="currencyRateStatus" class="currency-muted" role="status">Consulta el cambio al abrir el conversor.</p><button id="refreshCurrencyRate" type="button" class="btn btn-secondary">Actualizar cambio</button>
     <p id="currencyNotice" class="currency-notice">Conversión orientativa con el cambio diario de referencia del BCE, consultado a través de <a href="https://frankfurter.dev/" target="_blank" rel="noopener noreferrer">Frankfurter</a>. No es una cotización en tiempo real. Tu bróker puede aplicar otro cambio y comisiones.</p>
   </dialog>
-  <script src="app.js?v=20261104-v7"></script>
+  <script src="app.js?v=20261105-v8"></script>
   <script src="currency.js?v=20261104-1"></script>
   <script src="business.js?v=20261102-business-2"></script>
 </body>

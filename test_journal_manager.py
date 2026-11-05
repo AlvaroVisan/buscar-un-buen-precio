@@ -10,6 +10,12 @@ from unittest.mock import patch
 import journal_manager as journal
 
 
+def candidate(ticker, price):
+    return {"ticker": ticker, "current_price": price, "score": 80,
+            "atr_14": price * .01, "max": price * 1.5,
+            "fib_levels": {"38.2%": price * 1.2}}
+
+
 def open_trade(ticker, price):
     return {
         "id": f"existing_{ticker}", "ticker": ticker,
@@ -22,6 +28,10 @@ def open_trade(ticker, price):
 
 class JournalUpdateTests(unittest.TestCase):
     def setUp(self):
+        # Aquí se prueba el seguimiento y la inserción; el filtro se prueba sin mocks en test_scenario_engine.
+        gate = patch("scenario_engine.advance", return_value={"NEW", "NEW1", "NEW2"})
+        gate.start()
+        self.addCleanup(gate.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name) / "journal.json"
@@ -62,7 +72,7 @@ class JournalUpdateTests(unittest.TestCase):
 
     def test_new_signals_do_not_displace_existing_trades(self):
         items = [
-            {"ticker": "NEW", "current_price": 50, "score": 80},
+            candidate("NEW", 50),
             {"ticker": "AAA", "current_price": 112},
             {"ticker": "BBB", "current_price": 170},
         ]
@@ -91,8 +101,8 @@ class JournalUpdateTests(unittest.TestCase):
     def test_multiple_insertions_keep_existing_trade(self):
         self.seed([open_trade("AAA", 100)])
         result = journal.update_journal_with_market_data([
-            {"ticker": "NEW1", "current_price": 50, "score": 80},
-            {"ticker": "NEW2", "current_price": 60, "score": 80},
+            candidate("NEW1", 50),
+            candidate("NEW2", 60),
             {"ticker": "AAA", "current_price": 105},
         ])
         self.assertEqual([e["ticker"] for e in result["entries"]], ["NEW2", "NEW1", "AAA"])
@@ -100,7 +110,7 @@ class JournalUpdateTests(unittest.TestCase):
 
     def test_repeated_new_ticker_does_not_create_duplicate(self):
         self.seed([])
-        item = {"ticker": "NEW", "current_price": 50, "score": 80}
+        item = candidate("NEW", 50)
         result = journal.update_journal_with_market_data([item, item])
         self.assertEqual(len(result["entries"]), 1)
         again = journal.update_journal_with_market_data([item])

@@ -4838,3 +4838,9 @@ input, select, textarea { accent-color: #ddd; }
 #btnCurrencyConverter.currency-floating-button { position: fixed; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); z-index: 400; min-height: 48px; min-width: 76px; padding: 12px 18px; border-radius: 999px; background: var(--bg-card, #141414); border: 1px solid #555; color: var(--text-primary, #eee); font-size: 1rem; }
 body { padding-bottom: 88px; }
 @media (max-width: 600px) { #btnCurrencyConverter.currency-floating-button { right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); } }
+#journalSection [hidden] { display: none !important; }
+#journalScenario { max-width: 100%; padding: 10px 14px; background: var(--bg-card, #171717); color: var(--text-primary, #eee); border: 1px solid var(--border-color, #333); border-radius: 8px; }
+#scenarioOverview { display: grid; gap: 12px; margin-bottom: 20px; }
+#scenarioOverview .journal-kpi-card { min-width: 0; overflow-wrap: anywhere; text-align: left; }
+#scenarioOverview p { line-height: 1.6; }
+#scenarioOverview .journal-kpi-card p { font-size: .9rem; font-weight: 400; color: var(--text-secondary); }
