@@ -13,6 +13,7 @@ import time
 import threading
 import requests
 import journal_manager
+import euro_display
 
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 LATEST_DATA_PATH = os.path.join(DIRECTORY, "latest_data.json")
@@ -81,6 +82,8 @@ def _fmt_price(val, item=None):
     curr = (item or {}).get("currency", "$")
     dec = int((item or {}).get("decimals", 2))
     num = float(val or 0)
+    if str((item or {}).get("ticker", "")).startswith("^"):
+        return f"{num:,.{dec}f} puntos"
     return f"{curr}{num:,.{dec}f}"
 
 # Teclado persistente con botones rápidos de acceso en la app de Telegram
@@ -283,6 +286,8 @@ def send_telegram_message(bot_token, chat_id, text, parse_mode="Markdown", reply
     """
     if not bot_token or not chat_id:
         return False, "Faltan credenciales de Telegram (bot_token o chat_id)."
+
+    text = euro_display.render_message(text)
 
     url = f"https://api.telegram.org/bot{bot_token.strip()}/sendMessage"
     payload = {
@@ -816,7 +821,7 @@ def handle_alertas(bot_token, chat_id):
         for campaign in campaigns[:6]:
             lines.append(f"📚 {escape_md(campaign['ticker'])} · Acumulación {len(campaign['tranches'])}/3 · Media `{_fmt_price(campaign['average_price'], campaign)}`")
         for ticker, watch in list(watches.items())[:8]:
-            lines.append(f"⏳ {escape_md(ticker)} · Vigilancia · Recuperar `{_fmt_price(watch['breakout'])}` · {escape_md(watch.get('market_context', 'Mercado sin confirmar'))}")
+            lines.append(f"⏳ {escape_md(ticker)} · Vigilancia · Recuperar `{_fmt_price(watch['breakout'], {'ticker': ticker})}` · {escape_md(watch.get('market_context', 'Mercado sin confirmar'))}")
         lines.append("Detalle y registros restantes: `/diario`, `/diario anterior`, `/acumulacion` o panel web. Fibonacci y score por sí solos no activan compras.")
         send_telegram_message(bot_token, chat_id, "\n\n".join(lines), reply_markup=TELEGRAM_MAIN_KEYBOARD)
     except (OSError, ValueError, TypeError, KeyError) as error:
@@ -967,7 +972,7 @@ def handle_riesgo(bot_token, chat_id, raw_args):
             "Calcula el número exacto de acciones a comprar según el capital que estás dispuesto a arriesgar (Stop Loss).\n\n"
             "📌 *Uso:* `/riesgo <TICKER> [capital_a_arriesgar]`\n"
             "• Ejemplo arriesgando 100€: `/riesgo AMD 100`\n"
-            "• Ejemplo con 250$: `/riesgo NVDA 250`\n"
+            "• Ejemplo con 250€: `/riesgo NVDA 250`\n"
             "• Ejemplo rápido (100€ por defecto): `/riesgo META`",
             reply_markup=TELEGRAM_MAIN_KEYBOARD
         )
@@ -979,7 +984,7 @@ def handle_riesgo(bot_token, chat_id, raw_args):
         clean_num = tokens[1].replace("€", "").replace("$", "").replace(",", ".")
         try:
             val = float(clean_num)
-            if val > 0:
+            if math.isfinite(val) and val > 0:
                 budget = val
         except ValueError:
             pass
@@ -1023,6 +1028,14 @@ def handle_riesgo(bot_token, chat_id, raw_args):
 
     dec = int(matched_item.get("decimals", 2))
     curr_sym = matched_item.get("currency", "$")
+    # El presupuesto que escribe el usuario se expresa en euros por defecto.
+    explicit_dollars = len(tokens) > 1 and "$" in tokens[1]
+    if curr_sym == "$" and not explicit_dollars:
+        quote = euro_display.get_quote()
+        if quote is None:
+            send_telegram_message(bot_token, chat_id, "No puedo consultar el cambio: prefiero no calcular cuántas acciones comprar con un presupuesto en euros sin conocerlo.", reply_markup=TELEGRAM_MAIN_KEYBOARD)
+            return
+        budget *= quote["rate"]
     min_risk_unit = 0.0001 if dec >= 4 else 0.01
     entry = risk_mgmt.get("entry_price", price)
     sl = risk_mgmt.get("stop_loss", price * 0.95)
@@ -1219,8 +1232,8 @@ def handle_historial(bot_token, chat_id, filter_mode="ALL", scenario="confirmati
             ticker = escape_md(entry['ticker'])
             if scenario == "accumulation":
                 lines.append(f"📚 *{ticker}* · {escape_md(entry['status'])} · {len(entry['tranches'])}/3 tramos\n"
-                             f"Media `{_fmt_price(entry['average_price'], entry)}` · Capital {entry['invested']:.2f}/{entry['budget']:.2f} {escape_md(entry.get('currency', '$'))}\n"
-                             f"Resultado {entry.get('pnl', 0):+.2f} ({entry.get('return_pct', 0):+.2f}% invertido) · Caída máxima {entry.get('max_drawdown_pct', 0):.2f}%\n"
+                             f"Media `{_fmt_price(entry['average_price'], entry)}` · Capital {_fmt_price(entry['invested'], entry)}/{_fmt_price(entry['budget'], entry)}\n"
+                             f"Resultado {_fmt_price(entry.get('pnl', 0), entry)} ({entry.get('return_pct', 0):+.2f}% invertido) · Caída máxima {entry.get('max_drawdown_pct', 0):.2f}%\n"
                              f"Invalidación `{_fmt_price(entry['invalidation'], entry)}` · Objetivo `{_fmt_price(entry['target'], entry)}`")
             else:
                 ret = entry.get('final_return_pct') if entry.get('final_return_pct') is not None else entry.get('current_return_pct', 0)

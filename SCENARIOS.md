@@ -121,3 +121,24 @@ zona donde podría frenar, recuperación necesaria, techo y precio de salida.
 cerca de la entrada registrada (hasta un ATR o un 1 % si falta ATR), sobre su stop.
 No se usa con cotización obsoleta, tras perder la salida ni para perseguir un precio
 alejado. Las posibilidades de caída o rebote no se presentan como certezas.
+
+## Importes en euros en Telegram
+
+`euro_display.py` convierte la presentación al enviar un mensaje, usando la misma
+fuente ECB/Frankfurter que el conversor web. Un único cambio EUR/USD se aplica a
+todos los importes del mensaje. Precios, niveles, capital y P&L en dólares se
+expresan como equivalentes en euros, con formato decimal español y fecha del cambio.
+Los índices se muestran en puntos. Tickers, unidades y porcentajes no se convierten.
+
+El Diario, Cartera y motor de mercado conservan importes y cálculos originales.
+La rentabilidad porcentual sigue siendo la de la divisa original; convertir P&L
+histórico al cambio de hoy no reconstruye un resultado histórico real en euros.
+En `/riesgo AMD 100`, el presupuesto es 100 EUR: se pasa a USD antes de calcular
+unidades y el mensaje vuelve a euros. Un `$` explícito mantiene el presupuesto USD.
+
+La caché privada `.exchange_cache.local.json` evita consultar el cambio en cada
+mensaje y sobrevive a reinicios. Se comprueba cada seis horas y, ante un fallo,
+se admite un cambio de referencia de hasta siete días (fines de semana y festivos).
+Sin un cambio válido se mantienen las monedas originales con aviso; no se cambia
+solo el símbolo. En ese caso tampoco se dimensiona una compra con presupuesto EUR
+para un activo USD. Las pruebas usan respuestas y envíos simulados.
