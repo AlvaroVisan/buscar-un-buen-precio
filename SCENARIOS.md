@@ -94,3 +94,10 @@ registrados: las condiciones de entrada pertenecen al motor de escenarios.
 
 Las pruebas de Telegram usan envíos simulados y archivos temporales. Los mensajes
 ya enviados no se reescriben al actualizar el bot.
+
+La ficha de compra y venta usa lenguaje cotidiano: precio actual, esperar o entrar,
+zona donde podría frenar, recuperación necesaria, techo y precio de salida.
+«Entramos de una» solo aparece con una entrada confirmada activa y precio aún
+cerca de la entrada registrada (hasta un ATR o un 1 % si falta ATR), sobre su stop.
+No se usa con cotización obsoleta, tras perder la salida ni para perseguir un precio
+alejado. Las posibilidades de caída o rebote no se presentan como certezas.

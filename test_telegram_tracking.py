@@ -58,7 +58,7 @@ class JournalTrackingTests(unittest.TestCase):
         self.assertIn("📌 *Seguimiento activo*:", message)
         self.assertIn("Entrada en `$500.00`", message)
         self.assertIn("Salida si cae de `$450.00`", message)
-        self.assertIn("PRONÓSTICO", message)
+        self.assertIn("está en", message)
         self.assertNotIn("planfollow:", json.dumps(keyboard))
         self.assertNotIn("Seguir este plan", message)
         self.assertEqual(self.path.read_bytes(), before)
@@ -164,7 +164,7 @@ class JournalTrackingTests(unittest.TestCase):
             "val_price": 490, "vah_price": 560,
         })
         message, _ = self.query(item)
-        self.assertLess(message.index("📌 *Seguimiento activo*"), message.index("PRONÓSTICO"))
+        self.assertLess(message.index("📌 *Seguimiento activo*"), message.index("está en"))
         self.assertIn("rebote", message.lower())
         self.assertEqual(self.path.read_bytes(), before)
         self.assertLess(len(message), 4096)
@@ -184,7 +184,7 @@ class CurrentMarketContextTests(unittest.TestCase):
         item = market_item()
         item.update(drop_pct=15.0, current_price=100, min=90)
         advice = bot.format_buy_advice(item)
-        self.assertIn("esperar confirmación", advice)
+        self.assertIn("todavía puede quedar bajada", advice)
         self.assertNotIn("Entrada en 2 tramos", advice)
 
     def test_buy_advice_institutional_volume_wall_when_poc_real_volume(self):
@@ -193,8 +193,8 @@ class CurrentMarketContextTests(unittest.TestCase):
             "has_real_volume": True, "profile_type": "VOLUME", "poc_price": 450
         })
         advice = bot.format_buy_advice(item)
-        self.assertIn("POC `$450.00`", advice)
-        self.assertIn("No acredita órdenes institucionales", advice)
+        self.assertNotIn("muro de compras institucional", advice)
+        self.assertNotIn("POC", advice)
 
     def test_tpo_profile_does_not_trigger_volume_wall(self):
         item = market_item()

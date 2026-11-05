@@ -426,126 +426,115 @@ def find_asset_item(query):
     return None
 
 
+def _usable_price(value):
+    return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
+
+
+def _plain_results_note(item):
+    earnings = item.get("earnings") or {}
+    if not earnings.get("has_earnings") or not earnings.get("short_date"):
+        return ""
+    when = "HOY" if earnings.get("days_until") == 0 else "MAÑANA" if earnings.get("days_until") == 1 else earnings['short_date']
+    return f"📌 *Resultados*: {escape_md(when)}. Puede moverse más de la cuenta."
+
+
 def format_buy_advice(item, period="3mo"):
-    """Describe el estado persistido: consultar no crea ni confirma entradas."""
+    """Lectura en lenguaje cotidiano; la decisión sigue viniendo del Diario."""
     ticker = item.get("ticker", "")
-    lines = [f"🎯 *{escape_md(item.get('tab', ticker))}* · `{_fmt_price(item.get('current_price', 0), item)}`"]
-    if item.get("is_stale"):
-        lines.append("⚠️ *Cotización desactualizada*. No se valida una entrada con estos datos.")
+    price = item.get("current_price", 0)
+    lines = [f"👀 *{escape_md(item.get('tab', ticker))}* está en `{_fmt_price(price, item)}`."]
+    if item.get("is_stale") or not _usable_price(price):
+        return "\n\n".join(lines + ["⚠️ *Cotización desactualizada*. Esperaría un precio actualizado antes de mover ficha."])
     try:
         context = journal_manager.get_scenario_context(ticker)
     except (OSError, ValueError, TypeError, KeyError):
-        return "\n".join(lines + ["⚠️ No se puede consultar el Diario. No hay entrada verificable."])
+        return "\n\n".join(lines + ["No puedo comprobar el seguimiento ahora. No hay entrada verificable; de momento, esperaría."])
     trade, campaign, watch = (context[key] for key in ("confirmation", "accumulation", "watch"))
+    risk = item.get("risk_mgmt") or {}
     if trade:
-        lines.extend(["✅ *PRONÓSTICO: entrada confirmada registrada (simulación).*",
-                      f"Entrada `{_fmt_price(trade['entry_price'], trade)}` · Stop `{_fmt_price(trade['stop_loss'], trade)}`",
-                      f"TP1 `{_fmt_price(trade['tp1'], trade)}` · TP2 `{_fmt_price(trade['tp2'], trade)}`",
-                      "50 % sale en TP1; el resto pasa a stop en entrada y sale en TP2 o entrada. No es una orden nueva de compra."])
-    else:
-        lines.extend(["⏳ *PRONÓSTICO: esperar confirmación del rebote.*",
-                      "La caída y el score activan vigilancia; no autorizan una entrada ni una ampliación."])
-        if watch:
-            lines.append(f"Vigilancia desde {escape_md(watch['since'])} · Recuperar `{_fmt_price(watch['breakout'], item)}` en una sesión posterior cerrada, con tendencia y riesgo válidos.")
-            lines.append(escape_md(watch.get("market_context", "Mercado sin confirmar")))
-            if watch.get("state") == "CONFIRMADA":
-                lines.append("Estructura recuperada; sin entrada registrada todavía. El filtro de riesgo u otros requisitos pueden impedirla.")
+        entry, stop = trade['entry_price'], trade['stop_loss']
+        margin = item.get('atr_14') or entry * .01
+        if price <= stop:
+            lines.append("🔴 *Ahora no entraría.* Ya ha perdido el precio de salida; toca que el seguimiento se actualice.")
+        elif trade.get('status') == 'TP1_ALCANZADO':
+            lines.append("💰 *El primer objetivo ya está hecho.* La mitad está recogida; dejamos correr el resto y salimos si vuelve al precio de compra.")
+        elif abs(price - entry) <= margin:
+            lines.append("🟢 *Aquí sí: entramos de una.* El rebote ya pasó el filtro; no estamos comprando solo porque haya bajado.")
         else:
-            lines.append("Sin vigilancia registrada. Se evaluará en la próxima actualización de mercado.")
-        lines.append("Después de un stop se exige vigilancia y estructura nuevas.")
+            lines.append("🟡 *La entrada ya se dio; ahora no iría detrás del precio.* Seguimos la jugada que está abierta, sin añadir otra compra por impulso.")
+        lines.append(f"La entrada quedó en `{_fmt_price(entry, trade)}`. Primer techo en `{_fmt_price(trade['tp1'], trade)}`; si lo supera y sigue tirando, miraría `{_fmt_price(trade['tp2'], trade)}`.")
+        lines.append(f"Si pierde `{_fmt_price(stop, trade)}`, se acabó la idea y salimos. En el primer techo recogemos la mitad.")
+    else:
+        weak_market = bool(watch and 'bloqueada' in watch.get('market_context', ''))
+        falling = item.get('swing_type') == 'FALLING_KNIFE' or item.get('drop_pct', 0) >= 10 or item.get('is_above_sma') is False
+        if weak_market:
+            lines.append("⏳ *Yo aquí esperaría.* El mercado viene flojo y puede arrastrarla más abajo.")
+        elif falling:
+            lines.append("⏳ *Yo aquí esperaría: todavía puede quedar bajada.* Que esté barata frente a hace unos días no quiere decir que ya haya terminado de caer.")
+        else:
+            lines.append("⏳ *Tiene pinta de poder rebotar, pero todavía no entraría.* Quiero verla levantar cabeza antes de meter dinero.")
+        supports = [v for v in (item.get('min'), (item.get('liquidity') or {}).get('ssl_pool_price'), (item.get('fib_levels') or {}).get('61.8%'), risk.get('entry_price')) if _usable_price(v) and v < price]
+        if supports:
+            lines.append(f"Si sigue cayendo, vigilaría `{_fmt_price(max(supports), item)}` para ver si frena. Tocar ese precio no basta para comprar.")
+        entry = watch.get('breakout') if watch else None
+        if _usable_price(entry):
+            targets = sorted(set(v for v in ((item.get('fib_levels') or {}).get('38.2%'), risk.get('take_profit_1'), risk.get('take_profit_2'), item.get('max')) if _usable_price(v) and v > max(entry, price)))
+            recovery = "recupera" if price < entry else "se mantiene sobre"
+            lines.append(f"La entrada la empezaría a ver si {recovery} `{_fmt_price(entry, item)}` y aguanta hasta cerrar el día. Si amaga un rebote y vuelve a caer, seguimos fuera.")
+            if targets:
+                lines.append(f"Desde ahí, el primer techo que miraría está en `{_fmt_price(targets[0], item)}`" + (f" y, si rompe con fuerza, el siguiente en `{_fmt_price(targets[-1], item)}`." if len(targets) > 1 else "."))
+            else:
+                lines.append("Pero ahora no veo un techo con margen suficiente por encima: por eso no forzaría la entrada.")
+            if watch.get('state') == 'CONFIRMADA':
+                lines.append("Ya ha recuperado terreno, pero la compra aún no ha pasado todos los filtros. De momento, no damos el paso.")
+        else:
+            lines.append("Aún no tengo una entrada clara. Prefiero esperar a la próxima revisión antes que darte un precio por darlo.")
+        lines.append("Cuando el rebote pase el filtro y quede una entrada registrada, ahí sí damos el paso. Después de una salida con pérdida, no volvemos a entrar sin una señal nueva.")
     if campaign:
         n = len(campaign['tranches'])
-        lines.extend([f"📚 *Acumulación simulada · {n}/3 tramos*",
-                      f"Última compra simulada: {escape_md(campaign['tranches'][-1]['date'])} a `{_fmt_price(campaign['tranches'][-1]['price'], item)}`",
-                      f"Invertido {campaign['invested']:.2f} / {campaign['budget']:.2f} {escape_md(campaign.get('currency', '$'))} · Unidades {campaign['shares']:.4f}",
-                      f"Precio medio `{_fmt_price(campaign['average_price'], item)}` · Resultado {campaign.get('return_pct', 0):+.2f}%",
-                      f"Invalidación fija `{_fmt_price(campaign['invalidation'], item)}` · Objetivo `{_fmt_price(campaign['target'], item)}`"])
-        if n < 3:
-            lines.append(f"Siguiente tramo solo con precio ≤ `{_fmt_price(campaign['tranches'][-1]['price'] * .95, item)}`, recuperación confirmada en otra sesión, tendencia válida y sin bloqueo de mercado. Bajar por sí solo no activa la compra.")
+        lines.append(f"📚 *Compras por partes: {n} de 3.* El precio medio está en `{_fmt_price(campaign['average_price'], item)}`; la jugada lleva {campaign.get('return_pct', 0):+.1f}%.")
+        if price <= campaign['invalidation']:
+            lines.append("Ya ha perdido el precio de salida de esta jugada. No añadimos más; toca actualizar el seguimiento.")
+        elif n < 3:
+            lines.append(f"La siguiente compra se podría mirar en `{_fmt_price(campaign['tranches'][-1]['price'] * .95, item)}` o más abajo, pero solo si vuelve a levantar cabeza otro día y el mercado acompaña. No añadimos a ciegas.")
         else:
-            lines.append("Presupuesto agotado: no se añaden más tramos.")
-    else:
-        lines.append("📚 Sin campaña de acumulación activa. Máximo tres tercios de un presupuesto simulado de 1.000 por activo y divisa; requiere confirmación inicial.")
-    liquidity = item.get("liquidity") or {}
-    if liquidity.get("has_real_volume") and liquidity.get("profile_type") == "VOLUME" and liquidity.get("poc_price"):
-        lines.append(f"Volumen histórico: POC `{_fmt_price(liquidity['poc_price'], item)}`. No acredita órdenes institucionales pendientes.")
-    earnings = item.get("earnings") or {}
-    if earnings.get("has_earnings") and earnings.get("short_date"):
-        when = "HOY" if earnings.get("days_until") == 0 else "MAÑANA" if earnings.get("days_until") == 1 else earnings['short_date']
-        lines.append(f"📌 *Resultados*: {escape_md(when)}. Atención a la volatilidad.")
-    lines.append("Simulación sin operaciones reales. El score no es una probabilidad de éxito.")
+            lines.append("Ya están hechas las tres compras: no metemos más dinero.")
+        lines.append(f"Buscamos `{_fmt_price(campaign['target'], item)}`. Si pierde `{_fmt_price(campaign['invalidation'], item)}`, cerramos la jugada completa.")
+    note = _plain_results_note(item)
+    if note:
+        lines.append(note)
+    lines.append("Seguimiento simulado; no ejecuta compras reales.")
     return "\n\n".join(lines)
 
 
 def format_sell_advice(item, period="3mo"):
-    """
-    Construye un pronóstico directo de salida y toma de beneficios:
-    1. Pronóstico: BAJA (agotamiento alcista).
-    2. Contexto de techo y cercanía a máximos.
-    3. Plan táctico de aseguramiento de ganancias.
-    4. Pines de aviso relevante.
-    """
-    ticker = item.get("ticker", "")
-    tab = escape_md(item.get("tab", ticker))
-    price = item.get("current_price", 0)
-    p_max = item.get("max", price)
-    p_min = item.get("min", price)
-    sm = item.get("sell_mgmt") or {}
-    gain_low = sm.get("gain_from_low_pct", 0)
-    dist_hi = sm.get("dist_to_high_pct", 0)
-    t_stop = sm.get("trailing_stop") or (price * 0.95)
-    earnings = item.get("earnings") or {}
-
-    fibs = item.get("fib_levels") or {}
-    f50 = fibs.get("50.0%", p_min)
-    prot_pct = ((price - t_stop) / price * 100) if price > 0 else 0
-
-    forecast_title = "🔎 *LECTURA TÉCNICA: riesgo de retroceso.* "
-    explanation = (
-        f"*{tab}* acumula un alza del *+{gain_low:.1f}%* desde mínimos y está a solo un *{dist_hi:.1f}%* de su techo en `{_fmt_price(p_max, item)}`. "
-        f"La cercanía a máximos permite vigilar un posible retroceso hacia `{_fmt_price(f50, item)}`; no demuestra que vaya a ocurrir."
-    )
-    plan_bullets = (
-        f"🎯 *Plan de acción:*\n"
-        f"• Referencia técnica actual de protección: `{_fmt_price(t_stop, item)}` *(-{prot_pct:.1f}%)*.\n"
-        f"• Esta lectura no cambia los stops, objetivos ni tramos registrados en el Diario. No ejecuta ventas reales."
-    )
-
-    pins = []
-    if earnings.get("has_earnings") and earnings.get("short_date"):
-        ed = earnings.get("short_date")
-        du = earnings.get("days_until")
-        eps = earnings.get("eps_avg")
-        eps_txt = f" (beneficio previsto: `${eps}`/acc)" if eps is not None else ""
-        if du == 0:
-            when = "HOY"
-        elif du == 1:
-            when = "MAÑANA"
-        elif du is not None and du <= 5:
-            when = f"en {du} días ({ed})"
-        else:
-            when = f"el {ed}"
-        pins.append(f"📌 *Resultados*: Presenta cuentas *{when}*{eps_txt}. Atención a la volatilidad extrema.")
-
-    pins_str = ("\n\n" + "\n".join(pins)) if pins else ""
-
-    msg = (
-        f"🔴 *{tab}* · `{_fmt_price(price, item)}` (Zona de Venta)\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{forecast_title}\n\n"
-        f"{explanation}\n\n"
-        f"{plan_bullets}"
-        f"{pins_str}"
-    )
-    stale_warn = f"⚠️ *Cotización desactualizada* ({escape_md(item.get('last_success_at') or '')})\n\n" if item.get("is_stale") else ""
+    """Techo y posible recogida de beneficios, sin prometer una caída."""
+    price = item.get('current_price', 0)
+    if item.get('is_stale') or not _usable_price(price):
+        return format_buy_advice(item, period)
+    lines = [f"👀 *{escape_md(item.get('tab', item.get('ticker', '')))}* está en `{_fmt_price(price, item)}`.",
+             "🟠 *Aquí no me lanzaría a comprar.* Está cerca de la parte alta y puede tomarse un respiro."]
+    top = item.get('max')
+    if _usable_price(top) and top >= price:
+        lines.append(f"El techo que vigilaría está en `{_fmt_price(top, item)}`. Si lo rompe y aguanta, puede seguir subiendo; si vuelve a rechazarse ahí, esperaría otra bajada.")
+    support = (item.get('fib_levels') or {}).get('50.0%')
+    if _usable_price(support) and support < price:
+        lines.append(f"Si afloja, miraría si consigue frenar por `{_fmt_price(support, item)}`. No compraría solo por llegar a ese precio.")
+    lines.append("Si ya estamos dentro, seguimos los precios de salida de nuestra jugada; esta lectura no los cambia.")
     try:
-        campaign = journal_manager.get_scenario_context(ticker)["accumulation"]
+        context = journal_manager.get_scenario_context(item.get('ticker', ''))
+        trade, campaign = context['confirmation'], context['accumulation']
+        if trade:
+            lines.append(f"Nuestra entrada fue `{_fmt_price(trade['entry_price'], trade)}`. Recogemos la mitad en `{_fmt_price(trade['tp1'], trade)}` y buscamos `{_fmt_price(trade['tp2'], trade)}` con el resto. Si pierde `{_fmt_price(trade['stop_loss'], trade)}`, salimos.")
         if campaign:
-            msg += (f"\n\n📚 *Acumulación simulada*: {len(campaign['tranches'])}/3 tramos · Media `{_fmt_price(campaign['average_price'], item)}`"
-                    f" · Invalidación fija `{_fmt_price(campaign['invalidation'], item)}` · Objetivo `{_fmt_price(campaign['target'], item)}`. No se amplía por una bajada aislada.")
+            lines.append(f"📚 Llevamos {len(campaign['tranches'])} de 3 compras, a una media de `{_fmt_price(campaign['average_price'], item)}`. Buscamos `{_fmt_price(campaign['target'], item)}` y salimos si pierde `{_fmt_price(campaign['invalidation'], item)}`. No añadimos por una bajada sin más.")
     except (OSError, ValueError, TypeError, KeyError):
-        msg += "\n\n⚠️ No se puede consultar la acumulación del Diario."
-    return stale_warn + msg
+        lines.append("No puedo comprobar ahora las compras que seguimos; esperaría antes de mover ficha.")
+    note = _plain_results_note(item)
+    if note:
+        lines.append(note)
+    lines.append("Seguimiento simulado; no ejecuta operaciones reales.")
+    return "\n\n".join(lines)
 
 
 def format_detailed_fibonacci(item, period="3mo"):

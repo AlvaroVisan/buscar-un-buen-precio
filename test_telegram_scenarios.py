@@ -58,7 +58,7 @@ class TelegramScenariosTests(unittest.TestCase):
         self.assertEqual(self.dispatch()["sent"], 0)
         self.send.assert_not_called()
         advice = bot.format_buy_advice(self.item)
-        self.assertIn("esperar confirmación", advice)
+        self.assertIn("todavía no entraría", advice)
         self.assertNotIn("Compra aquí", advice)
         self.assertEqual(Path(journal.JOURNAL_PATH).read_bytes(), before)
 
@@ -122,6 +122,25 @@ class TelegramScenariosTests(unittest.TestCase):
         self.assertLess(len(self.send.call_args.args[2]), 4096)
         self.assertIn("8 de 25", self.send.call_args.args[2])
         self.assertLess(len(bot.format_buy_advice(self.item)), 4096)
+
+    def test_plain_advice_gives_waiting_entry_and_roof_prices(self):
+        self.item.update(min=90, drop_pct=15, max=130, risk_mgmt={"take_profit_1": 120})
+        text = bot.format_buy_advice(self.item)
+        for price in ("$100.00", "$90.00", "$105.00", "$120.00", "$130.00"):
+            self.assertIn(price, text)
+        self.assertIn("todavía puede quedar bajada", text)
+        self.assertNotIn("entramos de una", text)
+
+    def test_plain_advice_only_enters_near_recorded_confirmation(self):
+        self.confirm()
+        self.assertIn("entramos de una", bot.format_buy_advice(self.item))
+        self.item['current_price'] = 108
+        self.assertNotIn("entramos de una", bot.format_buy_advice(self.item))
+        self.assertIn("no iría detrás del precio", bot.format_buy_advice(self.item))
+        self.item['current_price'] = 85
+        self.assertIn("Ahora no entraría", bot.format_buy_advice(self.item))
+        self.item['is_stale'] = True
+        self.assertNotIn("entramos de una", bot.format_buy_advice(self.item))
 
 
 if __name__ == "__main__":
