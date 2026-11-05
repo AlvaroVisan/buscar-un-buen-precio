@@ -14,6 +14,10 @@ con hora de cierre UTC. Una vela no cuenta hasta que transcurre su hora completa
 Mientras no haya un cierre por encima, el techo se actualiza con los picos recientes.
 En cada vela nueva se compara su cierre contra el techo de las dos anteriores,
 sin incluir la vela que intenta romperlo.
+Si hay un hueco de más de dos horas entre velas horarias, el techo y la tendencia
+corta usan las velas posteriores al hueco: no arrastran el máximo de ayer tras
+una apertura con caída. Puede haber inicialmente una sola vela para formar el techo;
+la entrada sigue exigiendo sus dos cierres posteriores de confirmación.
 
 Tras el primer cierre por encima se fija el techo. Se exigen dos cierres
 consecutivos de velas horarias distintas sobre ese mismo nivel, con cotización actual

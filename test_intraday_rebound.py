@@ -49,6 +49,14 @@ class IntradayReboundTests(unittest.TestCase):
         ticker.history.side_effect = OSError('simulated failure')
         self.assertEqual(fetch_rebound_bars(ticker), [])
 
+    def test_overnight_gap_does_not_keep_yesterdays_peak(self):
+        from scenario_engine import advance_watch
+        rows = [("2026-01-04 20:30:00", dict(High=489, Close=485)),
+                ("2026-01-05 15:30:00", dict(High=451, Close=418))]
+        watch = {'since': '2026-01-01'}
+        self.assertFalse(advance_watch(watch, rows, 430, '2026-01-05 16:00:00+00:00', intraday=True))
+        self.assertEqual(watch['breakout'], 451)
+
 
 if __name__ == '__main__':
     unittest.main()

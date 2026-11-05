@@ -3,6 +3,21 @@ import math
 from datetime import datetime, timezone
 
 
+def recent_rows(bars, count):
+    """No arrastrar picos de ayer tras un hueco entre sesiones horarias."""
+    rows = bars[-count:]
+    for index in range(len(rows) - 1, 0, -1):
+        if len(rows[index][0]) > 10:
+            gap = datetime.fromisoformat(rows[index][0]) - datetime.fromisoformat(rows[index - 1][0])
+            if gap.total_seconds() > 2 * 3600:
+                return rows[index:]
+    return rows
+
+
+def recent_roof(bars):
+    return max(float(row["High"]) for _, row in recent_rows(bars, 2))
+
+
 def advance_watch(watch, bars, price, now, intraday=False):
     """Techo móvil hasta el primer cierre; dos sesiones sobre el mismo nivel."""
     version = 3 if intraday else 2
@@ -10,7 +25,7 @@ def advance_watch(watch, bars, price, now, intraday=False):
     if watch.get("rules_version") != version:
         # Migración prospectiva: no convertir velas previas en señales nuevas.
         watch.update(rules_version=version, interval="1h" if intraday else "1d", level_since=stamp,
-                     breakout=max(float(r["High"]) for _, r in bars[-2:]),
+                     breakout=recent_roof(bars),
                      confirmations=0, last_breakout_day=bars[-1][0])
     for index, (day, bar) in enumerate(bars):
         if day <= max(watch["level_since"], watch["last_breakout_day"]):
@@ -18,15 +33,15 @@ def advance_watch(watch, bars, price, now, intraday=False):
         if index < 2:
             continue
         if watch["confirmations"] == 0:
-            watch["breakout"] = max(float(r["High"]) for _, r in bars[index - 2:index])
+            watch["breakout"] = recent_roof(bars[:index])
         if float(bar["Close"]) > watch["breakout"]:
             watch["confirmations"] = min(2, watch["confirmations"] + 1)
         else:
             watch["confirmations"] = 0
-            watch["breakout"] = max(float(r["High"]) for _, r in bars[max(0, index - 1):index + 1])
+            watch["breakout"] = recent_roof(bars[:index + 1])
         watch["last_breakout_day"] = day
     if watch["confirmations"] == 0:
-        watch["breakout"] = max(float(r["High"]) for _, r in bars[-2:])
+        watch["breakout"] = recent_roof(bars)
     return watch["confirmations"] >= 2 and price >= watch["breakout"]
 
 
@@ -82,7 +97,8 @@ def advance(journal, items, histories, now):
             trend = close > sum(float(r["Close"]) for _, r in bars[-4:]) / 4
         if len(signal_bars) >= 4:
             signal_close = float(signal_bars[-1][1]["Close"])
-            signal_trend = signal_close > sum(float(r["Close"]) for _, r in signal_bars[-4:]) / 4
+            trend_rows = recent_rows(signal_bars, 4)
+            signal_trend = len(trend_rows) >= 2 and signal_close > sum(float(r["Close"]) for _, r in trend_rows) / len(trend_rows)
             double_close = advance_watch(watch, signal_bars, price, now, intraday=intraday) if watch else False
             ready = bool(watch and double_close and signal_trend and not market_blocked)
         if watch:
